@@ -82,6 +82,56 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: The signed-in Player does not have a Group Membership for this Group.
+  /v1/groups/{groupId}/invites:
+    post:
+      operationId: createInvite
+      summary: Create an Invite for a Group
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Invite that another signed-in Account can accept.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invite"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player does not have a Group Membership for this Group.
+  /v1/invites/{token}/accept:
+    post:
+      operationId: acceptInvite
+      summary: Accept an Invite and join its Group
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The invited Group home after the signed-in Player joins.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupHomeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "404":
+          description: Invite is invalid.
+        "409":
+          description: Invite was already used, or the signed-in Player already has a Group Membership.
+        "410":
+          description: Invite expired.
   /v1/groups/{groupId}/seasons:
     post:
       operationId: startSeason
@@ -159,6 +209,21 @@ components:
         role:
           type: string
           enum: [Group Admin, Player]
+    Invite:
+      type: object
+      required: [id, groupId, token, createdBy, expiresAt]
+      properties:
+        id:
+          type: string
+        groupId:
+          type: string
+        token:
+          type: string
+        createdBy:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
     Season:
       type: object
       required: [id, groupId, commissionerPlayerId, status]

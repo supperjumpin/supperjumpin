@@ -2,13 +2,16 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Season")
@@ -63,11 +66,31 @@ type ListGroupsResponse struct {
 	Memberships []GroupMembershipSummary `json:"memberships"`
 }
 
+type Invite struct {
+	ID        string    `json:"id"`
+	GroupID   string    `json:"groupId"`
+	Token     string    `json:"token"`
+	CreatedBy string    `json:"createdBy"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+type InviteAcceptStatus string
+
+const (
+	InviteAccepted InviteAcceptStatus = "accepted"
+	InviteInvalid  InviteAcceptStatus = "invalid"
+	InviteUsed     InviteAcceptStatus = "used"
+	InviteExpired  InviteAcceptStatus = "expired"
+	InviteMember   InviteAcceptStatus = "member"
+)
+
 type Store interface {
 	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
 	CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error)
 	GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
+	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
+	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
 	StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 }
 
@@ -76,18 +99,38 @@ type MemoryStore struct {
 	accounts     map[string]MeResponse
 	groups       map[string]Group
 	memberships  map[string]map[string]GroupMembership
+	invites      map[string]memoryInvite
 	seasons      map[string]Season
+	now          func() time.Time
 	groupNumber  int
+	inviteNumber int
 	seasonNumber int
 }
 
+type memoryInvite struct {
+	Invite
+	UsedBy string
+}
+
 func NewMemoryStore() *MemoryStore {
+	return NewMemoryStoreWithClock(time.Now)
+}
+
+func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 	return &MemoryStore{
 		accounts:    map[string]MeResponse{},
 		groups:      map[string]Group{},
 		memberships: map[string]map[string]GroupMembership{},
+		invites:     map[string]memoryInvite{},
 		seasons:     map[string]Season{},
+		now:         now,
 	}
+}
+
+func (s *MemoryStore) SetClock(now func() time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.now = now
 }
 
 func (s *MemoryStore) BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error) {
@@ -157,6 +200,58 @@ func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroups
 	return ListGroupsResponse{Memberships: memberships}, nil
 }
 
+func (s *MemoryStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.memberships[groupID][player.ID]; !ok {
+		return Invite{}, false, nil
+	}
+
+	s.inviteNumber++
+	token, err := randomToken("invite_token")
+	if err != nil {
+		return Invite{}, false, err
+	}
+	invite := Invite{
+		ID:        stableID("invite", groupID+":"+strconv.Itoa(s.inviteNumber)),
+		GroupID:   groupID,
+		Token:     token,
+		CreatedBy: player.ID,
+		ExpiresAt: s.now().Add(7 * 24 * time.Hour).UTC(),
+	}
+	s.invites[invite.Token] = memoryInvite{Invite: invite}
+	return invite, true, nil
+}
+
+func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	invite, ok := s.invites[token]
+	if !ok {
+		return GroupHomeResponse{}, InviteInvalid, nil
+	}
+	if invite.UsedBy != "" {
+		return GroupHomeResponse{}, InviteUsed, nil
+	}
+	if s.now().After(invite.ExpiresAt) {
+		return GroupHomeResponse{}, InviteExpired, nil
+	}
+	group, ok := s.groups[invite.GroupID]
+	if !ok {
+		return GroupHomeResponse{}, InviteInvalid, nil
+	}
+	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
+	if _, ok := s.memberships[invite.GroupID][player.ID]; ok {
+		return GroupHomeResponse{}, InviteMember, nil
+	}
+	s.memberships[invite.GroupID][player.ID] = membership
+	invite.UsedBy = player.ID
+	s.invites[token] = invite
+	return groupHome(group, membership, s.activeSeasonForGroup(invite.GroupID)), InviteAccepted, nil
+}
+
 func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -203,6 +298,14 @@ func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
 
 func isOpenSeasonStatus(status string) bool {
 	return status == "Active" || status == "Judging Grace Period"
+}
+
+func randomToken(kind string) (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("generate %s: %w", kind, err)
+	}
+	return kind + "_" + hex.EncodeToString(bytes), nil
 }
 
 func groupHome(group Group, membership GroupMembership, activeSeason *Season) GroupHomeResponse {

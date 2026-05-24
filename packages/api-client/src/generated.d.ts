@@ -25,6 +25,14 @@ export interface GroupMembership {
   role: "Group Admin" | "Player";
 }
 
+export interface Invite {
+  id: string;
+  groupId: string;
+  token: string;
+  createdBy: string;
+  expiresAt: string;
+}
+
 export interface Season {
   id: string;
   groupId: string;

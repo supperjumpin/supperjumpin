@@ -44,6 +44,32 @@ export async function getGroupHome({ baseUrl, accessToken, groupId, fetchImpl = 
   return response.json();
 }
 
+export async function createInvite({ baseUrl, accessToken, groupId, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/groups/${groupId}/invites`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+
+  if (!response.ok) {
+    throw new Error(`createInvite failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function acceptInvite({ baseUrl, accessToken, token, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/invites/${token}/accept`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+
+  if (!response.ok) {
+    throw new Error(`acceptInvite failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function startSeason({ baseUrl, accessToken, groupId, fetchImpl = fetch }) {
   const response = await fetchImpl(`${baseUrl}/v1/groups/${groupId}/seasons`, {
     method: "POST",
