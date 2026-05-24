@@ -19,6 +19,8 @@ Create a GitHub issue in `supperjumpin/supperjumpin`.
 
 Add implementation issues and PRDs to the Supperjumpin GitHub Project when practical: https://github.com/orgs/supperjumpin/projects/1. Project field conventions are documented in `docs/project-board.md`.
 
+When breaking down a PRD, prefer GitHub sub-issues under the PRD issue for implementation slices that directly deliver that PRD. Use normal first-order issues for cross-cutting tech decisions, infrastructure chores, bugs, or future ideas that may support multiple PRDs.
+
 ## When a skill says "fetch the relevant ticket"
 
 Run `gh issue view <number> --comments`.

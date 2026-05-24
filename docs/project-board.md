@@ -28,3 +28,9 @@ GitHub does not currently expose project view creation through `gh`, so create t
 The project has the default GitHub workflows enabled, including auto-add, auto-add sub-issues, item closed, pull request merged, pull request linked to issue, and auto-close issue. Keep these enabled unless they start creating noise.
 
 When creating issues from PRDs, add them to this project and set `Priority`, `Area`, `Size`, and `Work Type` before implementation starts.
+
+## PRD Breakdown
+
+Use GitHub sub-issues for implementation slices that directly deliver a parent PRD. The parent PRD issue should track product intent and roll up progress; sub-issues should be vertical, independently mergeable slices rather than tiny task checklist items.
+
+Use normal first-order issues instead of sub-issues for cross-cutting tech decisions, infrastructure chores, bugs, or future ideas that may support multiple PRDs.
