@@ -1,9 +1,9 @@
 ---
-name: issue-wave-coordinator
-description: Coordinate multi-agent implementation waves from a parent GitHub issue and its sub-issues. Use when the user wants agents to work a PRD, issue tree, or blocked/unblocked issue graph in parallel until acceptance criteria are met.
+name: work-issue
+description: Work issue trees in parallel from a parent GitHub issue and its sub-issues. Use when the user says "work issue" or wants agents to execute a PRD, issue tree, or blocked/unblocked issue graph until acceptance criteria are met.
 ---
 
-# Issue Wave Coordinator
+# Work Issue
 
 Coordinate a parent PRD through dependency-ordered implementation waves. The coordinator is the user's interface; workers each own one issue in one isolated git worktree.
 
