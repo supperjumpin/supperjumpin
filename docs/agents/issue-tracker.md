@@ -17,6 +17,8 @@ Infer the repo from `git remote -v` - `gh` does this automatically when run insi
 
 Create a GitHub issue in `supperjumpin/supperjumpin`.
 
+Add implementation issues and PRDs to the Supperjumpin GitHub Project when practical: https://github.com/orgs/supperjumpin/projects/1. Project field conventions are documented in `docs/project-board.md`.
+
 ## When a skill says "fetch the relevant ticket"
 
 Run `gh issue view <number> --comments`.
