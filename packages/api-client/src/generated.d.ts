@@ -75,6 +75,16 @@ export interface EvidenceSubmission {
   evidence: Evidence;
 }
 
+export interface Judgment {
+  id: string;
+  stuntId: string;
+  playerId: string;
+  difficulty: number;
+  transgression: number;
+  creativity: number;
+  documentation: number;
+}
+
 export interface PerformedStuntView {
   stunt: Stunt;
   performer: Player;
