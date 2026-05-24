@@ -18,6 +18,70 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           description: Missing or invalid bearer token.
+  /v1/groups:
+    get:
+      operationId: listGroups
+      summary: List the signed-in Player's Group Memberships
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Group Memberships for the signed-in Player.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListGroupsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+    post:
+      operationId: createGroup
+      summary: Create a Group and make the creator a Group Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: The created Group home.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupHomeResponse"
+        "400":
+          description: Invalid Group creation request.
+        "401":
+          description: Missing or invalid bearer token.
+  /v1/groups/{groupId}/home:
+    get:
+      operationId: getGroupHome
+      summary: Fetch backend Group home data for a Group member
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group identity, the Player's Group Membership, current Season state, recent Stunts, and Standings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupHomeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player does not have a Group Membership for this Group.
 components:
   securitySchemes:
     bearerAuth:
@@ -51,3 +115,55 @@ components:
           description: Internal in-game Player identifier.
         displayName:
           type: string
+    Group:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    GroupMembership:
+      type: object
+      required: [groupId, playerId, role]
+      properties:
+        groupId:
+          type: string
+        playerId:
+          type: string
+        role:
+          type: string
+          enum: [Group Admin, Player]
+    GroupHomeResponse:
+      type: object
+      required: [group, membership, activeSeason, recentStunts, standings]
+      properties:
+        group:
+          $ref: "#/components/schemas/Group"
+        membership:
+          $ref: "#/components/schemas/GroupMembership"
+        activeSeason:
+          type: "null"
+          description: No Active Season exists for a newly-created Group.
+        recentStunts:
+          type: array
+          items: {}
+        standings:
+          type: array
+          items: {}
+    GroupMembershipSummary:
+      type: object
+      required: [group, membership]
+      properties:
+        group:
+          $ref: "#/components/schemas/Group"
+        membership:
+          $ref: "#/components/schemas/GroupMembership"
+    ListGroupsResponse:
+      type: object
+      required: [memberships]
+      properties:
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupMembershipSummary"

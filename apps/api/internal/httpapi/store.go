@@ -3,6 +3,8 @@ package httpapi
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -22,13 +24,48 @@ type MeResponse struct {
 	Player  Player  `json:"player"`
 }
 
+type Group struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type GroupMembership struct {
+	GroupID  string `json:"groupId"`
+	PlayerID string `json:"playerId"`
+	Role     string `json:"role"`
+}
+
+type GroupHomeResponse struct {
+	Group        Group           `json:"group"`
+	Membership   GroupMembership `json:"membership"`
+	ActiveSeason any             `json:"activeSeason"`
+	RecentStunts []any           `json:"recentStunts"`
+	Standings    []any           `json:"standings"`
+}
+
+type GroupMembershipSummary struct {
+	Group      Group           `json:"group"`
+	Membership GroupMembership `json:"membership"`
+}
+
+type ListGroupsResponse struct {
+	Memberships []GroupMembershipSummary `json:"memberships"`
+}
+
 type MemoryStore struct {
-	mu       sync.Mutex
-	accounts map[string]MeResponse
+	mu          sync.Mutex
+	accounts    map[string]MeResponse
+	groups      map[string]Group
+	memberships map[string]map[string]GroupMembership
+	groupNumber int
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{accounts: map[string]MeResponse{}}
+	return &MemoryStore{
+		accounts:    map[string]MeResponse{},
+		groups:      map[string]Group{},
+		memberships: map[string]map[string]GroupMembership{},
+	}
 }
 
 func (s *MemoryStore) BootstrapIdentity(identity AuthIdentity) MeResponse {
@@ -47,6 +84,64 @@ func (s *MemoryStore) BootstrapIdentity(identity AuthIdentity) MeResponse {
 	}
 	s.accounts[key] = profile
 	return profile
+}
+
+func (s *MemoryStore) CreateGroup(player Player, name string) GroupHomeResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.groupNumber++
+	group := Group{ID: stableID("group", player.ID+":"+name+":"+strconv.Itoa(s.groupNumber)), Name: name}
+	membership := GroupMembership{GroupID: group.ID, PlayerID: player.ID, Role: "Group Admin"}
+	s.groups[group.ID] = group
+	if s.memberships[group.ID] == nil {
+		s.memberships[group.ID] = map[string]GroupMembership{}
+	}
+	s.memberships[group.ID][player.ID] = membership
+	return groupHome(group, membership)
+}
+
+func (s *MemoryStore) GroupHome(player Player, groupID string) (GroupHomeResponse, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	group, ok := s.groups[groupID]
+	if !ok {
+		return GroupHomeResponse{}, false
+	}
+	membership, ok := s.memberships[groupID][player.ID]
+	if !ok {
+		return GroupHomeResponse{}, false
+	}
+	return groupHome(group, membership), true
+}
+
+func (s *MemoryStore) ListGroups(player Player) ListGroupsResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	memberships := []GroupMembershipSummary{}
+	for groupID, groupMemberships := range s.memberships {
+		membership, ok := groupMemberships[player.ID]
+		if !ok {
+			continue
+		}
+		memberships = append(memberships, GroupMembershipSummary{Group: s.groups[groupID], Membership: membership})
+	}
+	sort.Slice(memberships, func(i, j int) bool {
+		return memberships[i].Group.Name < memberships[j].Group.Name
+	})
+	return ListGroupsResponse{Memberships: memberships}
+}
+
+func groupHome(group Group, membership GroupMembership) GroupHomeResponse {
+	return GroupHomeResponse{
+		Group:        group,
+		Membership:   membership,
+		ActiveSeason: nil,
+		RecentStunts: []any{},
+		Standings:    []any{},
+	}
 }
 
 func stableID(kind string, value string) string {
