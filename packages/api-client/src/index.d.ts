@@ -5,6 +5,7 @@ import type {
   Invite,
   ListGroupsResponse,
   MeResponse,
+  PerformedStuntView,
   Stunt,
 } from "./generated";
 
@@ -20,6 +21,7 @@ export type {
   Invite,
   ListGroupsResponse,
   MeResponse,
+  PerformedStuntView,
   Player,
   Season,
   Stunt,

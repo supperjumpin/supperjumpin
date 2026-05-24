@@ -461,6 +461,16 @@ components:
           $ref: "#/components/schemas/Stunt"
         evidence:
           $ref: "#/components/schemas/Evidence"
+    PerformedStuntView:
+      type: object
+      required: [stunt, performer, evidence]
+      properties:
+        stunt:
+          $ref: "#/components/schemas/Stunt"
+        performer:
+          $ref: "#/components/schemas/Player"
+        evidence:
+          $ref: "#/components/schemas/Evidence"
     GroupHomeResponse:
       type: object
       required: [group, membership, activeSeason, recentStunts, standings]
@@ -476,7 +486,8 @@ components:
           description: The Group's Active Season, or null when none exists.
         recentStunts:
           type: array
-          items: {}
+          items:
+            $ref: "#/components/schemas/PerformedStuntView"
         standings:
           type: array
           items: {}
