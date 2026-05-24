@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: Supperjumpin API
+  version: 0.1.0
+paths:
+  /v1/me:
+    get:
+      operationId: getMe
+      summary: Fetch the signed-in Account and Player identity
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The internal Account and Player attached to the external auth identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    MeResponse:
+      type: object
+      required: [account, player]
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+        player:
+          $ref: "#/components/schemas/Player"
+    Account:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          description: Internal Account identifier, distinct from Supabase subject.
+        email:
+          type: string
+          format: email
+    Player:
+      type: object
+      required: [id, displayName]
+      properties:
+        id:
+          type: string
+          description: Internal in-game Player identifier.
+        displayName:
+          type: string
