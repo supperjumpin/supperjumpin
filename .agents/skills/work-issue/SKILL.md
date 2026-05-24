@@ -62,8 +62,10 @@ For each ready issue up to the concurrency limit:
 
 ```bash
 git fetch origin
-git worktree add ../supperjumpin-issue-<number> -b agent/issue-<number> origin/main
+git worktree add worktrees/issue-<number> -b agent/issue-<number> origin/main
 ```
+
+Keep worktrees under `worktrees/` inside the current repository checkout so OpenCode can access them without external-directory permission prompts during AFK runs.
 
 If there are zero ready issues, do not launch workers. Report why the remaining open sub-issues are not runnable: blocked by open issues, `ready-for-human`, `needs-triage`, `needs-info`, missing triage label, or already in progress.
 
