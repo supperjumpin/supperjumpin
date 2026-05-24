@@ -12,17 +12,6 @@ https://github.com/orgs/supperjumpin/projects/1
 - **Size**: `XS`, `S`, `M`, `L`, or `XL`.
 - **Work Type**: `PRD`, `Feature`, `Tech Decision`, `Chore`, or `Bug`.
 
-## Recommended Views
-
-GitHub does not currently expose project view creation through `gh`, so create these in the project UI.
-
-- **Board**: board layout, grouped by `Status`. Primary day-to-day Kanban view.
-- **Backlog**: table layout filtered to `Status:Todo`, showing `Priority`, `Area`, `Size`, `Assignees`, and `Labels`.
-- **Ready for Agent**: table or board filtered to label `ready-for-agent` and not `Status:Done`.
-- **By Area**: board layout grouped by `Area`, useful for seeing Mobile/API/Data/Auth balance.
-- **My Work**: table filtered to current assignee and not `Status:Done`.
-- **Decisions and Chores**: table filtered to `Work Type:Tech Decision` or `Work Type:Chore`.
-
 ## Workflows
 
 The project has the default GitHub workflows enabled, including auto-add, auto-add sub-issues, item closed, pull request merged, pull request linked to issue, and auto-close issue. Keep these enabled unless they start creating noise.
@@ -43,6 +32,14 @@ Use GitHub's relationship fields in addition to project fields:
 - **Parent issue** is populated when implementation slices are attached as sub-issues of a PRD.
 - **Sub-issues progress** is populated automatically on the parent PRD from its sub-issues.
 - **Blocked by / blocking** should be set for dependency ordering, not only described in the issue body.
+
+## Milestones
+
+Milestones represent release scopes (MVP, v1.1, etc.), not individual PRDs. A milestone may contain multiple PRDs and their sub-issues.
+
+When a PRD is scoped to a release, assign the milestone to the PRD issue and to every sub-issue under it. Milestone assignment does not cascade automatically — set it explicitly on each sub-issue when breaking down a PRD. The milestone progress bar is the primary signal for whether a release is ready to ship.
+
+Create milestones in the GitHub UI or with `gh api repos/supperjumpin/supperjumpin/milestones --method POST -f title="..."`.
 
 ## PRD Breakdown
 
