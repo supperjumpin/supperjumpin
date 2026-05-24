@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -207,6 +208,9 @@ WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')`, groupID).
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO seasons (id, group_id, commissioner_player_id, status)
 VALUES ($1, $2, $3, $4)`, season.ID, season.GroupID, season.CommissionerPlayerID, season.Status); err != nil {
+		if isSeasonOpenConflict(err) {
+			return GroupHomeResponse{}, true, ErrSeasonAlreadyOpen
+		}
 		return GroupHomeResponse{}, false, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -234,6 +238,14 @@ LIMIT 1`, groupID).Scan(
 		return nil, err
 	}
 	return &season, nil
+}
+
+func isSeasonOpenConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return false
+	}
+	return pgErr.ConstraintName == "seasons_one_open_per_group_idx" || pgErr.ConstraintName == "seasons_pkey"
 }
 
 func getProfileByAuthIdentity(ctx context.Context, tx *sql.Tx, provider string, subject string) (MeResponse, error) {
