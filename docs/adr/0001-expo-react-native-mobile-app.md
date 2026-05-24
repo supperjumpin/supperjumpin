@@ -1,0 +1,3 @@
+# Expo React Native Mobile App
+
+We will build the player-facing mobile app with Expo React Native rather than platform-native Swift/Kotlin or a server-driven UI system. This gives Supperjumpin native mobile capabilities with over-the-air iteration for most product changes, while keeping game rules and durable state in the backend instead of inventing a server-rendered native screen platform before the game model is proven.

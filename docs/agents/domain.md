@@ -11,7 +11,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ## File structure
 
-Single-context repo:
+Single product context monorepo:
 
 ```
 /
@@ -19,8 +19,16 @@ Single-context repo:
 |-- docs/adr/
 |   |-- 0001-event-sourced-orders.md
 |   `-- 0002-postgres-for-write-model.md
-`-- src/
+|-- apps/
+|   |-- mobile/
+|   `-- api/
+`-- packages/
+    `-- api-client/
 ```
+
+`apps/mobile` and `apps/api` are implementation boundaries, not separate domain contexts. Use the same root glossary vocabulary in mobile screens, API routes, issues, tests, and architecture notes.
+
+Do not create per-app `CONTEXT.md` files unless the product domain genuinely splits later. App-specific or API-specific implementation notes may live under their app directories, but domain language stays rooted here.
 
 ## Use the glossary's vocabulary
 
