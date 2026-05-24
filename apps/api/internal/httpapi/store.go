@@ -20,6 +20,8 @@ var ErrStuntNotFound = errors.New("Stunt not found")
 
 var ErrEvidenceUploadAuthorizationNotFound = errors.New("Evidence upload authorization not found")
 
+var ErrJudgingWindowClosed = errors.New("Judging Window closed")
+
 type Account struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
@@ -102,6 +104,16 @@ type EvidenceSubmission struct {
 	Evidence Evidence `json:"evidence"`
 }
 
+type Judgment struct {
+	ID            string `json:"id"`
+	StuntID       string `json:"stuntId"`
+	PlayerID      string `json:"playerId"`
+	Difficulty    int    `json:"difficulty"`
+	Transgression int    `json:"transgression"`
+	Creativity    int    `json:"creativity"`
+	Documentation int    `json:"documentation"`
+}
+
 type GroupMembershipSummary struct {
 	Group      Group           `json:"group"`
 	Membership GroupMembership `json:"membership"`
@@ -141,6 +153,7 @@ type Store interface {
 	CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error)
 	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
 	SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error)
+	SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error)
 }
 
 type MemoryStore struct {
@@ -154,6 +167,7 @@ type MemoryStore struct {
 	stunts       map[string]Stunt
 	uploads      map[string]EvidenceUploadAuthorization
 	evidences    map[string]Evidence
+	judgments    map[string]Judgment
 	now          func() time.Time
 	groupNumber  int
 	inviteNumber int
@@ -182,6 +196,7 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		stunts:      map[string]Stunt{},
 		uploads:     map[string]EvidenceUploadAuthorization{},
 		evidences:   map[string]Evidence{},
+		judgments:   map[string]Judgment{},
 		now:         now,
 	}
 }
@@ -190,6 +205,14 @@ func (s *MemoryStore) SetClock(now func() time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.now = now
+}
+
+func (s *MemoryStore) SetSeasonStatus(seasonID string, status string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	season := s.seasons[seasonID]
+	season.Status = status
+	s.seasons[seasonID] = season
 }
 
 func (s *MemoryStore) BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error) {
@@ -442,6 +465,36 @@ func (s *MemoryStore) SubmitEvidence(ctx context.Context, player Player, stuntID
 	return EvidenceSubmission{Stunt: stunt, Evidence: evidence}, true, nil
 }
 
+func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok || stunt.Status != "Performed Stunt" {
+		return Judgment{}, false, false, ErrStuntNotFound
+	}
+	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok || stunt.PlayerID == player.ID {
+		return Judgment{}, false, false, nil
+	}
+	if !s.judgingWindowOpen(stunt) {
+		return Judgment{}, false, false, ErrJudgingWindowClosed
+	}
+
+	key := stuntID + ":" + player.ID
+	_, existed := s.judgments[key]
+	judgment := Judgment{
+		ID:            stableID("judgment", key),
+		StuntID:       stuntID,
+		PlayerID:      player.ID,
+		Difficulty:    difficulty,
+		Transgression: transgression,
+		Creativity:    creativity,
+		Documentation: documentation,
+	}
+	s.judgments[key] = judgment
+	return judgment, true, !existed, nil
+}
+
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
 	for _, season := range s.seasons {
 		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
@@ -482,6 +535,14 @@ func (s *MemoryStore) recentPerformedStuntsForGroup(groupID string) []PerformedS
 		return performed[i].Evidence.CreatedAt.After(performed[j].Evidence.CreatedAt)
 	})
 	return performed
+}
+
+func (s *MemoryStore) judgingWindowOpen(stunt Stunt) bool {
+	if stunt.SeasonID == nil {
+		return true
+	}
+	season, ok := s.seasons[*stunt.SeasonID]
+	return ok && isOpenSeasonStatus(season.Status)
 }
 
 func isOpenSeasonStatus(status string) bool {

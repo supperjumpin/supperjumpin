@@ -13,6 +13,7 @@ import {
   listGroups,
   startSeason,
   submitEvidence,
+  submitJudgment,
 } from "./index.js";
 
 test("getMe calls the backend with the Supabase bearer token", async () => {
@@ -340,6 +341,49 @@ test("submitEvidence finalizes backend-owned Evidence for a Planned Stunt", asyn
   });
   assert.equal(submission.stunt.status, "Performed Stunt");
   assert.equal(submission.evidence.mediaObjectKey, "evidence_object_123");
+});
+
+test("submitJudgment posts the four Judgment scores for a Performed Stunt", async () => {
+  const seen = {};
+  const judgment = await submitJudgment({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    stuntId: "stunt_123",
+    difficulty: 4,
+    transgression: 5,
+    creativity: 3,
+    documentation: 2,
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json(
+        {
+          id: "judgment_123",
+          stuntId: "stunt_123",
+          playerId: "player_456",
+          difficulty: 4,
+          transgression: 5,
+          creativity: 3,
+          documentation: 2,
+        },
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/stunts/stunt_123/judgment");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.deepEqual(seen.body, {
+    difficulty: 4,
+    transgression: 5,
+    creativity: 3,
+    documentation: 2,
+  });
+  assert.equal(judgment.playerId, "player_456");
+  assert.equal(judgment.transgression, 5);
 });
 
 function groupHomeResponse(group, activeSeason = null, recentStunts = []) {
