@@ -498,6 +498,27 @@ func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 	}
 }
 
+func TestJudgmentScoresMustStayInRange(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
+		"difficulty":    11,
+		"transgression": 5,
+		"creativity":    3,
+		"documentation": 2,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected out-of-range Judgment score status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) {
 	store := httpapi.NewMemoryStore()
 	server := newGroupsTestServerWithStore(store)

@@ -647,6 +647,10 @@ WHERE id = $1 AND status = 'Planned Stunt'`, stuntID); err != nil {
 }
 
 func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
+	if !validJudgmentScores(difficulty, transgression, creativity, documentation) {
+		return Judgment{}, false, false, ErrInvalidJudgmentScore
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Judgment{}, false, false, err

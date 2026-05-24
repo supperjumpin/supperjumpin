@@ -22,6 +22,8 @@ var ErrEvidenceUploadAuthorizationNotFound = errors.New("Evidence upload authori
 
 var ErrJudgingWindowClosed = errors.New("Judging Window closed")
 
+var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
+
 type Account struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
@@ -469,6 +471,10 @@ func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if !validJudgmentScores(difficulty, transgression, creativity, documentation) {
+		return Judgment{}, false, false, ErrInvalidJudgmentScore
+	}
+
 	stunt, ok := s.stunts[stuntID]
 	if !ok || stunt.Status != "Performed Stunt" {
 		return Judgment{}, false, false, ErrStuntNotFound
@@ -547,6 +553,15 @@ func (s *MemoryStore) judgingWindowOpen(stunt Stunt) bool {
 
 func isOpenSeasonStatus(status string) bool {
 	return status == "Active" || status == "Judging Grace Period"
+}
+
+func validJudgmentScores(scores ...int) bool {
+	for _, score := range scores {
+		if score < 0 || score > 10 {
+			return false
+		}
+	}
+	return true
 }
 
 func randomToken(kind string) (string, error) {

@@ -324,10 +324,6 @@ func NewServer(config ServerConfig) http.Handler {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		if !validJudgmentScore(request.Difficulty) || !validJudgmentScore(request.Transgression) || !validJudgmentScore(request.Creativity) || !validJudgmentScore(request.Documentation) {
-			http.Error(w, "Judgment scores must be between 0 and 10", http.StatusBadRequest)
-			return
-		}
 
 		judgment, ok, created, err := config.Store.SubmitJudgment(
 			r.Context(),
@@ -344,6 +340,10 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 		if errors.Is(err, ErrJudgingWindowClosed) {
 			http.Error(w, "Judging Window closed", http.StatusConflict)
+			return
+		}
+		if errors.Is(err, ErrInvalidJudgmentScore) {
+			http.Error(w, "Judgment scores must be between 0 and 10", http.StatusBadRequest)
 			return
 		}
 		if err != nil {
@@ -401,8 +401,4 @@ func bearerToken(header string) (string, bool) {
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(header, prefix))
 	return token, token != ""
-}
-
-func validJudgmentScore(score int) bool {
-	return score >= 0 && score <= 10
 }
