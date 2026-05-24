@@ -98,7 +98,7 @@ VALUES ($1, $2, $3)`, membership.GroupID, membership.PlayerID, membership.Role);
 	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, err
 	}
-	return groupHome(group, membership), nil
+	return groupHome(group, membership, nil), nil
 }
 
 func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
@@ -120,7 +120,11 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 		return GroupHomeResponse{}, false, err
 	}
 	membership.GroupID = group.ID
-	return groupHome(group, membership), true, nil
+	season, err := s.activeSeasonForGroup(ctx, group.ID)
+	if err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	return groupHome(group, membership, season), true, nil
 }
 
 func (s *PostgresStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
@@ -152,6 +156,84 @@ ORDER BY groups.name`, player.ID)
 		return memberships[i].Group.Name < memberships[j].Group.Name
 	})
 	return ListGroupsResponse{Memberships: memberships}, nil
+}
+
+func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	defer tx.Rollback()
+
+	var group Group
+	var membership GroupMembership
+	if err := tx.QueryRowContext(ctx, `
+SELECT groups.id, groups.name, group_memberships.player_id, group_memberships.role
+FROM group_memberships
+JOIN groups ON groups.id = group_memberships.group_id
+WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, groupID, player.ID).Scan(
+		&group.ID,
+		&group.Name,
+		&membership.PlayerID,
+		&membership.Role,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GroupHomeResponse{}, false, nil
+		}
+		return GroupHomeResponse{}, false, err
+	}
+	membership.GroupID = group.ID
+	var openCount int
+	if err := tx.QueryRowContext(ctx, `
+SELECT count(*)
+FROM seasons
+WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')`, groupID).Scan(&openCount); err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	if openCount > 0 {
+		return GroupHomeResponse{}, true, ErrSeasonAlreadyOpen
+	}
+
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM seasons`).Scan(&count); err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	season := Season{
+		ID:                   stableID("season", groupID+":"+strconv.Itoa(count+1)),
+		GroupID:              groupID,
+		CommissionerPlayerID: player.ID,
+		Status:               "Active",
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO seasons (id, group_id, commissioner_player_id, status)
+VALUES ($1, $2, $3, $4)`, season.ID, season.GroupID, season.CommissionerPlayerID, season.Status); err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	return groupHome(group, membership, &season), true, nil
+}
+
+func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
+	var season Season
+	if err := s.db.QueryRowContext(ctx, `
+SELECT id, group_id, commissioner_player_id, status
+FROM seasons
+WHERE group_id = $1 AND status = 'Active'
+ORDER BY created_at DESC
+LIMIT 1`, groupID).Scan(
+		&season.ID,
+		&season.GroupID,
+		&season.CommissionerPlayerID,
+		&season.Status,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &season, nil
 }
 
 func getProfileByAuthIdentity(ctx context.Context, tx *sql.Tx, provider string, subject string) (MeResponse, error) {

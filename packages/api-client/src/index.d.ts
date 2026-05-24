@@ -9,6 +9,7 @@ export type {
   ListGroupsResponse,
   MeResponse,
   Player,
+  Season,
 } from "./generated";
 
 export function getMe(args: {
@@ -31,6 +32,13 @@ export function listGroups(args: {
 }): Promise<ListGroupsResponse>;
 
 export function getGroupHome(args: {
+  baseUrl: string;
+  accessToken: string;
+  groupId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GroupHomeResponse>;
+
+export function startSeason(args: {
   baseUrl: string;
   accessToken: string;
   groupId: string;

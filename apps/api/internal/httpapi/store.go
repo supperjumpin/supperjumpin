@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 )
+
+var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Season")
 
 type Account struct {
 	ID    string `json:"id"`
@@ -36,10 +39,17 @@ type GroupMembership struct {
 	Role     string `json:"role"`
 }
 
+type Season struct {
+	ID                   string `json:"id"`
+	GroupID              string `json:"groupId"`
+	CommissionerPlayerID string `json:"commissionerPlayerId"`
+	Status               string `json:"status"`
+}
+
 type GroupHomeResponse struct {
 	Group        Group           `json:"group"`
 	Membership   GroupMembership `json:"membership"`
-	ActiveSeason any             `json:"activeSeason"`
+	ActiveSeason *Season         `json:"activeSeason"`
 	RecentStunts []any           `json:"recentStunts"`
 	Standings    []any           `json:"standings"`
 }
@@ -58,14 +68,17 @@ type Store interface {
 	CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error)
 	GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
+	StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 }
 
 type MemoryStore struct {
-	mu          sync.Mutex
-	accounts    map[string]MeResponse
-	groups      map[string]Group
-	memberships map[string]map[string]GroupMembership
-	groupNumber int
+	mu           sync.Mutex
+	accounts     map[string]MeResponse
+	groups       map[string]Group
+	memberships  map[string]map[string]GroupMembership
+	seasons      map[string]Season
+	groupNumber  int
+	seasonNumber int
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -73,6 +86,7 @@ func NewMemoryStore() *MemoryStore {
 		accounts:    map[string]MeResponse{},
 		groups:      map[string]Group{},
 		memberships: map[string]map[string]GroupMembership{},
+		seasons:     map[string]Season{},
 	}
 }
 
@@ -106,7 +120,7 @@ func (s *MemoryStore) CreateGroup(ctx context.Context, player Player, name strin
 		s.memberships[group.ID] = map[string]GroupMembership{}
 	}
 	s.memberships[group.ID][player.ID] = membership
-	return groupHome(group, membership), nil
+	return groupHome(group, membership, nil), nil
 }
 
 func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
@@ -121,7 +135,8 @@ func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID stri
 	if !ok {
 		return GroupHomeResponse{}, false, nil
 	}
-	return groupHome(group, membership), true, nil
+	season := s.activeSeasonForGroup(groupID)
+	return groupHome(group, membership, season), true, nil
 }
 
 func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
@@ -142,11 +157,59 @@ func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroups
 	return ListGroupsResponse{Memberships: memberships}, nil
 }
 
-func groupHome(group Group, membership GroupMembership) GroupHomeResponse {
+func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	group, ok := s.groups[groupID]
+	if !ok {
+		return GroupHomeResponse{}, false, nil
+	}
+	membership, ok := s.memberships[groupID][player.ID]
+	if !ok {
+		return GroupHomeResponse{}, false, nil
+	}
+	if s.openSeasonForGroup(groupID) != nil {
+		return GroupHomeResponse{}, true, ErrSeasonAlreadyOpen
+	}
+
+	s.seasonNumber++
+	season := Season{
+		ID:                   stableID("season", groupID+":"+strconv.Itoa(s.seasonNumber)),
+		GroupID:              groupID,
+		CommissionerPlayerID: player.ID,
+		Status:               "Active",
+	}
+	s.seasons[season.ID] = season
+	return groupHome(group, membership, &season), true, nil
+}
+
+func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
+	for _, season := range s.seasons {
+		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
+			return &season
+		}
+	}
+	return nil
+}
+
+func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
+	season := s.openSeasonForGroup(groupID)
+	if season != nil && season.Status == "Active" {
+		return season
+	}
+	return nil
+}
+
+func isOpenSeasonStatus(status string) bool {
+	return status == "Active" || status == "Judging Grace Period"
+}
+
+func groupHome(group Group, membership GroupMembership, activeSeason *Season) GroupHomeResponse {
 	return GroupHomeResponse{
 		Group:        group,
 		Membership:   membership,
-		ActiveSeason: nil,
+		ActiveSeason: activeSeason,
 		RecentStunts: []any{},
 		Standings:    []any{},
 	}

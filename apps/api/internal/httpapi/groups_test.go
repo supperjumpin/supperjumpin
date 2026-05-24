@@ -121,6 +121,54 @@ func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
 	}
 }
 
+func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if startRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", startRec.Code, startRec.Body.String())
+	}
+
+	var started groupHomeBody
+	decodeResponse(t, startRec, &started)
+	if started.ActiveSeason == nil {
+		t.Fatalf("expected Active Season on start response")
+	}
+	if started.ActiveSeason.Status != "Active" {
+		t.Fatalf("expected Active Season status, got %q", started.ActiveSeason.Status)
+	}
+	if started.ActiveSeason.CommissionerPlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected starting Player to be Season Commissioner, got %#v", started.ActiveSeason)
+	}
+	if len(started.Standings) != 0 {
+		t.Fatalf("expected empty Standings, got %#v", started.Standings)
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if home.ActiveSeason == nil || home.ActiveSeason.ID != started.ActiveSeason.ID {
+		t.Fatalf("expected Group home to show backend Active Season, got %#v", home.ActiveSeason)
+	}
+	if len(home.Standings) != 0 {
+		t.Fatalf("expected empty Standings on Group home, got %#v", home.Standings)
+	}
+}
+
+func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	firstRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if firstRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", firstRec.Code, firstRec.Body.String())
+	}
+
+	secondRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if secondRec.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
+	}
+}
+
 func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -200,6 +248,12 @@ type groupHomeBody struct {
 		PlayerID string `json:"playerId"`
 		Role     string `json:"role"`
 	} `json:"membership"`
+	ActiveSeason *struct {
+		ID                   string `json:"id"`
+		Status               string `json:"status"`
+		CommissionerPlayerID string `json:"commissionerPlayerId"`
+	} `json:"activeSeason"`
+	Standings []any `json:"standings"`
 }
 
 func createGroup(t *testing.T, server http.Handler, token string, name string) groupHomeBody {

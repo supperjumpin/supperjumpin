@@ -12,6 +12,7 @@ for (const required of [
   "operationId: createGroup",
   "operationId: listGroups",
   "operationId: getGroupHome",
+  "operationId: startSeason",
   "GroupHomeResponse:",
 ]) {
   if (!contract.includes(required)) {
@@ -43,10 +44,16 @@ await writeFile(
     `  playerId: string;\n` +
     `  role: "Group Admin" | "Player";\n` +
     `}\n\n` +
+    `export interface Season {\n` +
+    `  id: string;\n` +
+    `  groupId: string;\n` +
+    `  commissionerPlayerId: string;\n` +
+    `  status: "Active" | "Judging Grace Period" | "Finalized";\n` +
+    `}\n\n` +
     `export interface GroupHomeResponse {\n` +
     `  group: Group;\n` +
     `  membership: GroupMembership;\n` +
-    `  activeSeason: null;\n` +
+    `  activeSeason: Season | null;\n` +
     `  recentStunts: unknown[];\n` +
     `  standings: unknown[];\n` +
     `}\n\n` +

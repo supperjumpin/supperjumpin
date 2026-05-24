@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -96,6 +97,28 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, home)
+	})
+	mux.HandleFunc("POST /v1/groups/{groupID}/seasons", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		home, ok, err := config.Store.StartSeason(r.Context(), profile.Player, r.PathValue("groupID"))
+		if errors.Is(err, ErrSeasonAlreadyOpen) {
+			http.Error(w, "Group already has an active or closing Season", http.StatusConflict)
+			return
+		}
+		if err != nil {
+			http.Error(w, "start Season", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Group Membership required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, home)
 	})
 	return mux
 }
