@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { Button, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
   acceptInvite,
@@ -166,7 +166,8 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.card}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.card}>
         <Text style={styles.title}>Supperjumpin</Text>
         <Text style={styles.body}>{status}</Text>
         <TextInput
@@ -264,7 +265,8 @@ export default function App() {
             </View>
           </View>
         ) : null}
-      </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -273,6 +275,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#f7efe2",
+  },
+  content: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 24,
   },

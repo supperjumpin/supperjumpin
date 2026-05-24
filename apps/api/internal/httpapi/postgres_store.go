@@ -368,12 +368,7 @@ func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID s
 	} else if !ok {
 		return Stunt{}, false, nil
 	}
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM stunts`).Scan(&count); err != nil {
-		return Stunt{}, false, err
-	}
 	stunt := Stunt{
-		ID:          stableID("stunt", groupID+":"+player.ID+":"+strconv.Itoa(count+1)),
 		GroupID:     groupID,
 		PlayerID:    player.ID,
 		Status:      "Idea",
@@ -382,10 +377,29 @@ func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID s
 		Food:        food,
 		OffSeason:   true,
 	}
-	if _, err := tx.ExecContext(ctx, `
+	for attempts := 0; attempts < 3; attempts++ {
+		id, err := randomToken("stunt")
+		if err != nil {
+			return Stunt{}, false, err
+		}
+		stunt.ID = id
+		result, err := tx.ExecContext(ctx, `
 INSERT INTO stunts (id, group_id, player_id, status, source, destination, food)
-VALUES ($1, $2, $3, $4, $5, $6, $7)`, stunt.ID, stunt.GroupID, stunt.PlayerID, stunt.Status, stunt.Source, stunt.Destination, stunt.Food); err != nil {
-		return Stunt{}, false, err
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT DO NOTHING`, stunt.ID, stunt.GroupID, stunt.PlayerID, stunt.Status, stunt.Source, stunt.Destination, stunt.Food)
+		if err != nil {
+			return Stunt{}, false, err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return Stunt{}, false, err
+		}
+		if rows == 1 {
+			break
+		}
+		if attempts == 2 {
+			return Stunt{}, false, fmt.Errorf("create unique Idea after retries")
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return Stunt{}, false, err
@@ -415,29 +429,67 @@ func (s *PostgresStore) CreatePlannedStunt(ctx context.Context, player Player, i
 	} else if !ok || stunt.PlayerID != player.ID {
 		return Stunt{}, false, nil
 	}
-	stunt.Status = "Planned Stunt"
-	stunt.SeasonID = nil
-	stunt.OffSeason = true
+	seasonID := (*string)(nil)
 	if !offSeason {
 		season, err := activeSeasonForGroupInTx(ctx, tx, stunt.GroupID)
 		if err != nil {
 			return Stunt{}, false, err
 		}
 		if season != nil {
-			stunt.SeasonID = &season.ID
-			stunt.OffSeason = false
+			seasonID = &season.ID
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `
+	var updated Stunt
+	var updatedSeasonID sql.NullString
+	if err := tx.QueryRowContext(ctx, `
 UPDATE stunts
-SET status = $1, season_id = $2
-WHERE id = $3`, stunt.Status, stunt.SeasonID, stunt.ID); err != nil {
-		return Stunt{}, false, err
+SET status = 'Planned Stunt', season_id = $2
+WHERE id = $1
+  AND status = 'Idea'
+  AND player_id = $3
+  AND EXISTS (
+    SELECT 1
+    FROM group_memberships
+    WHERE group_memberships.group_id = stunts.group_id
+      AND group_memberships.player_id = $3
+  )
+RETURNING id, group_id, player_id, season_id, status, source, destination, food`, stunt.ID, seasonID, player.ID).Scan(
+		&updated.ID,
+		&updated.GroupID,
+		&updated.PlayerID,
+		&updatedSeasonID,
+		&updated.Status,
+		&updated.Source,
+		&updated.Destination,
+		&updated.Food,
+	); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return Stunt{}, false, err
+		}
+		latest, latestErr := stuntInTx(ctx, tx, ideaID)
+		if errors.Is(latestErr, sql.ErrNoRows) {
+			return Stunt{}, false, ErrStuntNotFound
+		}
+		if latestErr != nil {
+			return Stunt{}, false, latestErr
+		}
+		if _, ok, err := groupMembershipInTx(ctx, tx, player, latest.GroupID); err != nil {
+			return Stunt{}, false, err
+		} else if !ok || latest.PlayerID != player.ID {
+			return Stunt{}, false, nil
+		}
+		return Stunt{}, false, ErrStuntNotFound
+	}
+	if updatedSeasonID.Valid {
+		updated.SeasonID = &updatedSeasonID.String
+		updated.OffSeason = false
+	} else {
+		updated.OffSeason = true
 	}
 	if err := tx.Commit(); err != nil {
 		return Stunt{}, false, err
 	}
-	return stunt, true, nil
+	return updated, true, nil
 }
 
 func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
