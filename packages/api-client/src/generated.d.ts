@@ -25,10 +25,17 @@ export interface GroupMembership {
   role: "Group Admin" | "Player";
 }
 
+export interface Season {
+  id: string;
+  groupId: string;
+  commissionerPlayerId: string;
+  status: "Active" | "Judging Grace Period" | "Finalized";
+}
+
 export interface GroupHomeResponse {
   group: Group;
   membership: GroupMembership;
-  activeSeason: null;
+  activeSeason: Season | null;
   recentStunts: unknown[];
   standings: unknown[];
 }

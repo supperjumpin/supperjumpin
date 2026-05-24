@@ -82,6 +82,31 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: The signed-in Player does not have a Group Membership for this Group.
+  /v1/groups/{groupId}/seasons:
+    post:
+      operationId: startSeason
+      summary: Start a Season for a Group with no active or closing Season
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: The Group home after starting the Active Season.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupHomeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player does not have a Group Membership for this Group.
+        "409":
+          description: The Group already has an active or closing Season.
 components:
   securitySchemes:
     bearerAuth:
@@ -134,6 +159,19 @@ components:
         role:
           type: string
           enum: [Group Admin, Player]
+    Season:
+      type: object
+      required: [id, groupId, commissionerPlayerId, status]
+      properties:
+        id:
+          type: string
+        groupId:
+          type: string
+        commissionerPlayerId:
+          type: string
+        status:
+          type: string
+          enum: [Active, Judging Grace Period, Finalized]
     GroupHomeResponse:
       type: object
       required: [group, membership, activeSeason, recentStunts, standings]
@@ -143,8 +181,10 @@ components:
         membership:
           $ref: "#/components/schemas/GroupMembership"
         activeSeason:
-          type: "null"
-          description: No Active Season exists for a newly-created Group.
+          anyOf:
+            - $ref: "#/components/schemas/Season"
+            - type: "null"
+          description: The Group's Active Season, or null when none exists.
         recentStunts:
           type: array
           items: {}
