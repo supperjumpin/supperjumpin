@@ -258,6 +258,101 @@ func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
 	}
 }
 
+func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedStuntDuringActiveSeason(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+
+	ideaRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "alice-token", map[string]string{
+		"source":      "Taco Bell",
+		"destination": "Olive Garden parking lot",
+		"food":        "Crunchwrap",
+	})
+	if ideaRec.Code != http.StatusCreated {
+		t.Fatalf("expected Idea status 201, got %d: %s", ideaRec.Code, ideaRec.Body.String())
+	}
+	var idea stuntBody
+	decodeResponse(t, ideaRec, &idea)
+	if idea.ID == "" || idea.GroupID != group.Group.ID || idea.PlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected Group-scoped Idea for Alice, got %#v", idea)
+	}
+	if idea.Status != "Idea" || idea.SeasonID != nil || !idea.OffSeason {
+		t.Fatalf("expected Off-Season Idea before planning, got %#v", idea)
+	}
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-stunt", "alice-token", nil)
+	if planRec.Code != http.StatusCreated {
+		t.Fatalf("expected Planned Stunt status 201, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var planned stuntBody
+	decodeResponse(t, planRec, &planned)
+	if planned.ID != idea.ID || planned.Status != "Planned Stunt" {
+		t.Fatalf("expected same Stunt to become a Planned Stunt, got %#v", planned)
+	}
+	if planned.GroupID != group.Group.ID {
+		t.Fatalf("expected Planned Stunt to belong to exactly one Group %q, got %q", group.Group.ID, planned.GroupID)
+	}
+	if planned.SeasonID == nil || *planned.SeasonID != season.ActiveSeason.ID || planned.OffSeason {
+		t.Fatalf("expected Planned Stunt to be Season-linked by default, got %#v", planned)
+	}
+	if planned.Source != "Taco Bell" || planned.Destination != "Olive Garden parking lot" || planned.Food != "Crunchwrap" {
+		t.Fatalf("expected Source, Destination, and Food from Idea, got %#v", planned)
+	}
+}
+
+func TestPlannedStuntCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-stunt", "alice-token", map[string]bool{"offSeason": true})
+	if planRec.Code != http.StatusCreated {
+		t.Fatalf("expected Planned Stunt status 201, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var planned stuntBody
+	decodeResponse(t, planRec, &planned)
+	if planned.SeasonID != nil || !planned.OffSeason {
+		t.Fatalf("expected explicit Off-Season Stunt, got %#v", planned)
+	}
+}
+
+func TestPlannedStuntIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-stunt", "alice-token", nil)
+	if planRec.Code != http.StatusCreated {
+		t.Fatalf("expected Planned Stunt status 201, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var planned stuntBody
+	decodeResponse(t, planRec, &planned)
+	if planned.SeasonID != nil || !planned.OffSeason {
+		t.Fatalf("expected Off-Season Stunt without Active Season, got %#v", planned)
+	}
+}
+
+func TestIdeaAndPlannedStuntRequireGroupMembership(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Burger King", "bowling alley", "Whopper")
+
+	createRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "bob-token", map[string]string{
+		"source":      "Taco Bell",
+		"destination": "Olive Garden parking lot",
+		"food":        "Crunchwrap",
+	})
+	if createRec.Code != http.StatusForbidden {
+		t.Fatalf("expected non-member Idea creation status 403, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-stunt", "bob-token", nil)
+	if planRec.Code != http.StatusForbidden {
+		t.Fatalf("expected non-member Planned Stunt status 403, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+}
+
 func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -440,6 +535,98 @@ func TestPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *tes
 	}
 }
 
+func TestPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Concurrent Idea Creators")
+
+	const ideaCount = 4
+	ideas := make(chan stuntBody, ideaCount)
+	errors := make(chan string, ideaCount)
+	var wg sync.WaitGroup
+	for i := 0; i < ideaCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "alice-token", map[string]string{
+				"source":      "Taco Bell",
+				"destination": "Olive Garden parking lot",
+				"food":        "Crunchwrap",
+			})
+			if rec.Code != http.StatusCreated {
+				errors <- rec.Body.String()
+				return
+			}
+			var idea stuntBody
+			if err := json.NewDecoder(rec.Body).Decode(&idea); err != nil {
+				errors <- err.Error()
+				return
+			}
+			ideas <- idea
+		}()
+	}
+	wg.Wait()
+	close(ideas)
+	close(errors)
+	for err := range errors {
+		t.Fatalf("expected concurrent Idea creation to succeed, got %s", err)
+	}
+
+	ids := []string{}
+	for idea := range ideas {
+		ids = append(ids, idea.ID)
+	}
+	if len(ids) != ideaCount {
+		t.Fatalf("expected %d Ideas, got %d", ideaCount, len(ids))
+	}
+	sort.Strings(ids)
+	for i := 1; i < len(ids); i++ {
+		if ids[i] == ids[i-1] {
+			t.Fatalf("expected distinct Idea ids, got %v", ids)
+		}
+	}
+}
+
+func TestPostgresConcurrentPlannedStuntCreationOnlyTransitionsIdeaOnce(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+	installSlowStuntUpdateTrigger(t, databaseURL)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Concurrent Planners")
+	startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+
+	codes := make(chan int, 2)
+	var wg sync.WaitGroup
+	for _, body := range []any{nil, map[string]bool{"offSeason": true}} {
+		wg.Add(1)
+		go func(body any) {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-stunt", "alice-token", body)
+			codes <- rec.Code
+		}(body)
+	}
+	wg.Wait()
+	close(codes)
+
+	seen := map[int]int{}
+	for code := range codes {
+		seen[code]++
+	}
+	if seen[http.StatusCreated] != 1 || seen[http.StatusNotFound] != 1 {
+		t.Fatalf("expected one Planned Stunt creation and one rejected transition, got %#v", seen)
+	}
+}
+
 func newGroupsTestServer() http.Handler {
 	return newGroupsTestServerWithStore(httpapi.NewMemoryStore())
 }
@@ -499,6 +686,40 @@ FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_season_insert();`); err != 
 DROP TRIGGER IF EXISTS supperjumpin_test_slow_season_insert ON seasons;
 DROP FUNCTION IF EXISTS supperjumpin_test_slow_season_insert();`); err != nil {
 			t.Fatalf("remove slow Season insert trigger: %v", err)
+		}
+	})
+}
+
+func installSlowStuntUpdateTrigger(t *testing.T, databaseURL string) {
+	t.Helper()
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+CREATE OR REPLACE FUNCTION supperjumpin_test_slow_stunt_update()
+RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_sleep(0.2);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
+CREATE TRIGGER supperjumpin_test_slow_stunt_update
+BEFORE UPDATE ON stunts
+FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_stunt_update();`); err != nil {
+		t.Fatalf("install slow Stunt update trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), `
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
+DROP FUNCTION IF EXISTS supperjumpin_test_slow_stunt_update();`); err != nil {
+			t.Fatalf("remove slow Stunt update trigger: %v", err)
 		}
 	})
 }
@@ -583,6 +804,18 @@ type inviteBody struct {
 	Token   string `json:"token"`
 }
 
+type stuntBody struct {
+	ID          string  `json:"id"`
+	GroupID     string  `json:"groupId"`
+	PlayerID    string  `json:"playerId"`
+	SeasonID    *string `json:"seasonId"`
+	Status      string  `json:"status"`
+	Source      string  `json:"source"`
+	Destination string  `json:"destination"`
+	Food        string  `json:"food"`
+	OffSeason   bool    `json:"offSeason"`
+}
+
 func createInvite(t *testing.T, server http.Handler, token string, groupID string) inviteBody {
 	t.Helper()
 	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/invites", token, nil)
@@ -590,6 +823,21 @@ func createInvite(t *testing.T, server http.Handler, token string, groupID strin
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 	var body inviteBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func createIdea(t *testing.T, server http.Handler, token string, groupID string, source string, destination string, food string) stuntBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/ideas", token, map[string]string{
+		"source":      source,
+		"destination": destination,
+		"food":        food,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body stuntBody
 	decodeResponse(t, rec, &body)
 	return body
 }

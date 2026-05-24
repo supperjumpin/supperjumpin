@@ -40,6 +40,18 @@ export interface Season {
   status: "Active" | "Judging Grace Period" | "Finalized";
 }
 
+export interface Stunt {
+  id: string;
+  groupId: string;
+  playerId: string;
+  seasonId: string | null;
+  status: "Idea" | "Planned Stunt";
+  source: string;
+  destination: string;
+  food: string;
+  offSeason: boolean;
+}
+
 export interface GroupHomeResponse {
   group: Group;
   membership: GroupMembership;

@@ -1,4 +1,4 @@
-import type { GroupHomeResponse, Invite, ListGroupsResponse, MeResponse } from "./generated";
+import type { GroupHomeResponse, Invite, ListGroupsResponse, MeResponse, Stunt } from "./generated";
 
 export type {
   Account,
@@ -11,6 +11,7 @@ export type {
   MeResponse,
   Player,
   Season,
+  Stunt,
 } from "./generated";
 
 export function getMe(args: {
@@ -59,3 +60,21 @@ export function startSeason(args: {
   groupId: string;
   fetchImpl?: typeof fetch;
 }): Promise<GroupHomeResponse>;
+
+export function createIdea(args: {
+  baseUrl: string;
+  accessToken: string;
+  groupId: string;
+  source: string;
+  destination: string;
+  food: string;
+  fetchImpl?: typeof fetch;
+}): Promise<Stunt>;
+
+export function createPlannedStunt(args: {
+  baseUrl: string;
+  accessToken: string;
+  ideaId: string;
+  offSeason?: boolean;
+  fetchImpl?: typeof fetch;
+}): Promise<Stunt>;
