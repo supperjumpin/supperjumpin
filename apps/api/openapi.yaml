@@ -233,6 +233,82 @@ paths:
           description: The signed-in Player is not allowed to plan this Idea.
         "404":
           description: Idea not found.
+  /v1/stunts/{stuntId}/evidence-upload-authorizations:
+    post:
+      operationId: authorizeEvidenceUpload
+      summary: Authorize direct Evidence upload for a performer's Planned Stunt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stuntId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contentType]
+              properties:
+                contentType:
+                  type: string
+      responses:
+        "201":
+          description: Direct upload target and authorization metadata for the Evidence media.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceUploadAuthorization"
+        "400":
+          description: Invalid Evidence upload authorization request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not the performer of this Planned Stunt.
+        "404":
+          description: Planned Stunt not found.
+  /v1/stunts/{stuntId}/evidence:
+    post:
+      operationId: submitEvidence
+      summary: Finalize an Evidence record and transition a Planned Stunt into a Performed Stunt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stuntId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadAuthorizationId, caption]
+              properties:
+                uploadAuthorizationId:
+                  type: string
+                caption:
+                  type: string
+      responses:
+        "201":
+          description: Backend-owned Evidence record and the updated Performed Stunt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceSubmission"
+        "400":
+          description: Invalid Evidence submission request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not the performer of this Planned Stunt.
+        "404":
+          description: Planned Stunt or upload authorization not found.
 components:
   securitySchemes:
     bearerAuth:
@@ -331,7 +407,7 @@ components:
           description: Present only for Season-linked Planned Stunts.
         status:
           type: string
-          enum: [Idea, Planned Stunt]
+          enum: [Idea, Planned Stunt, Performed Stunt]
         source:
           type: string
         destination:
@@ -340,6 +416,51 @@ components:
           type: string
         offSeason:
           type: boolean
+    EvidenceUploadAuthorization:
+      type: object
+      required: [id, stuntId, uploadUrl, uploadMethod, uploadHeaders, mediaObjectKey, expiresAt]
+      properties:
+        id:
+          type: string
+        stuntId:
+          type: string
+        uploadUrl:
+          type: string
+        uploadMethod:
+          type: string
+          enum: [PUT]
+        uploadHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        mediaObjectKey:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    Evidence:
+      type: object
+      required: [id, stuntId, caption, mediaObjectKey, createdAt]
+      properties:
+        id:
+          type: string
+        stuntId:
+          type: string
+        caption:
+          type: string
+        mediaObjectKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    EvidenceSubmission:
+      type: object
+      required: [stunt, evidence]
+      properties:
+        stunt:
+          $ref: "#/components/schemas/Stunt"
+        evidence:
+          $ref: "#/components/schemas/Evidence"
     GroupHomeResponse:
       type: object
       required: [group, membership, activeSeason, recentStunts, standings]

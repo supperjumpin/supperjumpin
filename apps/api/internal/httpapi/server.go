@@ -232,6 +232,82 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, planned)
 	})
+	mux.HandleFunc("POST /v1/stunts/{stuntID}/evidence-upload-authorizations", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			ContentType string `json:"contentType"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		contentType := strings.TrimSpace(request.ContentType)
+		if contentType == "" {
+			http.Error(w, "contentType is required", http.StatusBadRequest)
+			return
+		}
+
+		authorization, ok, err := config.Store.AuthorizeEvidenceUpload(r.Context(), profile.Player, r.PathValue("stuntID"), contentType)
+		if errors.Is(err, ErrStuntNotFound) {
+			http.Error(w, "Planned Stunt not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "authorize Evidence upload", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "performer required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, authorization)
+	})
+	mux.HandleFunc("POST /v1/stunts/{stuntID}/evidence", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			UploadAuthorizationID string `json:"uploadAuthorizationId"`
+			Caption               string `json:"caption"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		uploadAuthorizationID := strings.TrimSpace(request.UploadAuthorizationID)
+		caption := strings.TrimSpace(request.Caption)
+		if uploadAuthorizationID == "" || caption == "" {
+			http.Error(w, "uploadAuthorizationId and caption are required", http.StatusBadRequest)
+			return
+		}
+
+		submission, ok, err := config.Store.SubmitEvidence(r.Context(), profile.Player, r.PathValue("stuntID"), uploadAuthorizationID, caption)
+		if errors.Is(err, ErrStuntNotFound) {
+			http.Error(w, "Planned Stunt not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrEvidenceUploadAuthorizationNotFound) {
+			http.Error(w, "Evidence upload authorization not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "submit Evidence", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "performer required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, submission)
+	})
 	return mux
 }
 

@@ -492,6 +492,148 @@ RETURNING id, group_id, player_id, season_id, status, source, destination, food`
 	return updated, true, nil
 }
 
+func (s *PostgresStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	}
+	defer tx.Rollback()
+
+	stunt, err := stuntInTx(ctx, tx, stuntID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return EvidenceUploadAuthorization{}, false, ErrStuntNotFound
+	}
+	if err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	}
+	if stunt.Status != "Planned Stunt" {
+		return EvidenceUploadAuthorization{}, false, ErrStuntNotFound
+	}
+	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	} else if !ok || stunt.PlayerID != player.ID {
+		return EvidenceUploadAuthorization{}, false, nil
+	}
+
+	id, err := randomToken("evidence_upload")
+	if err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	}
+	mediaObjectKey, err := randomToken("evidence_object")
+	if err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	}
+	authorization := EvidenceUploadAuthorization{
+		ID:             id,
+		StuntID:        stuntID,
+		UploadURL:      "https://storage.supperjumpin.test/uploads/" + mediaObjectKey,
+		UploadMethod:   httpMethodPut,
+		UploadHeaders:  map[string]string{"Content-Type": contentType},
+		MediaObjectKey: mediaObjectKey,
+		ExpiresAt:      time.Now().Add(15 * time.Minute).UTC(),
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO evidence_upload_authorizations (id, stunt_id, player_id, content_type, media_object_key, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)`,
+		authorization.ID,
+		authorization.StuntID,
+		player.ID,
+		contentType,
+		authorization.MediaObjectKey,
+		authorization.ExpiresAt,
+	); err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return EvidenceUploadAuthorization{}, false, err
+	}
+	return authorization, true, nil
+}
+
+func (s *PostgresStore) SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+	defer tx.Rollback()
+
+	stunt, err := stuntInTx(ctx, tx, stuntID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return EvidenceSubmission{}, false, ErrStuntNotFound
+	}
+	if err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+	if stunt.Status != "Planned Stunt" {
+		return EvidenceSubmission{}, false, ErrStuntNotFound
+	}
+	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
+		return EvidenceSubmission{}, false, err
+	} else if !ok || stunt.PlayerID != player.ID {
+		return EvidenceSubmission{}, false, nil
+	}
+
+	var authorization EvidenceUploadAuthorization
+	var contentType string
+	if err := tx.QueryRowContext(ctx, `
+SELECT id, stunt_id, content_type, media_object_key, expires_at
+FROM evidence_upload_authorizations
+WHERE id = $1 AND stunt_id = $2 AND player_id = $3`, uploadAuthorizationID, stuntID, player.ID).Scan(
+		&authorization.ID,
+		&authorization.StuntID,
+		&contentType,
+		&authorization.MediaObjectKey,
+		&authorization.ExpiresAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return EvidenceSubmission{}, false, ErrEvidenceUploadAuthorizationNotFound
+		}
+		return EvidenceSubmission{}, false, err
+	}
+	if time.Now().After(authorization.ExpiresAt) {
+		return EvidenceSubmission{}, false, ErrEvidenceUploadAuthorizationNotFound
+	}
+	authorization.UploadURL = "https://storage.supperjumpin.test/uploads/" + authorization.MediaObjectKey
+	authorization.UploadMethod = httpMethodPut
+	authorization.UploadHeaders = map[string]string{"Content-Type": contentType}
+
+	evidence := Evidence{
+		ID:             stableID("evidence", stuntID+":"+uploadAuthorizationID),
+		StuntID:        stuntID,
+		Caption:        caption,
+		MediaObjectKey: authorization.MediaObjectKey,
+		CreatedAt:      time.Now().UTC(),
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO evidences (id, stunt_id, player_id, upload_authorization_id, caption, media_object_key, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		evidence.ID,
+		evidence.StuntID,
+		player.ID,
+		uploadAuthorizationID,
+		evidence.Caption,
+		evidence.MediaObjectKey,
+		evidence.CreatedAt,
+	); err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+UPDATE stunts
+SET status = 'Performed Stunt'
+WHERE id = $1 AND status = 'Planned Stunt'`, stuntID); err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM evidence_upload_authorizations WHERE id = $1`, uploadAuthorizationID); err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+
+	stunt.Status = "Performed Stunt"
+	if err := tx.Commit(); err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+	return EvidenceSubmission{Stunt: stunt, Evidence: evidence}, true, nil
+}
+
 func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
 	var season Season
 	if err := s.db.QueryRowContext(ctx, `
