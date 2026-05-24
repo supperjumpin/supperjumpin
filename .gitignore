@@ -24,3 +24,6 @@ coverage/
 .cache/
 .next/
 .turbo/
+
+# Local git worktrees for agent workers
+worktrees/
