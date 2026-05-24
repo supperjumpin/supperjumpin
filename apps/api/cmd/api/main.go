@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -23,7 +24,17 @@ func main() {
 		}
 	}
 
-	server := httpapi.NewServer(httpapi.ServerConfig{Auth: auth, Store: httpapi.NewMemoryStore()})
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL is required for durable Supperjumpin API state")
+	}
+	store, err := httpapi.NewPostgresStore(context.Background(), databaseURL)
+	if err != nil {
+		log.Fatalf("connect to Postgres: %v", err)
+	}
+	defer store.Close()
+
+	server := httpapi.NewServer(httpapi.ServerConfig{Auth: auth, Store: store})
 	log.Printf("Supperjumpin API listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, server))
 }
