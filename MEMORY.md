@@ -1,4 +1,4 @@
-﻿# Project Memory
+# Project Memory
 
 ## ? PRD #1: First Playable Group Stunt Loop
 **Status**: OPEN | **Author**: Ben Turney
@@ -17,29 +17,31 @@ Single-player-per-group social game where players perform absurd food-location s
 ## ? Current Focus
 - **Objective**: Implement Peer Judging Loop (T-A #19)
 - **Active Issue**: #19 
-- **Status**: In-progress (Designing schema and API)
+- **Status**: In-progress (Store logic complete, API Client generation blocked)
 
-## Architecture & Decisions
-- Dual-Track Approach: Track A (Engine/Foundation) and Track B (User Experience) are running in parallel. Track B depends on Track A's underlying logic.
-- Identity: Many-to-One mapping (Auth -> Account -> Player) implemented in PostgresStore.
-- Stunt Lifecycle: Idea -> Planned -> Performed (gated by Evidence).
+## ⏳ Activity Timeline
+- 2026-05-24 [Opencode]: Implemented `judgments` schema and Store logic (Postgres/Memory) -> Core engine for judging is ready.
+- 2026-05-24 [Opencode]: Added judging endpoints to `openapi.yaml` and `server.go` -> API surface is defined.
+- 2026-05-24 [Opencode]: Attempted API client regeneration -> Blocked by syntax error/strict checks in `generate.mjs`.
 
-## Hurdles & Gotchas 
-- Concurrency: Ensure judgments are idempotent (one per player per stunt).
-- Eligibility: Strictly enforce that only Group members (excluding the performer) can judge.
+## 🏗️ Architecture & Decisions
+- **Dual-Track Approach**: Track A (Engine/Foundation) and Track B (User Experience) are running in parallel. Track B depends on Track A's underlying logic.
+- **Identity**: Many-to-One mapping (Auth -> Account -> Player) implemented in `PostgresStore`.
+- **Stunt Lifecycle**: Idea -> Planned -> Performed (gated by Evidence).
+- **Judging Logic**: Implemented authoritative guards (must be a group member, cannot judge own stunt, stunt must be 'Performed'). Scoring uses an upsert model (one judgment per player per stunt).
 
-## Working Hypotheses
-- Tracer Bullet: By implementing a basic scoring API first, we can verify the end-to-end loop before adding the complex gesture-driven UI of #20.
+## ⚠️ Hurdles & Gotchas
+- **API Client Generator**: The `packages/api-client/scripts/generate.mjs` script has a strict whitelist of `operationId`s. Adding new endpoints requires updating this list manually.
+- **Concurrency**: Solved via Postgres `ON CONFLICT` for judgment updates.
 
-## PRD #1 Highlights
-- **Auth**: Supabase (email magic + social), separate from in-game Player ID 
-- **Stunts**: Season-linked by default when active; off-season for casual play
-- **Judging Window**: Enforces one judgment/judge/stunt, edits allowed until close 
-- **Scoring**: Final Score = aggregation of judgments; Season Score accumulates non-disqualified stunts 
-- **Disputes**: Commissioner resolves disputes; removal reserved for serious violations
+## 💡 Working Hypotheses
+- **Tracer Bullet**: By implementing a basic scoring API first, we can verify the end-to-end loop before adding the complex gesture-driven UI of #20.
 
-## Hand-off Notes 
-- **Next Steps**: Implement judgments table, add SubmitJudgment to Store, and expose via HTTP.
-- **Warning**: Ensure the state machine guard for 'Performed Stunt' is checked before allowing a judgment.
-
-(End - PRD #1 spec available in GitHub Issue #1)
+## 📡 Session Wrap-up & Hand-off
+- **Completed in this session**:
+    - `judgments` table migration.
+    - Store interface updates and implementations.
+    - HTTP handlers for judging.
+    - Updated `openapi.yaml`.
+- **Next Steps**: Fix the `generate.mjs` script to allow the new judging operations and successfully regenerate the client.
+- **Warning**: Check for exact matches of `operationId` in `openapi.yaml` vs `generate.mjs` to avoid the current "not found" error.
