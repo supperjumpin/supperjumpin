@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
@@ -176,6 +179,39 @@ func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
 	}
 }
 
+func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+
+	aliceAccept := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
+	if aliceAccept.Code != http.StatusConflict {
+		t.Fatalf("expected existing member Invite accept status 409, got %d: %s", aliceAccept.Code, aliceAccept.Body.String())
+	}
+
+	bobAccept := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if bobAccept.Code != http.StatusOK {
+		t.Fatalf("expected Invite to remain usable for Bob, got %d: %s", bobAccept.Code, bobAccept.Body.String())
+	}
+}
+
+func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
+	})
+	rec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if rec.Code != http.StatusGone {
+		t.Fatalf("expected expired Invite status 410, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
 	server := newGroupsTestServer()
 
@@ -210,6 +246,92 @@ func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	home := getGroupHome(t, restartedServer, "alice-token", created.Group.ID)
 	if home.Group.Name != "Breakfast Crew" || home.Membership.Role != "Group Admin" {
 		t.Fatalf("expected durable Group Admin membership after restart, got %#v", home)
+	}
+}
+
+func TestPostgresConcurrentInviteCreationReturnsDistinctInvites(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	created := createGroup(t, server, "alice-token", "Concurrent Invite Creators")
+
+	const inviteCount = 4
+	invites := make(chan inviteBody, inviteCount)
+	errors := make(chan string, inviteCount)
+	var wg sync.WaitGroup
+	for i := 0; i < inviteCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+created.Group.ID+"/invites", "alice-token", nil)
+			if rec.Code != http.StatusCreated {
+				errors <- rec.Body.String()
+				return
+			}
+			var invite inviteBody
+			if err := json.NewDecoder(rec.Body).Decode(&invite); err != nil {
+				errors <- err.Error()
+				return
+			}
+			invites <- invite
+		}()
+	}
+	wg.Wait()
+	close(invites)
+	close(errors)
+	for err := range errors {
+		t.Fatalf("expected concurrent Invite creation to succeed, got %s", err)
+	}
+
+	tokens := []string{}
+	for invite := range invites {
+		tokens = append(tokens, invite.Token)
+	}
+	if len(tokens) != inviteCount {
+		t.Fatalf("expected %d Invites, got %d", inviteCount, len(tokens))
+	}
+	sort.Strings(tokens)
+	for i := 1; i < len(tokens); i++ {
+		if tokens[i] == tokens[i-1] {
+			t.Fatalf("expected distinct Invite tokens, got %v", tokens)
+		}
+	}
+}
+
+func TestPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	created := createGroup(t, server, "alice-token", "Concurrent Invite Acceptors")
+	invite := createInvite(t, server, "alice-token", created.Group.ID)
+
+	codes := make(chan int, 2)
+	var wg sync.WaitGroup
+	for _, token := range []string{"bob-token", "carol-token"} {
+		wg.Add(1)
+		go func(token string) {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", token, nil)
+			codes <- rec.Code
+		}(token)
+	}
+	wg.Wait()
+	close(codes)
+
+	seen := map[int]int{}
+	for code := range codes {
+		seen[code]++
+	}
+	if seen[http.StatusOK] != 1 || seen[http.StatusConflict] != 1 {
+		t.Fatalf("expected one winner and one already-used Invite conflict, got %#v", seen)
 	}
 }
 

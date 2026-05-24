@@ -136,6 +136,9 @@ func NewServer(config ServerConfig) http.Handler {
 		case InviteExpired:
 			http.Error(w, "Invite expired", http.StatusGone)
 			return
+		case InviteMember:
+			http.Error(w, "Player already has a Group Membership", http.StatusConflict)
+			return
 		}
 
 		writeJSON(w, http.StatusOK, home)

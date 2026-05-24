@@ -66,9 +66,13 @@ export default function App() {
       return;
     }
 
-    const invite = await createInvite({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
-    setInviteToken(invite.token);
-    setStatus(`Created Invite for ${groupHome.group.name}.`);
+    try {
+      const invite = await createInvite({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
+      setInviteToken(invite.token);
+      setStatus(`Created Invite for ${groupHome.group.name}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not create Invite.");
+    }
   }
 
   async function acceptGroupInvite() {
@@ -77,12 +81,16 @@ export default function App() {
       return;
     }
 
-    const home = await acceptInvite({ baseUrl: apiBaseUrl, accessToken, token: inviteToken });
-    const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
-    setGroupHome(home);
-    setMemberships(groups.memberships);
-    setInviteToken("");
-    setStatus(`Joined ${home.group.name}.`);
+    try {
+      const home = await acceptInvite({ baseUrl: apiBaseUrl, accessToken, token: inviteToken.trim() });
+      const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
+      setGroupHome(home);
+      setMemberships(groups.memberships);
+      setInviteToken("");
+      setStatus(`Joined ${home.group.name}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not accept Invite.");
+    }
   }
 
   async function selectGroup(token: string, groupId: string) {

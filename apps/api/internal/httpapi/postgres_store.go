@@ -173,21 +173,40 @@ WHERE group_id = $1 AND player_id = $2`, groupID, player.ID).Scan(&existing); er
 		return Invite{}, false, err
 	}
 
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM invites`).Scan(&count); err != nil {
-		return Invite{}, false, err
-	}
-	invite := Invite{
-		ID:        stableID("invite", groupID+":"+strconv.Itoa(count+1)),
-		GroupID:   groupID,
-		Token:     stableID("invite_token", groupID+":"+player.ID+":"+strconv.Itoa(count+1)),
-		CreatedBy: player.ID,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour).UTC(),
-	}
-	if _, err := tx.ExecContext(ctx, `
+	var invite Invite
+	for attempts := 0; attempts < 3; attempts++ {
+		id, err := randomToken("invite")
+		if err != nil {
+			return Invite{}, false, err
+		}
+		token, err := randomToken("invite_token")
+		if err != nil {
+			return Invite{}, false, err
+		}
+		invite = Invite{
+			ID:        id,
+			GroupID:   groupID,
+			Token:     token,
+			CreatedBy: player.ID,
+			ExpiresAt: time.Now().Add(7 * 24 * time.Hour).UTC(),
+		}
+		result, err := tx.ExecContext(ctx, `
 INSERT INTO invites (id, group_id, token, created_by_player_id, expires_at)
-VALUES ($1, $2, $3, $4, $5)`, invite.ID, invite.GroupID, invite.Token, invite.CreatedBy, invite.ExpiresAt); err != nil {
-		return Invite{}, false, err
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING`, invite.ID, invite.GroupID, invite.Token, invite.CreatedBy, invite.ExpiresAt)
+		if err != nil {
+			return Invite{}, false, err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return Invite{}, false, err
+		}
+		if rows == 1 {
+			break
+		}
+		if attempts == 2 {
+			return Invite{}, false, fmt.Errorf("create unique Invite after retries")
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return Invite{}, false, err
@@ -219,6 +238,15 @@ WHERE token = $1`, token).Scan(&invite.ID, &invite.GroupID, &invite.Token, &invi
 	if time.Now().After(invite.ExpiresAt) {
 		return GroupHomeResponse{}, InviteExpired, nil
 	}
+	var existingRole string
+	if err := tx.QueryRowContext(ctx, `
+SELECT role
+FROM group_memberships
+WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&existingRole); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return GroupHomeResponse{}, InviteInvalid, err
+	} else if err == nil {
+		return GroupHomeResponse{}, InviteMember, nil
+	}
 
 	var group Group
 	if err := tx.QueryRowContext(ctx, `SELECT id, name FROM groups WHERE id = $1`, invite.GroupID).Scan(&group.ID, &group.Name); err != nil {
@@ -226,6 +254,19 @@ WHERE token = $1`, token).Scan(&invite.ID, &invite.GroupID, &invite.Token, &invi
 			return GroupHomeResponse{}, InviteInvalid, nil
 		}
 		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	if err := tx.QueryRowContext(ctx, `
+UPDATE invites
+SET used_by_player_id = $1
+WHERE token = $2 AND used_by_player_id IS NULL AND expires_at > now()
+RETURNING id`, player.ID, token).Scan(&invite.ID); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return GroupHomeResponse{}, InviteInvalid, err
+		}
+		if status, err := s.inviteStatus(ctx, tx, token); err != nil || status != InviteInvalid {
+			return GroupHomeResponse{}, status, err
+		}
+		return GroupHomeResponse{}, InviteInvalid, nil
 	}
 	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
 	if _, err := tx.ExecContext(ctx, `
@@ -240,13 +281,31 @@ FROM group_memberships
 WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&membership.Role); err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE invites SET used_by_player_id = $1 WHERE token = $2`, player.ID, token); err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
 	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
 	return groupHome(group, membership), InviteAccepted, nil
+}
+
+func (s *PostgresStore) inviteStatus(ctx context.Context, tx *sql.Tx, token string) (InviteAcceptStatus, error) {
+	var usedBy sql.NullString
+	var expiresAt time.Time
+	if err := tx.QueryRowContext(ctx, `
+SELECT used_by_player_id, expires_at
+FROM invites
+WHERE token = $1`, token).Scan(&usedBy, &expiresAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return InviteInvalid, nil
+		}
+		return InviteInvalid, err
+	}
+	if usedBy.Valid {
+		return InviteUsed, nil
+	}
+	if time.Now().After(expiresAt) {
+		return InviteExpired, nil
+	}
+	return InviteInvalid, nil
 }
 
 func getProfileByAuthIdentity(ctx context.Context, tx *sql.Tx, provider string, subject string) (MeResponse, error) {

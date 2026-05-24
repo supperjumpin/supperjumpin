@@ -129,7 +129,7 @@ paths:
         "404":
           description: Invite is invalid.
         "409":
-          description: Invite was already used.
+          description: Invite was already used, or the signed-in Player already has a Group Membership.
         "410":
           description: Invite expired.
 components:
