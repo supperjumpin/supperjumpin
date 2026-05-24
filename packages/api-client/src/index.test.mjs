@@ -86,7 +86,7 @@ test("listGroups returns the signed-in Player's Group Memberships", async () => 
   assert.equal(groups.memberships[0].group.name, "Breakfast Crew");
 });
 
-test("getGroupHome fetches backend Season Stunts and Standings placeholders for a selected Group", async () => {
+test("getGroupHome fetches recent Performed Stunts for a selected Group", async () => {
   const seen = {};
   const home = await getGroupHome({
     baseUrl: "http://api.example.test",
@@ -95,14 +95,33 @@ test("getGroupHome fetches backend Season Stunts and Standings placeholders for 
     fetchImpl: async (url, init) => {
       seen.url = url;
       seen.authorization = init.headers.Authorization;
-      return Response.json(groupHomeResponse({ id: "group_123", name: "Breakfast Crew" }));
+      return Response.json(
+        groupHomeResponse(
+          { id: "group_123", name: "Breakfast Crew" },
+          null,
+          [
+            {
+              stunt: stuntResponse({ status: "Performed Stunt", seasonId: "season_123", offSeason: false }),
+              performer: { id: "player_123", displayName: "alice" },
+              evidence: {
+                id: "evidence_123",
+                stuntId: "stunt_123",
+                caption: "Crunchwrap successfully smuggled into the parking lot.",
+                mediaObjectKey: "evidence_object_123",
+                createdAt: "2026-06-01T00:00:00Z",
+              },
+            },
+          ],
+        ),
+      );
     },
   });
 
   assert.equal(seen.url, "http://api.example.test/v1/groups/group_123/home");
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.equal(home.activeSeason, null);
-  assert.deepEqual(home.recentStunts, []);
+  assert.equal(home.recentStunts[0].performer.displayName, "alice");
+  assert.equal(home.recentStunts[0].evidence.caption, "Crunchwrap successfully smuggled into the parking lot.");
   assert.deepEqual(home.standings, []);
 });
 
@@ -323,12 +342,12 @@ test("submitEvidence finalizes backend-owned Evidence for a Planned Stunt", asyn
   assert.equal(submission.evidence.mediaObjectKey, "evidence_object_123");
 });
 
-function groupHomeResponse(group, activeSeason = null) {
+function groupHomeResponse(group, activeSeason = null, recentStunts = []) {
   return {
     group,
     membership: { groupId: group.id, playerId: "player_123", role: "Group Admin" },
     activeSeason,
-    recentStunts: [],
+    recentStunts,
     standings: [],
   };
 }

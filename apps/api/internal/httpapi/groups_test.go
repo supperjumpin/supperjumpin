@@ -411,6 +411,21 @@ func TestAuthorizedEvidenceSubmissionPerformsStuntAndOwnsMediaObjectKey(t *testi
 	if submission.Evidence.MediaObjectKey != authorization.MediaObjectKey {
 		t.Fatalf("expected backend-owned media object key from authorization, got %#v", submission.Evidence)
 	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.RecentStunts) != 1 {
+		t.Fatalf("expected one recent Performed Stunt on Group home, got %#v", home.RecentStunts)
+	}
+	recent := home.RecentStunts[0]
+	if recent.Stunt.ID != planned.ID || recent.Stunt.Status != "Performed Stunt" {
+		t.Fatalf("expected recent Performed Stunt to match the submitted Stunt, got %#v", recent)
+	}
+	if recent.Performer.DisplayName != "alice" {
+		t.Fatalf("expected performer display name on recent Stunt, got %#v", recent.Performer)
+	}
+	if recent.Evidence.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected recent Stunt evidence caption, got %#v", recent.Evidence)
+	}
 }
 
 func TestIdeaAndPlannedStuntRequireGroupMembership(t *testing.T) {
@@ -842,7 +857,32 @@ type groupHomeBody struct {
 		Status               string `json:"status"`
 		CommissionerPlayerID string `json:"commissionerPlayerId"`
 	} `json:"activeSeason"`
+	RecentStunts []performedStuntViewBody `json:"recentStunts"`
 	Standings []any `json:"standings"`
+}
+
+type performedStuntViewBody struct {
+	Stunt struct {
+		ID          string  `json:"id"`
+		GroupID     string  `json:"groupId"`
+		PlayerID    string  `json:"playerId"`
+		SeasonID    *string `json:"seasonId"`
+		Status      string  `json:"status"`
+		Source      string  `json:"source"`
+		Destination string  `json:"destination"`
+		Food        string  `json:"food"`
+		OffSeason   bool    `json:"offSeason"`
+	} `json:"stunt"`
+	Performer struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"performer"`
+	Evidence struct {
+		ID             string `json:"id"`
+		StuntID        string `json:"stuntId"`
+		Caption        string `json:"caption"`
+		MediaObjectKey string `json:"mediaObjectKey"`
+	} `json:"evidence"`
 }
 
 func createGroup(t *testing.T, server http.Handler, token string, name string) groupHomeBody {
