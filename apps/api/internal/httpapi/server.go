@@ -315,13 +315,17 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		var request struct {
-			Difficulty    int `json:"difficulty"`
-			Transgression int `json:"transgression"`
-			Creativity    int `json:"creativity"`
-			Documentation int `json:"documentation"`
+			Difficulty    *int `json:"difficulty"`
+			Transgression *int `json:"transgression"`
+			Creativity    *int `json:"creativity"`
+			Documentation *int `json:"documentation"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		if request.Difficulty == nil || request.Transgression == nil || request.Creativity == nil || request.Documentation == nil {
+			http.Error(w, "difficulty, transgression, creativity, and documentation are required", http.StatusBadRequest)
 			return
 		}
 
@@ -329,10 +333,10 @@ func NewServer(config ServerConfig) http.Handler {
 			r.Context(),
 			profile.Player,
 			r.PathValue("stuntID"),
-			request.Difficulty,
-			request.Transgression,
-			request.Creativity,
-			request.Documentation,
+			*request.Difficulty,
+			*request.Transgression,
+			*request.Creativity,
+			*request.Documentation,
 		)
 		if errors.Is(err, ErrStuntNotFound) {
 			http.Error(w, "Performed Stunt not found", http.StatusNotFound)
