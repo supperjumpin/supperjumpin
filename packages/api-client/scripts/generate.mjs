@@ -17,6 +17,11 @@ for (const required of [
   "operationId: startSeason",
   "operationId: createIdea",
   "operationId: createPlannedStunt",
+  "operationId: authorizeEvidenceUpload",
+  "operationId: submitEvidence",
+  "EvidenceUploadAuthorization:",
+  "Evidence:",
+  "EvidenceSubmission:",
   "GroupHomeResponse:",
   "Invite:",
   "Season:",
@@ -69,11 +74,31 @@ await writeFile(
     `  groupId: string;\n` +
     `  playerId: string;\n` +
     `  seasonId: string | null;\n` +
-    `  status: "Idea" | "Planned Stunt";\n` +
+    `  status: "Idea" | "Planned Stunt" | "Performed Stunt";\n` +
     `  source: string;\n` +
     `  destination: string;\n` +
     `  food: string;\n` +
     `  offSeason: boolean;\n` +
+    `}\n\n` +
+    `export interface EvidenceUploadAuthorization {\n` +
+    `  id: string;\n` +
+    `  stuntId: string;\n` +
+    `  uploadUrl: string;\n` +
+    `  uploadMethod: "PUT";\n` +
+    `  uploadHeaders: Record<string, string>;\n` +
+    `  mediaObjectKey: string;\n` +
+    `  expiresAt: string;\n` +
+    `}\n\n` +
+    `export interface Evidence {\n` +
+    `  id: string;\n` +
+    `  stuntId: string;\n` +
+    `  caption: string;\n` +
+    `  mediaObjectKey: string;\n` +
+    `  createdAt: string;\n` +
+    `}\n\n` +
+    `export interface EvidenceSubmission {\n` +
+    `  stunt: Stunt;\n` +
+    `  evidence: Evidence;\n` +
     `}\n\n` +
     `export interface GroupHomeResponse {\n` +
     `  group: Group;\n` +

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   acceptInvite,
+  authorizeEvidenceUpload,
   createGroup,
   createIdea,
   createInvite,
@@ -11,6 +12,7 @@ import {
   getMe,
   listGroups,
   startSeason,
+  submitEvidence,
 } from "./index.js";
 
 test("getMe calls the backend with the Supabase bearer token", async () => {
@@ -244,6 +246,81 @@ test("createPlannedStunt can request default Season-linked or explicit Off-Seaso
   assert.deepEqual(JSON.parse(calls[1].body), { offSeason: true });
   assert.equal(offSeason.seasonId, null);
   assert.equal(offSeason.offSeason, true);
+});
+
+test("authorizeEvidenceUpload requests a direct upload target for a Planned Stunt", async () => {
+  const seen = {};
+  const authorization = await authorizeEvidenceUpload({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    stuntId: "stunt_123",
+    contentType: "image/jpeg",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json(
+        {
+          id: "evidence_upload_123",
+          stuntId: "stunt_123",
+          uploadUrl: "https://storage.supperjumpin.test/uploads/evidence_object_123",
+          uploadMethod: "PUT",
+          uploadHeaders: { "Content-Type": "image/jpeg" },
+          mediaObjectKey: "evidence_object_123",
+          expiresAt: "2026-06-01T00:15:00Z",
+        },
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/stunts/stunt_123/evidence-upload-authorizations");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.deepEqual(seen.body, { contentType: "image/jpeg" });
+  assert.equal(authorization.uploadMethod, "PUT");
+  assert.equal(authorization.mediaObjectKey, "evidence_object_123");
+});
+
+test("submitEvidence finalizes backend-owned Evidence for a Planned Stunt", async () => {
+  const seen = {};
+  const submission = await submitEvidence({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    stuntId: "stunt_123",
+    uploadAuthorizationId: "evidence_upload_123",
+    caption: "Crunchwrap successfully smuggled into the parking lot.",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json(
+        {
+          stunt: stuntResponse({ status: "Performed Stunt" }),
+          evidence: {
+            id: "evidence_123",
+            stuntId: "stunt_123",
+            caption: "Crunchwrap successfully smuggled into the parking lot.",
+            mediaObjectKey: "evidence_object_123",
+            createdAt: "2026-06-01T00:00:00Z",
+          },
+        },
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/stunts/stunt_123/evidence");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.deepEqual(seen.body, {
+    uploadAuthorizationId: "evidence_upload_123",
+    caption: "Crunchwrap successfully smuggled into the parking lot.",
+  });
+  assert.equal(submission.stunt.status, "Performed Stunt");
+  assert.equal(submission.evidence.mediaObjectKey, "evidence_object_123");
 });
 
 function groupHomeResponse(group, activeSeason = null) {

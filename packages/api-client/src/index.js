@@ -116,6 +116,34 @@ export async function createPlannedStunt({ baseUrl, accessToken, ideaId, offSeas
   return response.json();
 }
 
+export async function authorizeEvidenceUpload({ baseUrl, accessToken, stuntId, contentType, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/stunts/${stuntId}/evidence-upload-authorizations`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ contentType }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`authorizeEvidenceUpload failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function submitEvidence({ baseUrl, accessToken, stuntId, uploadAuthorizationId, caption, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/stunts/${stuntId}/evidence`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ uploadAuthorizationId, caption }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`submitEvidence failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 function authHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,

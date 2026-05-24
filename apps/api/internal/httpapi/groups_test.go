@@ -333,6 +333,86 @@ func TestPlannedStuntIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
 	}
 }
 
+func TestPlannedStuntPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	createGroup(t, server, "bob-token", "Side Judges")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedStunt(t, server, "alice-token", idea.ID, false)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+planned.ID+"/evidence-upload-authorizations", "alice-token", map[string]string{
+		"contentType": "image/jpeg",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var authorization evidenceUploadAuthorizationBody
+	decodeResponse(t, rec, &authorization)
+	if authorization.ID == "" {
+		t.Fatalf("expected authorization id, got %#v", authorization)
+	}
+	if authorization.StuntID != planned.ID {
+		t.Fatalf("expected authorization for Planned Stunt %q, got %#v", planned.ID, authorization)
+	}
+	if authorization.UploadMethod != "PUT" {
+		t.Fatalf("expected direct upload method PUT, got %#v", authorization)
+	}
+	if authorization.UploadURL == "" || authorization.MediaObjectKey == "" {
+		t.Fatalf("expected direct upload target fields, got %#v", authorization)
+	}
+	if authorization.UploadHeaders["Content-Type"] != "image/jpeg" {
+		t.Fatalf("expected upload content type header, got %#v", authorization.UploadHeaders)
+	}
+}
+
+func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before authorization attempt, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedStunt(t, server, "alice-token", idea.ID, false)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+planned.ID+"/evidence-upload-authorizations", "bob-token", map[string]string{
+		"contentType": "image/jpeg",
+	})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthorizedEvidenceSubmissionPerformsStuntAndOwnsMediaObjectKey(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedStunt(t, server, "alice-token", idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+planned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Crunchwrap successfully smuggled into the parking lot.",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var submission evidenceSubmissionBody
+	decodeResponse(t, rec, &submission)
+	if submission.Stunt.Status != "Performed Stunt" {
+		t.Fatalf("expected Planned Stunt to become Performed Stunt, got %#v", submission.Stunt)
+	}
+	if submission.Evidence.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected caption to be stored, got %#v", submission.Evidence)
+	}
+	if submission.Evidence.MediaObjectKey != authorization.MediaObjectKey {
+		t.Fatalf("expected backend-owned media object key from authorization, got %#v", submission.Evidence)
+	}
+}
+
 func TestIdeaAndPlannedStuntRequireGroupMembership(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -816,6 +896,28 @@ type stuntBody struct {
 	OffSeason   bool    `json:"offSeason"`
 }
 
+type evidenceUploadAuthorizationBody struct {
+	ID             string            `json:"id"`
+	StuntID        string            `json:"stuntId"`
+	UploadURL      string            `json:"uploadUrl"`
+	UploadMethod   string            `json:"uploadMethod"`
+	UploadHeaders  map[string]string `json:"uploadHeaders"`
+	MediaObjectKey string            `json:"mediaObjectKey"`
+	ExpiresAt      string            `json:"expiresAt"`
+}
+
+type evidenceBody struct {
+	ID             string `json:"id"`
+	StuntID        string `json:"stuntId"`
+	Caption        string `json:"caption"`
+	MediaObjectKey string `json:"mediaObjectKey"`
+}
+
+type evidenceSubmissionBody struct {
+	Stunt    stuntBody    `json:"stunt"`
+	Evidence evidenceBody `json:"evidence"`
+}
+
 func createInvite(t *testing.T, server http.Handler, token string, groupID string) inviteBody {
 	t.Helper()
 	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/invites", token, nil)
@@ -840,4 +942,32 @@ func createIdea(t *testing.T, server http.Handler, token string, groupID string,
 	var body stuntBody
 	decodeResponse(t, rec, &body)
 	return body
+}
+
+func createPlannedStunt(t *testing.T, server http.Handler, token string, ideaID string, offSeason bool) stuntBody {
+	t.Helper()
+	var body any
+	if offSeason {
+		body = map[string]bool{"offSeason": true}
+	}
+	rec := doJSON(server, http.MethodPost, "/v1/ideas/"+ideaID+"/planned-stunt", token, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var planned stuntBody
+	decodeResponse(t, rec, &planned)
+	return planned
+}
+
+func authorizeEvidenceUpload(t *testing.T, server http.Handler, token string, stuntID string, contentType string) evidenceUploadAuthorizationBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+stuntID+"/evidence-upload-authorizations", token, map[string]string{
+		"contentType": contentType,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var authorization evidenceUploadAuthorizationBody
+	decodeResponse(t, rec, &authorization)
+	return authorization
 }

@@ -1,4 +1,12 @@
-import type { GroupHomeResponse, Invite, ListGroupsResponse, MeResponse, Stunt } from "./generated";
+import type {
+  EvidenceSubmission,
+  EvidenceUploadAuthorization,
+  GroupHomeResponse,
+  Invite,
+  ListGroupsResponse,
+  MeResponse,
+  Stunt,
+} from "./generated";
 
 export type {
   Account,
@@ -6,6 +14,9 @@ export type {
   GroupHomeResponse,
   GroupMembership,
   GroupMembershipSummary,
+  Evidence,
+  EvidenceSubmission,
+  EvidenceUploadAuthorization,
   Invite,
   ListGroupsResponse,
   MeResponse,
@@ -78,3 +89,20 @@ export function createPlannedStunt(args: {
   offSeason?: boolean;
   fetchImpl?: typeof fetch;
 }): Promise<Stunt>;
+
+export function authorizeEvidenceUpload(args: {
+  baseUrl: string;
+  accessToken: string;
+  stuntId: string;
+  contentType: string;
+  fetchImpl?: typeof fetch;
+}): Promise<EvidenceUploadAuthorization>;
+
+export function submitEvidence(args: {
+  baseUrl: string;
+  accessToken: string;
+  stuntId: string;
+  uploadAuthorizationId: string;
+  caption: string;
+  fetchImpl?: typeof fetch;
+}): Promise<EvidenceSubmission>;

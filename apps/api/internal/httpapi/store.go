@@ -18,6 +18,8 @@ var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Se
 
 var ErrStuntNotFound = errors.New("Stunt not found")
 
+var ErrEvidenceUploadAuthorizationNotFound = errors.New("Evidence upload authorization not found")
+
 type Account struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
@@ -71,6 +73,29 @@ type Stunt struct {
 	OffSeason   bool    `json:"offSeason"`
 }
 
+type EvidenceUploadAuthorization struct {
+	ID             string            `json:"id"`
+	StuntID        string            `json:"stuntId"`
+	UploadURL      string            `json:"uploadUrl"`
+	UploadMethod   string            `json:"uploadMethod"`
+	UploadHeaders  map[string]string `json:"uploadHeaders"`
+	MediaObjectKey string            `json:"mediaObjectKey"`
+	ExpiresAt      time.Time         `json:"expiresAt"`
+}
+
+type Evidence struct {
+	ID             string    `json:"id"`
+	StuntID        string    `json:"stuntId"`
+	Caption        string    `json:"caption"`
+	MediaObjectKey string    `json:"mediaObjectKey"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
+type EvidenceSubmission struct {
+	Stunt    Stunt    `json:"stunt"`
+	Evidence Evidence `json:"evidence"`
+}
+
 type GroupMembershipSummary struct {
 	Group      Group           `json:"group"`
 	Membership GroupMembership `json:"membership"`
@@ -108,6 +133,8 @@ type Store interface {
 	StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 	CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error)
 	CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error)
+	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
+	SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error)
 }
 
 type MemoryStore struct {
@@ -118,11 +145,14 @@ type MemoryStore struct {
 	invites      map[string]memoryInvite
 	seasons      map[string]Season
 	stunts       map[string]Stunt
+	uploads      map[string]EvidenceUploadAuthorization
+	evidences    map[string]Evidence
 	now          func() time.Time
 	groupNumber  int
 	inviteNumber int
 	seasonNumber int
 	stuntNumber  int
+	uploadNumber int
 }
 
 type memoryInvite struct {
@@ -142,6 +172,8 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		invites:     map[string]memoryInvite{},
 		seasons:     map[string]Season{},
 		stunts:      map[string]Stunt{},
+		uploads:     map[string]EvidenceUploadAuthorization{},
+		evidences:   map[string]Evidence{},
 		now:         now,
 	}
 }
@@ -344,6 +376,63 @@ func (s *MemoryStore) CreatePlannedStunt(ctx context.Context, player Player, ide
 	return stunt, true, nil
 }
 
+func (s *MemoryStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok || stunt.Status != "Planned Stunt" {
+		return EvidenceUploadAuthorization{}, false, ErrStuntNotFound
+	}
+	if stunt.PlayerID != player.ID {
+		return EvidenceUploadAuthorization{}, false, nil
+	}
+
+	s.uploadNumber++
+	authorization := EvidenceUploadAuthorization{
+		ID:             stableID("evidence_upload", stuntID+":"+strconv.Itoa(s.uploadNumber)),
+		StuntID:        stuntID,
+		UploadURL:      "https://storage.supperjumpin.test/uploads/" + stuntID,
+		UploadMethod:   httpMethodPut,
+		UploadHeaders:  map[string]string{"Content-Type": contentType},
+		MediaObjectKey: "uploads/" + stuntID + "/" + strconv.Itoa(s.uploadNumber),
+		ExpiresAt:      s.now().Add(15 * time.Minute).UTC(),
+	}
+	s.uploads[authorization.ID] = authorization
+	return authorization, true, nil
+}
+
+func (s *MemoryStore) SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok || stunt.Status != "Planned Stunt" {
+		return EvidenceSubmission{}, false, ErrStuntNotFound
+	}
+	if stunt.PlayerID != player.ID {
+		return EvidenceSubmission{}, false, nil
+	}
+	authorization, ok := s.uploads[uploadAuthorizationID]
+	if !ok || authorization.StuntID != stuntID || s.now().After(authorization.ExpiresAt) {
+		return EvidenceSubmission{}, false, ErrEvidenceUploadAuthorizationNotFound
+	}
+
+	delete(s.uploads, uploadAuthorizationID)
+	stunt.Status = "Performed Stunt"
+	s.stunts[stunt.ID] = stunt
+
+	evidence := Evidence{
+		ID:             stableID("evidence", stuntID+":"+uploadAuthorizationID),
+		StuntID:        stuntID,
+		Caption:        caption,
+		MediaObjectKey: authorization.MediaObjectKey,
+		CreatedAt:      s.now().UTC(),
+	}
+	s.evidences[stuntID] = evidence
+	return EvidenceSubmission{Stunt: stunt, Evidence: evidence}, true, nil
+}
+
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
 	for _, season := range s.seasons {
 		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
@@ -372,6 +461,8 @@ func randomToken(kind string) (string, error) {
 	}
 	return kind + "_" + hex.EncodeToString(bytes), nil
 }
+
+const httpMethodPut = "PUT"
 
 func groupHome(group Group, membership GroupMembership, activeSeason *Season) GroupHomeResponse {
 	return GroupHomeResponse{
