@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"sort"
@@ -52,6 +53,13 @@ type ListGroupsResponse struct {
 	Memberships []GroupMembershipSummary `json:"memberships"`
 }
 
+type Store interface {
+	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
+	CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error)
+	GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
+	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
+}
+
 type MemoryStore struct {
 	mu          sync.Mutex
 	accounts    map[string]MeResponse
@@ -68,13 +76,13 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) BootstrapIdentity(identity AuthIdentity) MeResponse {
+func (s *MemoryStore) BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	key := identity.Provider + ":" + identity.Subject
 	if profile, ok := s.accounts[key]; ok {
-		return profile
+		return profile, nil
 	}
 
 	accountID := stableID("account", key)
@@ -83,10 +91,10 @@ func (s *MemoryStore) BootstrapIdentity(identity AuthIdentity) MeResponse {
 		Player:  Player{ID: stableID("player", accountID), DisplayName: displayName(identity.Email)},
 	}
 	s.accounts[key] = profile
-	return profile
+	return profile, nil
 }
 
-func (s *MemoryStore) CreateGroup(player Player, name string) GroupHomeResponse {
+func (s *MemoryStore) CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -98,25 +106,25 @@ func (s *MemoryStore) CreateGroup(player Player, name string) GroupHomeResponse 
 		s.memberships[group.ID] = map[string]GroupMembership{}
 	}
 	s.memberships[group.ID][player.ID] = membership
-	return groupHome(group, membership)
+	return groupHome(group, membership), nil
 }
 
-func (s *MemoryStore) GroupHome(player Player, groupID string) (GroupHomeResponse, bool) {
+func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	group, ok := s.groups[groupID]
 	if !ok {
-		return GroupHomeResponse{}, false
+		return GroupHomeResponse{}, false, nil
 	}
 	membership, ok := s.memberships[groupID][player.ID]
 	if !ok {
-		return GroupHomeResponse{}, false
+		return GroupHomeResponse{}, false, nil
 	}
-	return groupHome(group, membership), true
+	return groupHome(group, membership), true, nil
 }
 
-func (s *MemoryStore) ListGroups(player Player) ListGroupsResponse {
+func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -131,7 +139,7 @@ func (s *MemoryStore) ListGroups(player Player) ListGroupsResponse {
 	sort.Slice(memberships, func(i, j int) bool {
 		return memberships[i].Group.Name < memberships[j].Group.Name
 	})
-	return ListGroupsResponse{Memberships: memberships}
+	return ListGroupsResponse{Memberships: memberships}, nil
 }
 
 func groupHome(group Group, membership GroupMembership) GroupHomeResponse {

@@ -25,7 +25,7 @@ func (v StaticAuthVerifier) Verify(token string) (AuthIdentity, bool) {
 
 type ServerConfig struct {
 	Auth  AuthVerifier
-	Store *MemoryStore
+	Store Store
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -57,7 +57,13 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, config.Store.CreateGroup(profile.Player, name))
+		home, err := config.Store.CreateGroup(r.Context(), profile.Player, name)
+		if err != nil {
+			http.Error(w, "create Group", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, home)
 	})
 	mux.HandleFunc("GET /v1/groups", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
@@ -65,7 +71,13 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, config.Store.ListGroups(profile.Player))
+		groups, err := config.Store.ListGroups(r.Context(), profile.Player)
+		if err != nil {
+			http.Error(w, "list Groups", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, groups)
 	})
 	mux.HandleFunc("GET /v1/groups/{groupID}/home", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
@@ -73,7 +85,11 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, ok := config.Store.GroupHome(profile.Player, r.PathValue("groupID"))
+		home, ok, err := config.Store.GroupHome(r.Context(), profile.Player, r.PathValue("groupID"))
+		if err != nil {
+			http.Error(w, "get Group home", http.StatusInternalServerError)
+			return
+		}
 		if !ok {
 			http.Error(w, "Group Membership required", http.StatusForbidden)
 			return
@@ -97,7 +113,13 @@ func signedInProfile(w http.ResponseWriter, r *http.Request, config ServerConfig
 		return MeResponse{}, false
 	}
 
-	return config.Store.BootstrapIdentity(identity), true
+	profile, err := config.Store.BootstrapIdentity(r.Context(), identity)
+	if err != nil {
+		http.Error(w, "bootstrap identity", http.StatusInternalServerError)
+		return MeResponse{}, false
+	}
+
+	return profile, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

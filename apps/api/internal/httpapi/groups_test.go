@@ -2,9 +2,11 @@ package httpapi_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
@@ -119,14 +121,50 @@ func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
 	}
 }
 
+func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	firstServer := newGroupsTestServerWithStore(store)
+	created := createGroup(t, firstServer, "alice-token", "Breakfast Crew")
+
+	restartedStore := newPostgresTestStore(t, databaseURL)
+	restartedServer := newGroupsTestServerWithStore(restartedStore)
+	home := getGroupHome(t, restartedServer, "alice-token", created.Group.ID)
+	if home.Group.Name != "Breakfast Crew" || home.Membership.Role != "Group Admin" {
+		t.Fatalf("expected durable Group Admin membership after restart, got %#v", home)
+	}
+}
+
 func newGroupsTestServer() http.Handler {
+	return newGroupsTestServerWithStore(httpapi.NewMemoryStore())
+}
+
+func newGroupsTestServerWithStore(store httpapi.Store) http.Handler {
 	return httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
 			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
 			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
 		},
-		Store: httpapi.NewMemoryStore(),
+		Store: store,
 	})
+}
+
+func newPostgresTestStore(t *testing.T, databaseURL string) httpapi.Store {
+	t.Helper()
+	store, err := httpapi.NewPostgresStore(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatalf("new Postgres store: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Fatalf("close Postgres store: %v", err)
+		}
+	})
+	return store
 }
 
 func doJSON(server http.Handler, method string, path string, token string, body any) *httptest.ResponseRecorder {
