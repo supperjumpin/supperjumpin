@@ -33,10 +33,17 @@ export interface Invite {
   expiresAt: string;
 }
 
+export interface Season {
+  id: string;
+  groupId: string;
+  commissionerPlayerId: string;
+  status: "Active" | "Judging Grace Period" | "Finalized";
+}
+
 export interface GroupHomeResponse {
   group: Group;
   membership: GroupMembership;
-  activeSeason: null;
+  activeSeason: Season | null;
   recentStunts: unknown[];
   standings: unknown[];
 }

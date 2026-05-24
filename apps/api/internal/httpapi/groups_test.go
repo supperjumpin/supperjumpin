@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
@@ -129,16 +132,7 @@ func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistin
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	bobExistingGroup := createGroup(t, server, "bob-token", "Dinner Weirdos")
 
-	inviteRec := doJSON(server, http.MethodPost, "/v1/groups/"+aliceGroup.Group.ID+"/invites", "alice-token", nil)
-	if inviteRec.Code != http.StatusCreated {
-		t.Fatalf("expected status 201, got %d: %s", inviteRec.Code, inviteRec.Body.String())
-	}
-	var invite struct {
-		ID      string `json:"id"`
-		GroupID string `json:"groupId"`
-		Token   string `json:"token"`
-	}
-	decodeResponse(t, inviteRec, &invite)
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
 	if invite.ID == "" || invite.GroupID != aliceGroup.Group.ID || invite.Token == "" {
 		t.Fatalf("expected Invite for Alice's Group, got %#v", invite)
 	}
@@ -231,6 +225,54 @@ func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
 	}
 }
 
+func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if startRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", startRec.Code, startRec.Body.String())
+	}
+
+	var started groupHomeBody
+	decodeResponse(t, startRec, &started)
+	if started.ActiveSeason == nil {
+		t.Fatalf("expected Active Season on start response")
+	}
+	if started.ActiveSeason.Status != "Active" {
+		t.Fatalf("expected Active Season status, got %q", started.ActiveSeason.Status)
+	}
+	if started.ActiveSeason.CommissionerPlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected starting Player to be Season Commissioner, got %#v", started.ActiveSeason)
+	}
+	if len(started.Standings) != 0 {
+		t.Fatalf("expected empty Standings, got %#v", started.Standings)
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if home.ActiveSeason == nil || home.ActiveSeason.ID != started.ActiveSeason.ID {
+		t.Fatalf("expected Group home to show backend Active Season, got %#v", home.ActiveSeason)
+	}
+	if len(home.Standings) != 0 {
+		t.Fatalf("expected empty Standings on Group home, got %#v", home.Standings)
+	}
+}
+
+func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	firstRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if firstRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", firstRec.Code, firstRec.Body.String())
+	}
+
+	secondRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if secondRec.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
+	}
+}
+
 func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -246,6 +288,69 @@ func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	home := getGroupHome(t, restartedServer, "alice-token", created.Group.ID)
 	if home.Group.Name != "Breakfast Crew" || home.Membership.Role != "Group Admin" {
 		t.Fatalf("expected durable Group Admin membership after restart, got %#v", home)
+	}
+}
+
+func TestPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	firstServer := newGroupsTestServerWithStore(store)
+	group := createGroup(t, firstServer, "alice-token", "Breakfast Crew")
+	started := startSeason(t, firstServer, "alice-token", group.Group.ID)
+
+	restartedStore := newPostgresTestStore(t, databaseURL)
+	restartedServer := newGroupsTestServerWithStore(restartedStore)
+	home := getGroupHome(t, restartedServer, "alice-token", group.Group.ID)
+	if home.ActiveSeason == nil || home.ActiveSeason.ID != started.ActiveSeason.ID {
+		t.Fatalf("expected durable Active Season after restart, got %#v", home.ActiveSeason)
+	}
+	if home.ActiveSeason.CommissionerPlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected durable Season Commissioner, got %#v", home.ActiveSeason)
+	}
+
+	secondRec := doJSON(restartedServer, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	if secondRec.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
+	}
+}
+
+func TestPostgresConcurrentSeasonStartsReturnCreatedAndConflict(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+	installSlowSeasonInsertTrigger(t, databaseURL)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	start := make(chan struct{})
+	statuses := make(chan int, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+			statuses <- rec.Code
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(statuses)
+
+	seen := map[int]int{}
+	for status := range statuses {
+		seen[status]++
+	}
+	if seen[http.StatusCreated] != 1 || seen[http.StatusConflict] != 1 {
+		t.Fatalf("expected one 201 and one 409, got %#v", seen)
 	}
 }
 
@@ -364,6 +469,40 @@ func newPostgresTestStore(t *testing.T, databaseURL string) httpapi.Store {
 	return store
 }
 
+func installSlowSeasonInsertTrigger(t *testing.T, databaseURL string) {
+	t.Helper()
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+CREATE OR REPLACE FUNCTION supperjumpin_test_slow_season_insert()
+RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_sleep(0.2);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_season_insert ON seasons;
+CREATE TRIGGER supperjumpin_test_slow_season_insert
+BEFORE INSERT ON seasons
+FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_season_insert();`); err != nil {
+		t.Fatalf("install slow Season insert trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), `
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_season_insert ON seasons;
+DROP FUNCTION IF EXISTS supperjumpin_test_slow_season_insert();`); err != nil {
+			t.Fatalf("remove slow Season insert trigger: %v", err)
+		}
+	})
+}
+
 func doJSON(server http.Handler, method string, path string, token string, body any) *httptest.ResponseRecorder {
 	var requestBody bytes.Buffer
 	if body != nil {
@@ -397,11 +536,28 @@ type groupHomeBody struct {
 		PlayerID string `json:"playerId"`
 		Role     string `json:"role"`
 	} `json:"membership"`
+	ActiveSeason *struct {
+		ID                   string `json:"id"`
+		Status               string `json:"status"`
+		CommissionerPlayerID string `json:"commissionerPlayerId"`
+	} `json:"activeSeason"`
+	Standings []any `json:"standings"`
 }
 
 func createGroup(t *testing.T, server http.Handler, token string, name string) groupHomeBody {
 	t.Helper()
 	rec := doJSON(server, http.MethodPost, "/v1/groups", token, map[string]string{"name": name})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func startSeason(t *testing.T, server http.Handler, token string, groupID string) groupHomeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/seasons", token, nil)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
 	}

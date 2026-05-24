@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { acceptInvite, createGroup, createInvite, getGroupHome, getMe, listGroups } from "./index.js";
+import { acceptInvite, createGroup, createInvite, getGroupHome, getMe, listGroups, startSeason } from "./index.js";
 
 test("getMe calls the backend with the Supabase bearer token", async () => {
   const seen = {};
@@ -137,11 +137,38 @@ test("acceptInvite returns the invited Group home", async () => {
   assert.equal(home.group.name, "Breakfast Crew");
 });
 
-function groupHomeResponse(group) {
+test("startSeason creates an Active Season for a Group through the backend", async () => {
+  const seen = {};
+  const home = await startSeason({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    groupId: "group_123",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      return Response.json(
+        groupHomeResponse(
+          { id: "group_123", name: "Breakfast Crew" },
+          { id: "season_123", groupId: "group_123", commissionerPlayerId: "player_123", status: "Active" },
+        ),
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/groups/group_123/seasons");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(home.activeSeason.status, "Active");
+  assert.equal(home.activeSeason.commissionerPlayerId, "player_123");
+});
+
+function groupHomeResponse(group, activeSeason = null) {
   return {
     group,
     membership: { groupId: group.id, playerId: "player_123", role: "Group Admin" },
-    activeSeason: null,
+    activeSeason,
     recentStunts: [],
     standings: [],
   };

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"time"
 )
+
+var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Season")
 
 type Account struct {
 	ID    string `json:"id"`
@@ -39,10 +42,17 @@ type GroupMembership struct {
 	Role     string `json:"role"`
 }
 
+type Season struct {
+	ID                   string `json:"id"`
+	GroupID              string `json:"groupId"`
+	CommissionerPlayerID string `json:"commissionerPlayerId"`
+	Status               string `json:"status"`
+}
+
 type GroupHomeResponse struct {
 	Group        Group           `json:"group"`
 	Membership   GroupMembership `json:"membership"`
-	ActiveSeason any             `json:"activeSeason"`
+	ActiveSeason *Season         `json:"activeSeason"`
 	RecentStunts []any           `json:"recentStunts"`
 	Standings    []any           `json:"standings"`
 }
@@ -81,6 +91,7 @@ type Store interface {
 	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
 	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
 	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
+	StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 }
 
 type MemoryStore struct {
@@ -89,9 +100,11 @@ type MemoryStore struct {
 	groups       map[string]Group
 	memberships  map[string]map[string]GroupMembership
 	invites      map[string]memoryInvite
+	seasons      map[string]Season
 	now          func() time.Time
 	groupNumber  int
 	inviteNumber int
+	seasonNumber int
 }
 
 type memoryInvite struct {
@@ -109,6 +122,7 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		groups:      map[string]Group{},
 		memberships: map[string]map[string]GroupMembership{},
 		invites:     map[string]memoryInvite{},
+		seasons:     map[string]Season{},
 		now:         now,
 	}
 }
@@ -149,7 +163,7 @@ func (s *MemoryStore) CreateGroup(ctx context.Context, player Player, name strin
 		s.memberships[group.ID] = map[string]GroupMembership{}
 	}
 	s.memberships[group.ID][player.ID] = membership
-	return groupHome(group, membership), nil
+	return groupHome(group, membership, nil), nil
 }
 
 func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
@@ -164,7 +178,8 @@ func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID stri
 	if !ok {
 		return GroupHomeResponse{}, false, nil
 	}
-	return groupHome(group, membership), true, nil
+	season := s.activeSeasonForGroup(groupID)
+	return groupHome(group, membership, season), true, nil
 }
 
 func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
@@ -228,14 +243,61 @@ func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token str
 		return GroupHomeResponse{}, InviteInvalid, nil
 	}
 	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
-	if existing, ok := s.memberships[invite.GroupID][player.ID]; ok {
-		_ = existing
+	if _, ok := s.memberships[invite.GroupID][player.ID]; ok {
 		return GroupHomeResponse{}, InviteMember, nil
 	}
 	s.memberships[invite.GroupID][player.ID] = membership
 	invite.UsedBy = player.ID
 	s.invites[token] = invite
-	return groupHome(group, membership), InviteAccepted, nil
+	return groupHome(group, membership, s.activeSeasonForGroup(invite.GroupID)), InviteAccepted, nil
+}
+
+func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	group, ok := s.groups[groupID]
+	if !ok {
+		return GroupHomeResponse{}, false, nil
+	}
+	membership, ok := s.memberships[groupID][player.ID]
+	if !ok {
+		return GroupHomeResponse{}, false, nil
+	}
+	if s.openSeasonForGroup(groupID) != nil {
+		return GroupHomeResponse{}, true, ErrSeasonAlreadyOpen
+	}
+
+	s.seasonNumber++
+	season := Season{
+		ID:                   stableID("season", groupID+":"+strconv.Itoa(s.seasonNumber)),
+		GroupID:              groupID,
+		CommissionerPlayerID: player.ID,
+		Status:               "Active",
+	}
+	s.seasons[season.ID] = season
+	return groupHome(group, membership, &season), true, nil
+}
+
+func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
+	for _, season := range s.seasons {
+		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
+			return &season
+		}
+	}
+	return nil
+}
+
+func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
+	season := s.openSeasonForGroup(groupID)
+	if season != nil && season.Status == "Active" {
+		return season
+	}
+	return nil
+}
+
+func isOpenSeasonStatus(status string) bool {
+	return status == "Active" || status == "Judging Grace Period"
 }
 
 func randomToken(kind string) (string, error) {
@@ -246,11 +308,11 @@ func randomToken(kind string) (string, error) {
 	return kind + "_" + hex.EncodeToString(bytes), nil
 }
 
-func groupHome(group Group, membership GroupMembership) GroupHomeResponse {
+func groupHome(group Group, membership GroupMembership, activeSeason *Season) GroupHomeResponse {
 	return GroupHomeResponse{
 		Group:        group,
 		Membership:   membership,
-		ActiveSeason: nil,
+		ActiveSeason: activeSeason,
 		RecentStunts: []any{},
 		Standings:    []any{},
 	}

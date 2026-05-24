@@ -14,8 +14,10 @@ for (const required of [
   "operationId: getGroupHome",
   "operationId: createInvite",
   "operationId: acceptInvite",
+  "operationId: startSeason",
   "GroupHomeResponse:",
   "Invite:",
+  "Season:",
 ]) {
   if (!contract.includes(required)) {
     throw new Error(`OpenAPI contract no longer exposes ${required}`);
@@ -53,10 +55,16 @@ await writeFile(
     `  createdBy: string;\n` +
     `  expiresAt: string;\n` +
     `}\n\n` +
+    `export interface Season {\n` +
+    `  id: string;\n` +
+    `  groupId: string;\n` +
+    `  commissionerPlayerId: string;\n` +
+    `  status: "Active" | "Judging Grace Period" | "Finalized";\n` +
+    `}\n\n` +
     `export interface GroupHomeResponse {\n` +
     `  group: Group;\n` +
     `  membership: GroupMembership;\n` +
-    `  activeSeason: null;\n` +
+    `  activeSeason: Season | null;\n` +
     `  recentStunts: unknown[];\n` +
     `  standings: unknown[];\n` +
     `}\n\n` +

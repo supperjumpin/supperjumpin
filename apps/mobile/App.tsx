@@ -2,7 +2,15 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Button, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { acceptInvite, createGroup, createInvite, getGroupHome, getMe, listGroups } from "@supperjumpin/api-client";
+import {
+  acceptInvite,
+  createGroup,
+  createInvite,
+  getGroupHome,
+  getMe,
+  listGroups,
+  startSeason,
+} from "@supperjumpin/api-client";
 import type { GroupHomeResponse, GroupMembershipSummary, MeResponse } from "@supperjumpin/api-client";
 
 const supabase = createClient(
@@ -98,6 +106,17 @@ export default function App() {
     setGroupHome(home);
   }
 
+  async function startNewSeason() {
+    if (!accessToken || !groupHome) {
+      setStatus("Select a Group before starting a Season.");
+      return;
+    }
+
+    const home = await startSeason({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
+    setGroupHome(home);
+    setStatus(`Started an Active Season for ${home.group.name}. You are the Season Commissioner.`);
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.card}>
@@ -159,7 +178,16 @@ export default function App() {
           <View style={styles.groupHome}>
             <Text style={styles.groupName}>{groupHome.group.name}</Text>
             <Text style={styles.body}>Your Group Membership: {groupHome.membership.role}</Text>
-            <Text style={styles.body}>Active Season: {groupHome.activeSeason ? "Active" : "None"}</Text>
+            <Text style={styles.body}>
+              Active Season: {groupHome.activeSeason ? groupHome.activeSeason.status : "None"}
+            </Text>
+            {groupHome.activeSeason ? (
+              <Text style={styles.body}>
+                Season Commissioner: {groupHome.activeSeason.commissionerPlayerId}
+              </Text>
+            ) : (
+              <Button onPress={startNewSeason} title="Start Season" />
+            )}
             <Text style={styles.body}>Recent Stunts: {groupHome.recentStunts.length}</Text>
             <Text style={styles.body}>Standings: {groupHome.standings.length}</Text>
           </View>
