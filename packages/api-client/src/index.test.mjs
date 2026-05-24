@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { acceptInvite, createGroup, createInvite, getGroupHome, getMe, listGroups, startSeason } from "./index.js";
+import {
+  acceptInvite,
+  createGroup,
+  createIdea,
+  createInvite,
+  createPlannedStunt,
+  getGroupHome,
+  getMe,
+  listGroups,
+  startSeason,
+} from "./index.js";
 
 test("getMe calls the backend with the Supabase bearer token", async () => {
   const seen = {};
@@ -164,6 +174,78 @@ test("startSeason creates an Active Season for a Group through the backend", asy
   assert.equal(home.activeSeason.commissionerPlayerId, "player_123");
 });
 
+test("createIdea posts Source Destination and Food for a Group", async () => {
+  const seen = {};
+  const idea = await createIdea({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    groupId: "group_123",
+    source: "Taco Bell",
+    destination: "Olive Garden parking lot",
+    food: "Crunchwrap",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json(
+        stuntResponse({ status: "Idea", seasonId: null, offSeason: true }),
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/groups/group_123/ideas");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.deepEqual(seen.body, {
+    source: "Taco Bell",
+    destination: "Olive Garden parking lot",
+    food: "Crunchwrap",
+  });
+  assert.equal(idea.status, "Idea");
+});
+
+test("createPlannedStunt can request default Season-linked or explicit Off-Season behavior", async () => {
+  const calls = [];
+  const planned = await createPlannedStunt({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    ideaId: "stunt_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method, authorization: init.headers.Authorization, body: init.body });
+      return Response.json(
+        stuntResponse({ status: "Planned Stunt", seasonId: "season_123", offSeason: false }),
+        { status: 201 },
+      );
+    },
+  });
+  const offSeason = await createPlannedStunt({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    ideaId: "stunt_456",
+    offSeason: true,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method, authorization: init.headers.Authorization, body: init.body });
+      return Response.json(
+        stuntResponse({ id: "stunt_456", status: "Planned Stunt", seasonId: null, offSeason: true }),
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(calls[0].url, "http://api.example.test/v1/ideas/stunt_123/planned-stunt");
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].authorization, "Bearer supabase-access-token");
+  assert.equal(calls[0].body, undefined);
+  assert.equal(planned.seasonId, "season_123");
+  assert.equal(planned.offSeason, false);
+  assert.equal(calls[1].url, "http://api.example.test/v1/ideas/stunt_456/planned-stunt");
+  assert.deepEqual(JSON.parse(calls[1].body), { offSeason: true });
+  assert.equal(offSeason.seasonId, null);
+  assert.equal(offSeason.offSeason, true);
+});
+
 function groupHomeResponse(group, activeSeason = null) {
   return {
     group,
@@ -171,5 +253,20 @@ function groupHomeResponse(group, activeSeason = null) {
     activeSeason,
     recentStunts: [],
     standings: [],
+  };
+}
+
+function stuntResponse(overrides = {}) {
+  return {
+    id: "stunt_123",
+    groupId: "group_123",
+    playerId: "player_123",
+    seasonId: null,
+    status: "Idea",
+    source: "Taco Bell",
+    destination: "Olive Garden parking lot",
+    food: "Crunchwrap",
+    offSeason: true,
+    ...overrides,
   };
 }

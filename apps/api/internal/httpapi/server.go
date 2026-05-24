@@ -166,6 +166,72 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, home)
 	})
+	mux.HandleFunc("POST /v1/groups/{groupID}/ideas", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			Source      string `json:"source"`
+			Destination string `json:"destination"`
+			Food        string `json:"food"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		source := strings.TrimSpace(request.Source)
+		destination := strings.TrimSpace(request.Destination)
+		food := strings.TrimSpace(request.Food)
+		if source == "" || destination == "" || food == "" {
+			http.Error(w, "Source, Destination, and Food are required", http.StatusBadRequest)
+			return
+		}
+
+		idea, ok, err := config.Store.CreateIdea(r.Context(), profile.Player, r.PathValue("groupID"), source, destination, food)
+		if err != nil {
+			http.Error(w, "create Idea", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Group Membership required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, idea)
+	})
+	mux.HandleFunc("POST /v1/ideas/{ideaID}/planned-stunt", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			OffSeason bool `json:"offSeason"`
+		}
+		if r.Body != nil && r.ContentLength != 0 {
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return
+			}
+		}
+		planned, ok, err := config.Store.CreatePlannedStunt(r.Context(), profile.Player, r.PathValue("ideaID"), request.OffSeason)
+		if errors.Is(err, ErrStuntNotFound) {
+			http.Error(w, "Idea not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "create Planned Stunt", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Group Membership required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, planned)
+	})
 	return mux
 }
 

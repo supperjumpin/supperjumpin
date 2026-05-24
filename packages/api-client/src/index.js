@@ -83,6 +83,39 @@ export async function startSeason({ baseUrl, accessToken, groupId, fetchImpl = f
   return response.json();
 }
 
+export async function createIdea({ baseUrl, accessToken, groupId, source, destination, food, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/groups/${groupId}/ideas`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ source, destination, food }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`createIdea failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function createPlannedStunt({ baseUrl, accessToken, ideaId, offSeason = false, fetchImpl = fetch }) {
+  const init = {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  };
+  if (offSeason) {
+    init.headers = { ...init.headers, "Content-Type": "application/json" };
+    init.body = JSON.stringify({ offSeason: true });
+  }
+
+  const response = await fetchImpl(`${baseUrl}/v1/ideas/${ideaId}/planned-stunt`, init);
+
+  if (!response.ok) {
+    throw new Error(`createPlannedStunt failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 function authHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,

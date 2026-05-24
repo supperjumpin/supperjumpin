@@ -16,6 +16,8 @@ import (
 
 var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Season")
 
+var ErrStuntNotFound = errors.New("Stunt not found")
+
 type Account struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
@@ -57,6 +59,18 @@ type GroupHomeResponse struct {
 	Standings    []any           `json:"standings"`
 }
 
+type Stunt struct {
+	ID          string  `json:"id"`
+	GroupID     string  `json:"groupId"`
+	PlayerID    string  `json:"playerId"`
+	SeasonID    *string `json:"seasonId"`
+	Status      string  `json:"status"`
+	Source      string  `json:"source"`
+	Destination string  `json:"destination"`
+	Food        string  `json:"food"`
+	OffSeason   bool    `json:"offSeason"`
+}
+
 type GroupMembershipSummary struct {
 	Group      Group           `json:"group"`
 	Membership GroupMembership `json:"membership"`
@@ -92,6 +106,8 @@ type Store interface {
 	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
 	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
 	StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
+	CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error)
+	CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error)
 }
 
 type MemoryStore struct {
@@ -101,10 +117,12 @@ type MemoryStore struct {
 	memberships  map[string]map[string]GroupMembership
 	invites      map[string]memoryInvite
 	seasons      map[string]Season
+	stunts       map[string]Stunt
 	now          func() time.Time
 	groupNumber  int
 	inviteNumber int
 	seasonNumber int
+	stuntNumber  int
 }
 
 type memoryInvite struct {
@@ -123,6 +141,7 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		memberships: map[string]map[string]GroupMembership{},
 		invites:     map[string]memoryInvite{},
 		seasons:     map[string]Season{},
+		stunts:      map[string]Stunt{},
 		now:         now,
 	}
 }
@@ -277,6 +296,52 @@ func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID st
 	}
 	s.seasons[season.ID] = season
 	return groupHome(group, membership, &season), true, nil
+}
+
+func (s *MemoryStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.memberships[groupID][player.ID]; !ok {
+		return Stunt{}, false, nil
+	}
+	s.stuntNumber++
+	stunt := Stunt{
+		ID:          stableID("stunt", groupID+":"+player.ID+":"+strconv.Itoa(s.stuntNumber)),
+		GroupID:     groupID,
+		PlayerID:    player.ID,
+		Status:      "Idea",
+		Source:      source,
+		Destination: destination,
+		Food:        food,
+		OffSeason:   true,
+	}
+	s.stunts[stunt.ID] = stunt
+	return stunt, true, nil
+}
+
+func (s *MemoryStore) CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[ideaID]
+	if !ok || stunt.Status != "Idea" {
+		return Stunt{}, false, ErrStuntNotFound
+	}
+	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok || stunt.PlayerID != player.ID {
+		return Stunt{}, false, nil
+	}
+	stunt.Status = "Planned Stunt"
+	stunt.SeasonID = nil
+	stunt.OffSeason = true
+	if !offSeason {
+		if season := s.activeSeasonForGroup(stunt.GroupID); season != nil {
+			stunt.SeasonID = &season.ID
+			stunt.OffSeason = false
+		}
+	}
+	s.stunts[stunt.ID] = stunt
+	return stunt, true, nil
 }
 
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {

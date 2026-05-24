@@ -5,13 +5,15 @@ import { Button, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-n
 import {
   acceptInvite,
   createGroup,
+  createIdea,
   createInvite,
+  createPlannedStunt,
   getGroupHome,
   getMe,
   listGroups,
   startSeason,
 } from "@supperjumpin/api-client";
-import type { GroupHomeResponse, GroupMembershipSummary, MeResponse } from "@supperjumpin/api-client";
+import type { GroupHomeResponse, GroupMembershipSummary, MeResponse, Stunt } from "@supperjumpin/api-client";
 
 const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
@@ -24,11 +26,16 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [groupName, setGroupName] = useState("");
   const [inviteToken, setInviteToken] = useState("");
+  const [source, setSource] = useState("");
+  const [destination, setDestination] = useState("");
+  const [food, setFood] = useState("");
   const [status, setStatus] = useState("Enter an email to request a Supabase magic link.");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [memberships, setMemberships] = useState<GroupMembershipSummary[]>([]);
   const [groupHome, setGroupHome] = useState<GroupHomeResponse | null>(null);
+  const [idea, setIdea] = useState<Stunt | null>(null);
+  const [plannedStunt, setPlannedStunt] = useState<Stunt | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -104,6 +111,8 @@ export default function App() {
   async function selectGroup(token: string, groupId: string) {
     const home = await getGroupHome({ baseUrl: apiBaseUrl, accessToken: token, groupId });
     setGroupHome(home);
+    setIdea(null);
+    setPlannedStunt(null);
   }
 
   async function startNewSeason() {
@@ -115,6 +124,44 @@ export default function App() {
     const home = await startSeason({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
     setGroupHome(home);
     setStatus(`Started an Active Season for ${home.group.name}. You are the Season Commissioner.`);
+  }
+
+  async function captureIdea() {
+    if (!accessToken || !groupHome) {
+      setStatus("Select a Group before creating an Idea.");
+      return;
+    }
+
+    const captured = await createIdea({
+      baseUrl: apiBaseUrl,
+      accessToken,
+      groupId: groupHome.group.id,
+      source,
+      destination,
+      food,
+    });
+    setIdea(captured);
+    setPlannedStunt(null);
+    setStatus(`Captured Idea: ${captured.food} from ${captured.source} at ${captured.destination}.`);
+  }
+
+  async function planStunt(offSeason = false) {
+    if (!accessToken || !idea) {
+      setStatus("Create an Idea before creating a Planned Stunt.");
+      return;
+    }
+
+    const planned = await createPlannedStunt({ baseUrl: apiBaseUrl, accessToken, ideaId: idea.id, offSeason });
+    setPlannedStunt(planned);
+    setIdea(null);
+    setSource("");
+    setDestination("");
+    setFood("");
+    setStatus(
+      planned.offSeason
+        ? `Created an Off-Season Stunt for ${planned.food}.`
+        : `Created a Season-linked Planned Stunt for ${planned.food}.`,
+    );
   }
 
   return (
@@ -190,6 +237,31 @@ export default function App() {
             )}
             <Text style={styles.body}>Recent Stunts: {groupHome.recentStunts.length}</Text>
             <Text style={styles.body}>Standings: {groupHome.standings.length}</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Create Idea</Text>
+              <TextInput onChangeText={setSource} placeholder="Source" style={styles.input} value={source} />
+              <TextInput
+                onChangeText={setDestination}
+                placeholder="Destination"
+                style={styles.input}
+                value={destination}
+              />
+              <TextInput onChangeText={setFood} placeholder="Food" style={styles.input} value={food} />
+              <Button onPress={captureIdea} title="Capture Idea" />
+              {idea ? (
+                <View style={styles.stuntCard}>
+                  <Text style={styles.body}>Idea: {idea.food}</Text>
+                  <Button onPress={() => planStunt(false)} title="Create Planned Stunt" />
+                  <Button onPress={() => planStunt(true)} title="Create Off-Season Stunt" />
+                </View>
+              ) : null}
+              {plannedStunt ? (
+                <Text style={styles.body}>
+                  Planned Stunt: {plannedStunt.source} to {plannedStunt.destination} with {plannedStunt.food} (
+                  {plannedStunt.offSeason ? "Off-Season Stunt" : "Season-linked"})
+                </Text>
+              ) : null}
+            </View>
           </View>
         ) : null}
       </View>
@@ -239,6 +311,14 @@ const styles = StyleSheet.create({
     color: "#2f241d",
     fontSize: 24,
     fontWeight: "900",
+  },
+  stuntCard: {
+    backgroundColor: "#fffaf2",
+    borderColor: "#c1673a",
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12,
   },
   input: {
     backgroundColor: "white",

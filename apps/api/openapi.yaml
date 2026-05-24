@@ -157,6 +157,82 @@ paths:
           description: The signed-in Player does not have a Group Membership for this Group.
         "409":
           description: The Group already has an active or closing Season.
+  /v1/groups/{groupId}/ideas:
+    post:
+      operationId: createIdea
+      summary: Create an Idea in exactly one Group
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, destination, food]
+              properties:
+                source:
+                  type: string
+                destination:
+                  type: string
+                food:
+                  type: string
+      responses:
+        "201":
+          description: The created Group-scoped Idea.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stunt"
+        "400":
+          description: Invalid Idea creation request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player does not have a Group Membership for this Group.
+  /v1/ideas/{ideaId}/planned-stunt:
+    post:
+      operationId: createPlannedStunt
+      summary: Create a Planned Stunt from an Idea
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ideaId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                offSeason:
+                  type: boolean
+                  description: When true, the Planned Stunt is explicitly Off-Season even during an Active Season.
+      responses:
+        "201":
+          description: The Planned Stunt, Season-linked by default during an Active Season.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stunt"
+        "400":
+          description: Invalid Planned Stunt request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not allowed to plan this Idea.
+        "404":
+          description: Idea not found.
 components:
   securitySchemes:
     bearerAuth:
@@ -237,6 +313,33 @@ components:
         status:
           type: string
           enum: [Active, Judging Grace Period, Finalized]
+    Stunt:
+      type: object
+      required: [id, groupId, playerId, seasonId, status, source, destination, food, offSeason]
+      properties:
+        id:
+          type: string
+        groupId:
+          type: string
+          description: The exactly one Group this Stunt belongs to.
+        playerId:
+          type: string
+        seasonId:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Present only for Season-linked Planned Stunts.
+        status:
+          type: string
+          enum: [Idea, Planned Stunt]
+        source:
+          type: string
+        destination:
+          type: string
+        food:
+          type: string
+        offSeason:
+          type: boolean
     GroupHomeResponse:
       type: object
       required: [group, membership, activeSeason, recentStunts, standings]
