@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -152,6 +153,100 @@ ORDER BY groups.name`, player.ID)
 		return memberships[i].Group.Name < memberships[j].Group.Name
 	})
 	return ListGroupsResponse{Memberships: memberships}, nil
+}
+
+func (s *PostgresStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Invite{}, false, err
+	}
+	defer tx.Rollback()
+
+	var existing string
+	if err := tx.QueryRowContext(ctx, `
+SELECT player_id
+FROM group_memberships
+WHERE group_id = $1 AND player_id = $2`, groupID, player.ID).Scan(&existing); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Invite{}, false, nil
+		}
+		return Invite{}, false, err
+	}
+
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM invites`).Scan(&count); err != nil {
+		return Invite{}, false, err
+	}
+	invite := Invite{
+		ID:        stableID("invite", groupID+":"+strconv.Itoa(count+1)),
+		GroupID:   groupID,
+		Token:     stableID("invite_token", groupID+":"+player.ID+":"+strconv.Itoa(count+1)),
+		CreatedBy: player.ID,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour).UTC(),
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO invites (id, group_id, token, created_by_player_id, expires_at)
+VALUES ($1, $2, $3, $4, $5)`, invite.ID, invite.GroupID, invite.Token, invite.CreatedBy, invite.ExpiresAt); err != nil {
+		return Invite{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Invite{}, false, err
+	}
+	return invite, true, nil
+}
+
+func (s *PostgresStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	defer tx.Rollback()
+
+	var invite Invite
+	var usedBy sql.NullString
+	if err := tx.QueryRowContext(ctx, `
+SELECT id, group_id, token, created_by_player_id, used_by_player_id, expires_at
+FROM invites
+WHERE token = $1`, token).Scan(&invite.ID, &invite.GroupID, &invite.Token, &invite.CreatedBy, &usedBy, &invite.ExpiresAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GroupHomeResponse{}, InviteInvalid, nil
+		}
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	if usedBy.Valid {
+		return GroupHomeResponse{}, InviteUsed, nil
+	}
+	if time.Now().After(invite.ExpiresAt) {
+		return GroupHomeResponse{}, InviteExpired, nil
+	}
+
+	var group Group
+	if err := tx.QueryRowContext(ctx, `SELECT id, name FROM groups WHERE id = $1`, invite.GroupID).Scan(&group.ID, &group.Name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GroupHomeResponse{}, InviteInvalid, nil
+		}
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO group_memberships (group_id, player_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (group_id, player_id) DO NOTHING`, membership.GroupID, membership.PlayerID, membership.Role); err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	if err := tx.QueryRowContext(ctx, `
+SELECT role
+FROM group_memberships
+WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&membership.Role); err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE invites SET used_by_player_id = $1 WHERE token = $2`, player.ID, token); err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	if err := tx.Commit(); err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	return groupHome(group, membership), InviteAccepted, nil
 }
 
 func getProfileByAuthIdentity(ctx context.Context, tx *sql.Tx, provider string, subject string) (MeResponse, error) {

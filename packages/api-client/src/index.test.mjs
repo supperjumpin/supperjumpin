@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGroup, getGroupHome, getMe, listGroups } from "./index.js";
+import { acceptInvite, createGroup, createInvite, getGroupHome, getMe, listGroups } from "./index.js";
 
 test("getMe calls the backend with the Supabase bearer token", async () => {
   const seen = {};
@@ -92,6 +92,49 @@ test("getGroupHome fetches backend Season Stunts and Standings placeholders for 
   assert.equal(home.activeSeason, null);
   assert.deepEqual(home.recentStunts, []);
   assert.deepEqual(home.standings, []);
+});
+
+test("createInvite requests a Group Invite for the signed-in Player", async () => {
+  const seen = {};
+  const invite = await createInvite({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    groupId: "group_123",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      return Response.json(
+        { id: "invite_123", groupId: "group_123", token: "invite-token", createdBy: "player_123", expiresAt: "2026-06-01T00:00:00Z" },
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/groups/group_123/invites");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(invite.token, "invite-token");
+});
+
+test("acceptInvite returns the invited Group home", async () => {
+  const seen = {};
+  const home = await acceptInvite({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    token: "invite-token",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      return Response.json(groupHomeResponse({ id: "group_123", name: "Breakfast Crew" }));
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/invites/invite-token/accept");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(home.group.name, "Breakfast Crew");
 });
 
 function groupHomeResponse(group) {

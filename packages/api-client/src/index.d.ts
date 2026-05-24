@@ -1,4 +1,4 @@
-import type { GroupHomeResponse, ListGroupsResponse, MeResponse } from "./generated";
+import type { GroupHomeResponse, Invite, ListGroupsResponse, MeResponse } from "./generated";
 
 export type {
   Account,
@@ -6,6 +6,7 @@ export type {
   GroupHomeResponse,
   GroupMembership,
   GroupMembershipSummary,
+  Invite,
   ListGroupsResponse,
   MeResponse,
   Player,
@@ -34,5 +35,19 @@ export function getGroupHome(args: {
   baseUrl: string;
   accessToken: string;
   groupId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GroupHomeResponse>;
+
+export function createInvite(args: {
+  baseUrl: string;
+  accessToken: string;
+  groupId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<Invite>;
+
+export function acceptInvite(args: {
+  baseUrl: string;
+  accessToken: string;
+  token: string;
   fetchImpl?: typeof fetch;
 }): Promise<GroupHomeResponse>;

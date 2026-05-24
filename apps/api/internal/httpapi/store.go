@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Account struct {
@@ -53,19 +54,45 @@ type ListGroupsResponse struct {
 	Memberships []GroupMembershipSummary `json:"memberships"`
 }
 
+type Invite struct {
+	ID        string    `json:"id"`
+	GroupID   string    `json:"groupId"`
+	Token     string    `json:"token"`
+	CreatedBy string    `json:"createdBy"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+type InviteAcceptStatus string
+
+const (
+	InviteAccepted InviteAcceptStatus = "accepted"
+	InviteInvalid  InviteAcceptStatus = "invalid"
+	InviteUsed     InviteAcceptStatus = "used"
+	InviteExpired  InviteAcceptStatus = "expired"
+)
+
 type Store interface {
 	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
 	CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error)
 	GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
 	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
+	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
+	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
 }
 
 type MemoryStore struct {
-	mu          sync.Mutex
-	accounts    map[string]MeResponse
-	groups      map[string]Group
-	memberships map[string]map[string]GroupMembership
-	groupNumber int
+	mu           sync.Mutex
+	accounts     map[string]MeResponse
+	groups       map[string]Group
+	memberships  map[string]map[string]GroupMembership
+	invites      map[string]memoryInvite
+	groupNumber  int
+	inviteNumber int
+}
+
+type memoryInvite struct {
+	Invite
+	UsedBy string
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -73,6 +100,7 @@ func NewMemoryStore() *MemoryStore {
 		accounts:    map[string]MeResponse{},
 		groups:      map[string]Group{},
 		memberships: map[string]map[string]GroupMembership{},
+		invites:     map[string]memoryInvite{},
 	}
 }
 
@@ -140,6 +168,55 @@ func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroups
 		return memberships[i].Group.Name < memberships[j].Group.Name
 	})
 	return ListGroupsResponse{Memberships: memberships}, nil
+}
+
+func (s *MemoryStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.memberships[groupID][player.ID]; !ok {
+		return Invite{}, false, nil
+	}
+
+	s.inviteNumber++
+	invite := Invite{
+		ID:        stableID("invite", groupID+":"+strconv.Itoa(s.inviteNumber)),
+		GroupID:   groupID,
+		Token:     stableID("invite_token", groupID+":"+player.ID+":"+strconv.Itoa(s.inviteNumber)),
+		CreatedBy: player.ID,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour).UTC(),
+	}
+	s.invites[invite.Token] = memoryInvite{Invite: invite}
+	return invite, true, nil
+}
+
+func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	invite, ok := s.invites[token]
+	if !ok {
+		return GroupHomeResponse{}, InviteInvalid, nil
+	}
+	if invite.UsedBy != "" {
+		return GroupHomeResponse{}, InviteUsed, nil
+	}
+	if time.Now().After(invite.ExpiresAt) {
+		return GroupHomeResponse{}, InviteExpired, nil
+	}
+	group, ok := s.groups[invite.GroupID]
+	if !ok {
+		return GroupHomeResponse{}, InviteInvalid, nil
+	}
+	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
+	if existing, ok := s.memberships[invite.GroupID][player.ID]; ok {
+		membership = existing
+	} else {
+		s.memberships[invite.GroupID][player.ID] = membership
+	}
+	invite.UsedBy = player.ID
+	s.invites[token] = invite
+	return groupHome(group, membership), InviteAccepted, nil
 }
 
 func groupHome(group Group, membership GroupMembership) GroupHomeResponse {

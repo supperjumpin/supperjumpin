@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Button, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { createGroup, getGroupHome, getMe, listGroups } from "@supperjumpin/api-client";
+import { acceptInvite, createGroup, createInvite, getGroupHome, getMe, listGroups } from "@supperjumpin/api-client";
 import type { GroupHomeResponse, GroupMembershipSummary, MeResponse } from "@supperjumpin/api-client";
 
 const supabase = createClient(
@@ -15,6 +15,7 @@ const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:808
 export default function App() {
   const [email, setEmail] = useState("");
   const [groupName, setGroupName] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
   const [status, setStatus] = useState("Enter an email to request a Supabase magic link.");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<MeResponse | null>(null);
@@ -57,6 +58,31 @@ export default function App() {
     setMemberships(groups.memberships);
     setGroupName("");
     setStatus(`Created ${home.group.name}. You are its Group Admin.`);
+  }
+
+  async function createGroupInvite() {
+    if (!accessToken || !groupHome) {
+      setStatus("Select a Group before creating an Invite.");
+      return;
+    }
+
+    const invite = await createInvite({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
+    setInviteToken(invite.token);
+    setStatus(`Created Invite for ${groupHome.group.name}.`);
+  }
+
+  async function acceptGroupInvite() {
+    if (!accessToken) {
+      setStatus("Sign in before accepting an Invite.");
+      return;
+    }
+
+    const home = await acceptInvite({ baseUrl: apiBaseUrl, accessToken, token: inviteToken });
+    const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
+    setGroupHome(home);
+    setMemberships(groups.memberships);
+    setInviteToken("");
+    setStatus(`Joined ${home.group.name}.`);
   }
 
   async function selectGroup(token: string, groupId: string) {
@@ -105,6 +131,20 @@ export default function App() {
                 title={`${entry.group.name} (${entry.membership.role})`}
               />
             ))}
+          </View>
+        ) : null}
+        {profile ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Invites</Text>
+            <Button onPress={createGroupInvite} title="Create Invite for selected Group" />
+            <TextInput
+              autoCapitalize="none"
+              onChangeText={setInviteToken}
+              placeholder="Invite token"
+              style={styles.input}
+              value={inviteToken}
+            />
+            <Button onPress={acceptGroupInvite} title="Accept Invite" />
           </View>
         ) : null}
         {groupHome ? (

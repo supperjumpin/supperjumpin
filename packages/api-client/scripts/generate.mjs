@@ -12,7 +12,10 @@ for (const required of [
   "operationId: createGroup",
   "operationId: listGroups",
   "operationId: getGroupHome",
+  "operationId: createInvite",
+  "operationId: acceptInvite",
   "GroupHomeResponse:",
+  "Invite:",
 ]) {
   if (!contract.includes(required)) {
     throw new Error(`OpenAPI contract no longer exposes ${required}`);
@@ -42,6 +45,13 @@ await writeFile(
     `  groupId: string;\n` +
     `  playerId: string;\n` +
     `  role: "Group Admin" | "Player";\n` +
+    `}\n\n` +
+    `export interface Invite {\n` +
+    `  id: string;\n` +
+    `  groupId: string;\n` +
+    `  token: string;\n` +
+    `  createdBy: string;\n` +
+    `  expiresAt: string;\n` +
     `}\n\n` +
     `export interface GroupHomeResponse {\n` +
     `  group: Group;\n` +

@@ -121,6 +121,80 @@ func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
 	}
 }
 
+func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	bobExistingGroup := createGroup(t, server, "bob-token", "Dinner Weirdos")
+
+	inviteRec := doJSON(server, http.MethodPost, "/v1/groups/"+aliceGroup.Group.ID+"/invites", "alice-token", nil)
+	if inviteRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", inviteRec.Code, inviteRec.Body.String())
+	}
+	var invite struct {
+		ID      string `json:"id"`
+		GroupID string `json:"groupId"`
+		Token   string `json:"token"`
+	}
+	decodeResponse(t, inviteRec, &invite)
+	if invite.ID == "" || invite.GroupID != aliceGroup.Group.ID || invite.Token == "" {
+		t.Fatalf("expected Invite for Alice's Group, got %#v", invite)
+	}
+
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	var accepted groupHomeBody
+	decodeResponse(t, acceptRec, &accepted)
+	if accepted.Group.ID != aliceGroup.Group.ID || accepted.Membership.Role != "Player" {
+		t.Fatalf("expected Bob to join Alice's Group as Player, got %#v", accepted)
+	}
+
+	joinedHome := getGroupHome(t, server, "bob-token", aliceGroup.Group.ID)
+	if joinedHome.Group.Name != "Breakfast Crew" || joinedHome.Membership.Role != "Player" {
+		t.Fatalf("expected Bob to open invited Group home, got %#v", joinedHome)
+	}
+	stillOwnHome := getGroupHome(t, server, "bob-token", bobExistingGroup.Group.ID)
+	if stillOwnHome.Group.Name != "Dinner Weirdos" || stillOwnHome.Membership.Role != "Group Admin" {
+		t.Fatalf("expected Bob's existing play history to remain, got %#v", stillOwnHome)
+	}
+}
+
+func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+
+	first := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected first accept status 200, got %d: %s", first.Code, first.Body.String())
+	}
+
+	second := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "carol-token", nil)
+	if second.Code != http.StatusConflict {
+		t.Fatalf("expected already-used Invite status 409, got %d: %s", second.Code, second.Body.String())
+	}
+}
+
+func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
+	server := newGroupsTestServer()
+
+	rec := doJSON(server, http.MethodPost, "/v1/invites/not-a-real-invite/accept", "bob-token", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected invalid Invite status 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+aliceGroup.Group.ID+"/invites", "bob-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected non-member Invite creation status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -148,6 +222,7 @@ func newGroupsTestServerWithStore(store httpapi.Store) http.Handler {
 		Auth: httpapi.StaticAuthVerifier{
 			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
 			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "supabase", Subject: "carol-auth", Email: "carol@example.com"},
 		},
 		Store: store,
 	})
@@ -220,6 +295,23 @@ func getGroupHome(t *testing.T, server http.Handler, token string, groupID strin
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+type inviteBody struct {
+	ID      string `json:"id"`
+	GroupID string `json:"groupId"`
+	Token   string `json:"token"`
+}
+
+func createInvite(t *testing.T, server http.Handler, token string, groupID string) inviteBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/invites", token, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body inviteBody
 	decodeResponse(t, rec, &body)
 	return body
 }

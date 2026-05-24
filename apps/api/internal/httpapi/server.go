@@ -97,6 +97,49 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, home)
 	})
+	mux.HandleFunc("POST /v1/groups/{groupID}/invites", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		invite, ok, err := config.Store.CreateInvite(r.Context(), profile.Player, r.PathValue("groupID"))
+		if err != nil {
+			http.Error(w, "create Invite", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Group Membership required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, invite)
+	})
+	mux.HandleFunc("POST /v1/invites/{token}/accept", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		home, status, err := config.Store.AcceptInvite(r.Context(), profile.Player, r.PathValue("token"))
+		if err != nil {
+			http.Error(w, "accept Invite", http.StatusInternalServerError)
+			return
+		}
+		switch status {
+		case InviteInvalid:
+			http.Error(w, "Invite cannot be accepted", http.StatusNotFound)
+			return
+		case InviteUsed:
+			http.Error(w, "Invite already used", http.StatusConflict)
+			return
+		case InviteExpired:
+			http.Error(w, "Invite expired", http.StatusGone)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, home)
+	})
 	return mux
 }
 
