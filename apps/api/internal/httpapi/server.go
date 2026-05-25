@@ -308,6 +308,63 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, submission)
 	})
+	mux.HandleFunc("POST /v1/stunts/{stuntID}/judgment", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			Difficulty    *int `json:"difficulty"`
+			Transgression *int `json:"transgression"`
+			Creativity    *int `json:"creativity"`
+			Documentation *int `json:"documentation"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		if request.Difficulty == nil || request.Transgression == nil || request.Creativity == nil || request.Documentation == nil {
+			http.Error(w, "difficulty, transgression, creativity, and documentation are required", http.StatusBadRequest)
+			return
+		}
+
+		judgment, ok, created, err := config.Store.SubmitJudgment(
+			r.Context(),
+			profile.Player,
+			r.PathValue("stuntID"),
+			*request.Difficulty,
+			*request.Transgression,
+			*request.Creativity,
+			*request.Documentation,
+		)
+		if errors.Is(err, ErrStuntNotFound) {
+			http.Error(w, "Performed Stunt not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrJudgingWindowClosed) {
+			http.Error(w, "Judging Window closed", http.StatusConflict)
+			return
+		}
+		if errors.Is(err, ErrInvalidJudgmentScore) {
+			http.Error(w, "Judgment scores must be between 0 and 10", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "submit Judgment", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Judge required", http.StatusForbidden)
+			return
+		}
+
+		status := http.StatusOK
+		if created {
+			status = http.StatusCreated
+		}
+		writeJSON(w, status, judgment)
+	})
 	return mux
 }
 

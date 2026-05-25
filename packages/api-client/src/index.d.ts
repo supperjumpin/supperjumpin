@@ -3,8 +3,10 @@ import type {
   EvidenceUploadAuthorization,
   GroupHomeResponse,
   Invite,
+  Judgment,
   ListGroupsResponse,
   MeResponse,
+  PerformedStuntView,
   Stunt,
 } from "./generated";
 
@@ -18,8 +20,10 @@ export type {
   EvidenceSubmission,
   EvidenceUploadAuthorization,
   Invite,
+  Judgment,
   ListGroupsResponse,
   MeResponse,
+  PerformedStuntView,
   Player,
   Season,
   Stunt,
@@ -106,3 +110,14 @@ export function submitEvidence(args: {
   caption: string;
   fetchImpl?: typeof fetch;
 }): Promise<EvidenceSubmission>;
+
+export function submitJudgment(args: {
+  baseUrl: string;
+  accessToken: string;
+  stuntId: string;
+  difficulty: number;
+  transgression: number;
+  creativity: number;
+  documentation: number;
+  fetchImpl?: typeof fetch;
+}): Promise<Judgment>;

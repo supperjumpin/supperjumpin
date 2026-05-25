@@ -411,6 +411,176 @@ func TestAuthorizedEvidenceSubmissionPerformsStuntAndOwnsMediaObjectKey(t *testi
 	if submission.Evidence.MediaObjectKey != authorization.MediaObjectKey {
 		t.Fatalf("expected backend-owned media object key from authorization, got %#v", submission.Evidence)
 	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.RecentStunts) != 1 {
+		t.Fatalf("expected one recent Performed Stunt on Group home, got %#v", home.RecentStunts)
+	}
+	recent := home.RecentStunts[0]
+	if recent.Stunt.ID != planned.ID || recent.Stunt.Status != "Performed Stunt" {
+		t.Fatalf("expected recent Performed Stunt to match the submitted Stunt, got %#v", recent)
+	}
+	if recent.Performer.DisplayName != "alice" {
+		t.Fatalf("expected performer display name on recent Stunt, got %#v", recent.Performer)
+	}
+	if recent.Evidence.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected recent Stunt evidence caption, got %#v", recent.Evidence)
+	}
+}
+
+func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
+		"difficulty":    4,
+		"transgression": 5,
+		"creativity":    3,
+		"documentation": 2,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected Judgment status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var judgment judgmentBody
+	decodeResponse(t, rec, &judgment)
+	if judgment.ID == "" || judgment.StuntID != performed.Stunt.ID {
+		t.Fatalf("expected Judgment for Performed Stunt, got %#v", judgment)
+	}
+	if judgment.PlayerID == performed.Stunt.PlayerID {
+		t.Fatalf("expected Judge to be a different Player than performer, got %#v", judgment)
+	}
+	if judgment.Difficulty != 4 || judgment.Transgression != 5 || judgment.Creativity != 3 || judgment.Documentation != 2 {
+		t.Fatalf("expected four submitted Judgment scores, got %#v", judgment)
+	}
+}
+
+func TestPerformerCannotJudgeTheirOwnPerformedStunt(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "alice-token", map[string]int{
+		"difficulty":    4,
+		"transgression": 5,
+		"creativity":    3,
+		"documentation": 2,
+	})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected performer Judgment status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	created := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	updated := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 6, 7, 8, 9, http.StatusOK)
+
+	if updated.ID != created.ID || updated.StuntID != created.StuntID || updated.PlayerID != created.PlayerID {
+		t.Fatalf("expected edited Judgment to keep identity, created %#v updated %#v", created, updated)
+	}
+	if updated.Difficulty != 6 || updated.Transgression != 7 || updated.Creativity != 8 || updated.Documentation != 9 {
+		t.Fatalf("expected edited Judgment scores, got %#v", updated)
+	}
+}
+
+func TestJudgmentScoresMustStayInRange(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
+		"difficulty":    11,
+		"transgression": 5,
+		"creativity":    3,
+		"documentation": 2,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected out-of-range Judgment score status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestJudgmentRequiresAllScoreFields(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
+		"difficulty":    0,
+		"transgression": 5,
+		"creativity":    3,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing Judgment score status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) {
+	store := httpapi.NewMemoryStore()
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	created := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	store.SetSeasonStatus(season.ActiveSeason.ID, "Finalized")
+
+	editRec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
+		"difficulty":    6,
+		"transgression": 7,
+		"creativity":    8,
+		"documentation": 9,
+	})
+	if editRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed Judging Window edit status 409, got %d: %s", editRec.Code, editRec.Body.String())
+	}
+
+	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
+	if carolAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Carol to join Group before judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
+	}
+	createRec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "carol-token", map[string]int{
+		"difficulty":    1,
+		"transgression": 1,
+		"creativity":    1,
+		"documentation": 1,
+	})
+	if createRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed Judging Window create status 409, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+
+	if created.Difficulty != 4 || created.Transgression != 5 || created.Creativity != 3 || created.Documentation != 2 {
+		t.Fatalf("expected original Judgment to exist before closed-window attempts, got %#v", created)
+	}
 }
 
 func TestIdeaAndPlannedStuntRequireGroupMembership(t *testing.T) {
@@ -842,7 +1012,32 @@ type groupHomeBody struct {
 		Status               string `json:"status"`
 		CommissionerPlayerID string `json:"commissionerPlayerId"`
 	} `json:"activeSeason"`
-	Standings []any `json:"standings"`
+	RecentStunts []performedStuntViewBody `json:"recentStunts"`
+	Standings    []any                    `json:"standings"`
+}
+
+type performedStuntViewBody struct {
+	Stunt struct {
+		ID          string  `json:"id"`
+		GroupID     string  `json:"groupId"`
+		PlayerID    string  `json:"playerId"`
+		SeasonID    *string `json:"seasonId"`
+		Status      string  `json:"status"`
+		Source      string  `json:"source"`
+		Destination string  `json:"destination"`
+		Food        string  `json:"food"`
+		OffSeason   bool    `json:"offSeason"`
+	} `json:"stunt"`
+	Performer struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"performer"`
+	Evidence struct {
+		ID             string `json:"id"`
+		StuntID        string `json:"stuntId"`
+		Caption        string `json:"caption"`
+		MediaObjectKey string `json:"mediaObjectKey"`
+	} `json:"evidence"`
 }
 
 func createGroup(t *testing.T, server http.Handler, token string, name string) groupHomeBody {
@@ -918,6 +1113,16 @@ type evidenceSubmissionBody struct {
 	Evidence evidenceBody `json:"evidence"`
 }
 
+type judgmentBody struct {
+	ID            string `json:"id"`
+	StuntID       string `json:"stuntId"`
+	PlayerID      string `json:"playerId"`
+	Difficulty    int    `json:"difficulty"`
+	Transgression int    `json:"transgression"`
+	Creativity    int    `json:"creativity"`
+	Documentation int    `json:"documentation"`
+}
+
 func createInvite(t *testing.T, server http.Handler, token string, groupID string) inviteBody {
 	t.Helper()
 	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/invites", token, nil)
@@ -970,4 +1175,37 @@ func authorizeEvidenceUpload(t *testing.T, server http.Handler, token string, st
 	var authorization evidenceUploadAuthorizationBody
 	decodeResponse(t, rec, &authorization)
 	return authorization
+}
+
+func performStunt(t *testing.T, server http.Handler, token string, groupID string) evidenceSubmissionBody {
+	t.Helper()
+	idea := createIdea(t, server, token, groupID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedStunt(t, server, token, idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, token, planned.ID, "image/jpeg")
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+planned.ID+"/evidence", token, map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Crunchwrap successfully smuggled into the parking lot.",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var submission evidenceSubmissionBody
+	decodeResponse(t, rec, &submission)
+	return submission
+}
+
+func submitJudgment(t *testing.T, server http.Handler, token string, stuntID string, difficulty int, transgression int, creativity int, documentation int, expectedStatus int) judgmentBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+stuntID+"/judgment", token, map[string]int{
+		"difficulty":    difficulty,
+		"transgression": transgression,
+		"creativity":    creativity,
+		"documentation": documentation,
+	})
+	if rec.Code != expectedStatus {
+		t.Fatalf("expected Judgment status %d, got %d: %s", expectedStatus, rec.Code, rec.Body.String())
+	}
+	var judgment judgmentBody
+	decodeResponse(t, rec, &judgment)
+	return judgment
 }

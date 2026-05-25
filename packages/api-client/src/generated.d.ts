@@ -75,11 +75,27 @@ export interface EvidenceSubmission {
   evidence: Evidence;
 }
 
+export interface Judgment {
+  id: string;
+  stuntId: string;
+  playerId: string;
+  difficulty: number;
+  transgression: number;
+  creativity: number;
+  documentation: number;
+}
+
+export interface PerformedStuntView {
+  stunt: Stunt;
+  performer: Player;
+  evidence: Evidence;
+}
+
 export interface GroupHomeResponse {
   group: Group;
   membership: GroupMembership;
   activeSeason: Season | null;
-  recentStunts: unknown[];
+  recentStunts: PerformedStuntView[];
   standings: unknown[];
 }
 

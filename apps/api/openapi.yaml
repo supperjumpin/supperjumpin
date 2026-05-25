@@ -309,6 +309,65 @@ paths:
           description: The signed-in Player is not the performer of this Planned Stunt.
         "404":
           description: Planned Stunt or upload authorization not found.
+  /v1/stunts/{stuntId}/judgment:
+    post:
+      operationId: submitJudgment
+      summary: Submit or edit the signed-in Judge's Judgment for a Performed Stunt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stuntId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [difficulty, transgression, creativity, documentation]
+              properties:
+                difficulty:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                transgression:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                creativity:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                documentation:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+      responses:
+        "200":
+          description: The edited Judgment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Judgment"
+        "201":
+          description: The created Judgment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Judgment"
+        "400":
+          description: Invalid Judgment request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not an eligible Judge for this Performed Stunt.
+        "404":
+          description: Performed Stunt not found.
+        "409":
+          description: The Judging Window is closed.
 components:
   securitySchemes:
     bearerAuth:
@@ -461,6 +520,42 @@ components:
           $ref: "#/components/schemas/Stunt"
         evidence:
           $ref: "#/components/schemas/Evidence"
+    Judgment:
+      type: object
+      required: [id, stuntId, playerId, difficulty, transgression, creativity, documentation]
+      properties:
+        id:
+          type: string
+        stuntId:
+          type: string
+        playerId:
+          type: string
+        difficulty:
+          type: integer
+          minimum: 0
+          maximum: 10
+        transgression:
+          type: integer
+          minimum: 0
+          maximum: 10
+        creativity:
+          type: integer
+          minimum: 0
+          maximum: 10
+        documentation:
+          type: integer
+          minimum: 0
+          maximum: 10
+    PerformedStuntView:
+      type: object
+      required: [stunt, performer, evidence]
+      properties:
+        stunt:
+          $ref: "#/components/schemas/Stunt"
+        performer:
+          $ref: "#/components/schemas/Player"
+        evidence:
+          $ref: "#/components/schemas/Evidence"
     GroupHomeResponse:
       type: object
       required: [group, membership, activeSeason, recentStunts, standings]
@@ -476,7 +571,8 @@ components:
           description: The Group's Active Season, or null when none exists.
         recentStunts:
           type: array
-          items: {}
+          items:
+            $ref: "#/components/schemas/PerformedStuntView"
         standings:
           type: array
           items: {}

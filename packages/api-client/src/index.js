@@ -144,6 +144,29 @@ export async function submitEvidence({ baseUrl, accessToken, stuntId, uploadAuth
   return response.json();
 }
 
+export async function submitJudgment({
+  baseUrl,
+  accessToken,
+  stuntId,
+  difficulty,
+  transgression,
+  creativity,
+  documentation,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(`${baseUrl}/v1/stunts/${stuntId}/judgment`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ difficulty, transgression, creativity, documentation }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`submitJudgment failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 function authHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,

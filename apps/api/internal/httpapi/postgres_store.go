@@ -100,7 +100,7 @@ VALUES ($1, $2, $3)`, membership.GroupID, membership.PlayerID, membership.Role);
 	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, err
 	}
-	return groupHome(group, membership, nil), nil
+	return groupHome(group, membership, nil, []PerformedStuntView{}), nil
 }
 
 func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
@@ -126,7 +126,11 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	return groupHome(group, membership, season), true, nil
+	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, group.ID)
+	if err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	return groupHome(group, membership, season, recentStunts), true, nil
 }
 
 func (s *PostgresStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
@@ -293,7 +297,11 @@ WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&member
 	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	return groupHome(group, membership, season), InviteAccepted, nil
+	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, invite.GroupID)
+	if err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	return groupHome(group, membership, season, recentStunts), InviteAccepted, nil
 }
 
 func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
@@ -353,7 +361,11 @@ VALUES ($1, $2, $3, $4)`, season.ID, season.GroupID, season.CommissionerPlayerID
 	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	return groupHome(group, membership, &season), true, nil
+	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, groupID)
+	if err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	return groupHome(group, membership, &season, recentStunts), true, nil
 }
 
 func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
@@ -634,6 +646,69 @@ WHERE id = $1 AND status = 'Planned Stunt'`, stuntID); err != nil {
 	return EvidenceSubmission{Stunt: stunt, Evidence: evidence}, true, nil
 }
 
+func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
+	if !validJudgmentScores(difficulty, transgression, creativity, documentation) {
+		return Judgment{}, false, false, ErrInvalidJudgmentScore
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Judgment{}, false, false, err
+	}
+	defer tx.Rollback()
+
+	stunt, err := stuntInTx(ctx, tx, stuntID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Judgment{}, false, false, ErrStuntNotFound
+	}
+	if err != nil {
+		return Judgment{}, false, false, err
+	}
+	if stunt.Status != "Performed Stunt" {
+		return Judgment{}, false, false, ErrStuntNotFound
+	}
+	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
+		return Judgment{}, false, false, err
+	} else if !ok || stunt.PlayerID == player.ID {
+		return Judgment{}, false, false, nil
+	}
+	if open, err := judgingWindowOpenInTx(ctx, tx, stunt); err != nil {
+		return Judgment{}, false, false, err
+	} else if !open {
+		return Judgment{}, false, false, ErrJudgingWindowClosed
+	}
+
+	judgmentID := stableID("judgment", stuntID+":"+player.ID)
+	var created bool
+	if err := tx.QueryRowContext(ctx, `
+WITH upsert AS (
+  INSERT INTO judgments (id, stunt_id, player_id, difficulty, transgression, creativity, documentation)
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
+  ON CONFLICT (stunt_id, player_id) DO UPDATE SET
+    difficulty = EXCLUDED.difficulty,
+    transgression = EXCLUDED.transgression,
+    creativity = EXCLUDED.creativity,
+    documentation = EXCLUDED.documentation,
+    updated_at = now()
+  RETURNING (xmax = 0) AS created
+)
+SELECT created FROM upsert`, judgmentID, stuntID, player.ID, difficulty, transgression, creativity, documentation).Scan(&created); err != nil {
+		return Judgment{}, false, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Judgment{}, false, false, err
+	}
+	return Judgment{
+		ID:            judgmentID,
+		StuntID:       stuntID,
+		PlayerID:      player.ID,
+		Difficulty:    difficulty,
+		Transgression: transgression,
+		Creativity:    creativity,
+		Documentation: documentation,
+	}, true, created, nil
+}
+
 func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
 	var season Season
 	if err := s.db.QueryRowContext(ctx, `
@@ -715,6 +790,77 @@ LIMIT 1`, groupID).Scan(
 		return nil, err
 	}
 	return &season, nil
+}
+
+func judgingWindowOpenInTx(ctx context.Context, tx *sql.Tx, stunt Stunt) (bool, error) {
+	if stunt.SeasonID == nil {
+		return true, nil
+	}
+	var status string
+	if err := tx.QueryRowContext(ctx, `SELECT status FROM seasons WHERE id = $1`, *stunt.SeasonID).Scan(&status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return isOpenSeasonStatus(status), nil
+}
+
+type stuntViewQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedStuntView, error) {
+	rows, err := queryer.QueryContext(ctx, `
+SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food,
+       evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
+       players.id, players.display_name
+FROM stunts
+JOIN evidences ON evidences.stunt_id = stunts.id
+JOIN players ON players.id = stunts.player_id
+WHERE stunts.group_id = $1 AND stunts.status = 'Performed Stunt'
+ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	performed := []PerformedStuntView{}
+	for rows.Next() {
+		var stunt Stunt
+		var seasonID sql.NullString
+		var evidence Evidence
+		var performer Player
+		if err := rows.Scan(
+			&stunt.ID,
+			&stunt.GroupID,
+			&stunt.PlayerID,
+			&seasonID,
+			&stunt.Status,
+			&stunt.Source,
+			&stunt.Destination,
+			&stunt.Food,
+			&evidence.ID,
+			&evidence.Caption,
+			&evidence.MediaObjectKey,
+			&evidence.CreatedAt,
+			&performer.ID,
+			&performer.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		if seasonID.Valid {
+			stunt.SeasonID = &seasonID.String
+			stunt.OffSeason = false
+		} else {
+			stunt.OffSeason = true
+		}
+		performed = append(performed, PerformedStuntView{Stunt: stunt, Performer: performer, Evidence: evidence})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return performed, nil
 }
 
 func (s *PostgresStore) inviteStatus(ctx context.Context, tx *sql.Tx, token string) (InviteAcceptStatus, error) {

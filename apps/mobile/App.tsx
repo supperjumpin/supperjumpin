@@ -13,7 +13,13 @@ import {
   listGroups,
   startSeason,
 } from "@supperjumpin/api-client";
-import type { GroupHomeResponse, GroupMembershipSummary, MeResponse, Stunt } from "@supperjumpin/api-client";
+import type {
+  GroupHomeResponse,
+  GroupMembershipSummary,
+  MeResponse,
+  PerformedStuntView,
+  Stunt,
+} from "@supperjumpin/api-client";
 
 const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
@@ -34,6 +40,7 @@ export default function App() {
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [memberships, setMemberships] = useState<GroupMembershipSummary[]>([]);
   const [groupHome, setGroupHome] = useState<GroupHomeResponse | null>(null);
+  const [selectedStunt, setSelectedStunt] = useState<PerformedStuntView | null>(null);
   const [idea, setIdea] = useState<Stunt | null>(null);
   const [plannedStunt, setPlannedStunt] = useState<Stunt | null>(null);
 
@@ -70,6 +77,7 @@ export default function App() {
     const home = await createGroup({ baseUrl: apiBaseUrl, accessToken, name: groupName });
     const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
     setGroupHome(home);
+    setSelectedStunt(home.recentStunts[0] ?? null);
     setMemberships(groups.memberships);
     setGroupName("");
     setStatus(`Created ${home.group.name}. You are its Group Admin.`);
@@ -100,6 +108,7 @@ export default function App() {
       const home = await acceptInvite({ baseUrl: apiBaseUrl, accessToken, token: inviteToken.trim() });
       const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
       setGroupHome(home);
+      setSelectedStunt(home.recentStunts[0] ?? null);
       setMemberships(groups.memberships);
       setInviteToken("");
       setStatus(`Joined ${home.group.name}.`);
@@ -111,6 +120,7 @@ export default function App() {
   async function selectGroup(token: string, groupId: string) {
     const home = await getGroupHome({ baseUrl: apiBaseUrl, accessToken: token, groupId });
     setGroupHome(home);
+    setSelectedStunt(home.recentStunts[0] ?? null);
     setIdea(null);
     setPlannedStunt(null);
   }
@@ -123,6 +133,7 @@ export default function App() {
 
     const home = await startSeason({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
     setGroupHome(home);
+    setSelectedStunt(home.recentStunts[0] ?? null);
     setStatus(`Started an Active Season for ${home.group.name}. You are the Season Commissioner.`);
   }
 
@@ -238,6 +249,29 @@ export default function App() {
             )}
             <Text style={styles.body}>Recent Stunts: {groupHome.recentStunts.length}</Text>
             <Text style={styles.body}>Standings: {groupHome.standings.length}</Text>
+            {groupHome.recentStunts.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Recent Performed Stunts</Text>
+                {groupHome.recentStunts.map((performedStunt) => (
+                  <Button
+                    key={performedStunt.stunt.id}
+                    onPress={() => setSelectedStunt(performedStunt)}
+                    title={`${performedStunt.stunt.food} at ${performedStunt.stunt.destination}`}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {selectedStunt ? (
+              <View style={styles.stuntCard}>
+                <Text style={styles.sectionTitle}>Stunt Detail</Text>
+                <Text style={styles.body}>Source: {selectedStunt.stunt.source}</Text>
+                <Text style={styles.body}>Destination: {selectedStunt.stunt.destination}</Text>
+                <Text style={styles.body}>Food: {selectedStunt.stunt.food}</Text>
+                <Text style={styles.body}>Performer: {selectedStunt.performer.displayName}</Text>
+                <Text style={styles.body}>Caption: {selectedStunt.evidence.caption}</Text>
+                <Text style={styles.body}>Media object: {selectedStunt.evidence.mediaObjectKey}</Text>
+              </View>
+            ) : null}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Create Idea</Text>
               <TextInput onChangeText={setSource} placeholder="Source" style={styles.input} value={source} />
