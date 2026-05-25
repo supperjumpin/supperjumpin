@@ -62,3 +62,4 @@
     - Consider adding haptic feedback on score change.
     - Monitor for ScrollView gesture conflicts.
 - **Warning**: Ensure the backend's temporal window check (Season status) is respected before allowing submission.
+
