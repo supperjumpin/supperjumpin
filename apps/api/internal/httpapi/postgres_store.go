@@ -308,7 +308,11 @@ WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&member
 	if err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	return groupHome(group, membership, season, recentStunts, []StandingEntry{}), InviteAccepted, nil
+	standings, err := s.standingsForGroup(ctx, group.ID)
+	if err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	return groupHome(group, membership, season, recentStunts, standings), InviteAccepted, nil
 }
 
 func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {

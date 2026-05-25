@@ -177,6 +177,7 @@ type MemoryStore struct {
 	memberships  map[string]map[string]GroupMembership
 	invites      map[string]memoryInvite
 	seasons      map[string]Season
+	seasonOrder  map[string]int
 	stunts       map[string]Stunt
 	uploads      map[string]EvidenceUploadAuthorization
 	evidences    map[string]Evidence
@@ -206,6 +207,7 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		memberships: map[string]map[string]GroupMembership{},
 		invites:     map[string]memoryInvite{},
 		seasons:     map[string]Season{},
+		seasonOrder: map[string]int{},
 		stunts:      map[string]Stunt{},
 		uploads:     map[string]EvidenceUploadAuthorization{},
 		evidences:   map[string]Evidence{},
@@ -375,6 +377,7 @@ func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID st
 		JudgingDeadline:      judgingDeadline.UTC(),
 	}
 	s.seasons[season.ID] = season
+	s.seasonOrder[season.ID] = s.seasonNumber
 	return groupHome(group, membership, &season, s.recentPerformedStuntsForGroup(groupID), s.standingsForGroup(groupID)), true, nil
 }
 
@@ -644,13 +647,16 @@ func (s *MemoryStore) standingsForGroup(groupID string) []StandingEntry {
 
 func (s *MemoryStore) latestSeasonForGroup(groupID string) *Season {
 	var latest *Season
+	latestOrder := 0
 	for _, season := range s.seasons {
 		if season.GroupID != groupID {
 			continue
 		}
 		candidate := season
-		if latest == nil || candidate.ID > latest.ID {
+		candidateOrder := s.seasonOrder[candidate.ID]
+		if latest == nil || candidateOrder > latestOrder {
 			latest = &candidate
+			latestOrder = candidateOrder
 		}
 	}
 	return latest
