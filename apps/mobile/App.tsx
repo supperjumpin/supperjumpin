@@ -1,6 +1,6 @@
 import { GoTrueClient } from "@supabase/auth-js";
 import { useEffect, useState } from "react";
-import { Button, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, PanResponder } from "react-native";
 
 import {
   acceptInvite,
@@ -12,10 +12,12 @@ import {
   getMe,
   listGroups,
   startSeason,
+  submitJudgment,
 } from "@supperjumpin/api-client";
 import type {
   GroupHomeResponse,
   GroupMembershipSummary,
+  Judgment,
   MeResponse,
   PerformedStuntView,
   Stunt,
@@ -47,6 +49,9 @@ export default function App() {
   const [selectedStunt, setSelectedStunt] = useState<PerformedStuntView | null>(null);
   const [idea, setIdea] = useState<Stunt | null>(null);
   const [plannedStunt, setPlannedStunt] = useState<Stunt | null>(null);
+  const [gestureScores, setGestureScores] = useState<{ difficulty: number; transgression: number; creativity: number; documentation: number } | null>(null);
+  const [pendingJudgment, setPendingJudgment] = useState<Judgment | null>(null);
+  const [isJudging, setIsJudging] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -179,6 +184,84 @@ export default function App() {
     );
   }
 
+  async function startJudging(stunt: PerformedStuntView) {
+    if (!accessToken) {
+      setStatus("Sign in to judge stunts.");
+      return;
+    }
+    if (stunt.performer.id === profile?.player.id) {
+      setStatus("You cannot judge your own stunt.");
+      return;
+    }
+    setIsJudging(true);
+    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, documentation: 5 });
+    setSelectedStunt(stunt);
+    setStatus("Use gestures or buttons to set scores. Swipe up/down on each factor.");
+  }
+
+  function updateGestureScore(factor: "difficulty" | "transgression" | "creativity" | "documentation", delta: number) {
+    if (!gestureScores) return;
+    const newValue = Math.max(0, Math.min(10, gestureScores[factor] + delta));
+    setGestureScores({ ...gestureScores, [factor]: newValue });
+  }
+
+  function clearGestureScores() {
+    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, documentation: 5 });
+    setStatus("Gesture scores cleared. Start fresh.");
+  }
+
+  async function submitGestureJudgment() {
+    if (!accessToken || !selectedStunt || !gestureScores) {
+      setStatus("Cannot submit judgment without scores.");
+      return;
+    }
+
+    try {
+      const judgment = await submitJudgment({
+        baseUrl: apiBaseUrl,
+        accessToken,
+        stuntId: selectedStunt.stunt.id,
+        ...gestureScores,
+      });
+      setPendingJudgment(judgment);
+      setIsJudging(false);
+      setGestureScores(null);
+      setStatus(`Judgment submitted for ${selectedStunt.stunt.food}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not submit judgment.");
+    }
+  }
+
+  function cancelJudging() {
+    setIsJudging(false);
+    setGestureScores(null);
+    setStatus("Judging cancelled.");
+  }
+
+  function createScorePanResponder(factor: "difficulty" | "transgression" | "creativity" | "documentation") {
+    let lastY = 0;
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 10,
+      onPanResponderGrant: (_, gestureState) => {
+        lastY = gestureState.y0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const deltaY = lastY - gestureState.moveY;
+        if (Math.abs(deltaY) > 50) {
+          updateGestureScore(factor, deltaY > 0 ? 1 : -1);
+          lastY = gestureState.moveY;
+        }
+      },
+      onPanResponderRelease: () => {},
+    });
+  }
+
+  const difficultyPan = createScorePanResponder("difficulty");
+  const transgressionPan = createScorePanResponder("transgression");
+  const creativityPan = createScorePanResponder("creativity");
+  const documentationPan = createScorePanResponder("documentation");
+
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -274,6 +357,56 @@ export default function App() {
                 <Text style={styles.body}>Performer: {selectedStunt.performer.displayName}</Text>
                 <Text style={styles.body}>Caption: {selectedStunt.evidence.caption}</Text>
                 <Text style={styles.body}>Media object: {selectedStunt.evidence.mediaObjectKey}</Text>
+                {pendingJudgment && selectedStunt.stunt.id === pendingJudgment.stuntId ? (
+                  <View style={styles.judgmentSummary}>
+                    <Text style={styles.sectionTitle}>Your Judgment</Text>
+                    <Text style={styles.body}>Difficulty: {pendingJudgment.difficulty}</Text>
+                    <Text style={styles.body}>Transgression: {pendingJudgment.transgression}</Text>
+                    <Text style={styles.body}>Creativity: {pendingJudgment.creativity}</Text>
+                    <Text style={styles.body}>Documentation: {pendingJudgment.documentation}</Text>
+                  </View>
+                ) : null}
+                {!isJudging && selectedStunt.performer.id !== profile?.player.id ? (
+                  <Button onPress={() => startJudging(selectedStunt)} title="Judge this Stunt" />
+                ) : null}
+                {selectedStunt.performer.id === profile?.player.id ? (
+                  <Text style={styles.body}>Your own stunt - cannot judge.</Text>
+                ) : null}
+              </View>
+            ) : null}
+            {isJudging && gestureScores ? (
+              <View style={styles.judgingCard}>
+                <Text style={styles.sectionTitle}>Quick-Judge</Text>
+                <Text style={styles.body}>Swipe up/down on each factor to adjust score (0-10)</Text>
+                <View style={styles.scoreRow} {...difficultyPan.panHandlers} accessibilityLabel="Difficulty score adjustment. Swipe up or down to change value.">
+                  <Text style={styles.scoreLabel}>Difficulty:</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.difficulty} out of 10`}>{gestureScores.difficulty}</Text>
+                  <Button onPress={() => updateGestureScore("difficulty", -1)} title="-" accessibilityLabel="Decrease difficulty score by 1" />
+                  <Button onPress={() => updateGestureScore("difficulty", 1)} title="+" accessibilityLabel="Increase difficulty score by 1" />
+                </View>
+                <View style={styles.scoreRow} {...transgressionPan.panHandlers} accessibilityLabel="Transgression score adjustment. Swipe up or down to change value.">
+                  <Text style={styles.scoreLabel}>Transgression:</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.transgression} out of 10`}>{gestureScores.transgression}</Text>
+                  <Button onPress={() => updateGestureScore("transgression", -1)} title="-" accessibilityLabel="Decrease transgression score by 1" />
+                  <Button onPress={() => updateGestureScore("transgression", 1)} title="+" accessibilityLabel="Increase transgression score by 1" />
+                </View>
+                <View style={styles.scoreRow} {...creativityPan.panHandlers} accessibilityLabel="Creativity score adjustment. Swipe up or down to change value.">
+                  <Text style={styles.scoreLabel}>Creativity:</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.creativity} out of 10`}>{gestureScores.creativity}</Text>
+                  <Button onPress={() => updateGestureScore("creativity", -1)} title="-" accessibilityLabel="Decrease creativity score by 1" />
+                  <Button onPress={() => updateGestureScore("creativity", 1)} title="+" accessibilityLabel="Increase creativity score by 1" />
+                </View>
+                <View style={styles.scoreRow} {...documentationPan.panHandlers} accessibilityLabel="Documentation score adjustment. Swipe up or down to change value.">
+                  <Text style={styles.scoreLabel}>Documentation:</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.documentation} out of 10`}>{gestureScores.documentation}</Text>
+                  <Button onPress={() => updateGestureScore("documentation", -1)} title="-" accessibilityLabel="Decrease documentation score by 1" />
+                  <Button onPress={() => updateGestureScore("documentation", 1)} title="+" accessibilityLabel="Increase documentation score by 1" />
+                </View>
+                <View style={styles.judgmentActions}>
+                  <Button onPress={clearGestureScores} title="Clear" color="#c1673a" />
+                  <Button onPress={cancelJudging} title="Cancel" color="#888" />
+                  <Button onPress={submitGestureJudgment} title="Submit Judgment" color="#2f241d" />
+                </View>
               </View>
             ) : null}
             <View style={styles.section}>
@@ -362,6 +495,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 8,
     padding: 12,
+  },
+  judgingCard: {
+    backgroundColor: "#e8f4e8",
+    borderColor: "#2f7d2f",
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 12,
+    padding: 16,
+  },
+  scoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+  },
+  scoreLabel: {
+    color: "#2f241d",
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+  },
+  scoreValue: {
+    color: "#2f7d2f",
+    fontSize: 20,
+    fontWeight: "900",
+    width: 32,
+    textAlign: "center",
+  },
+  judgmentActions: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "flex-end",
+  },
+  judgmentSummary: {
+    backgroundColor: "#e8f4e8",
+    borderColor: "#2f7d2f",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+    padding: 12,
+    marginTop: 8,
   },
   input: {
     backgroundColor: "white",

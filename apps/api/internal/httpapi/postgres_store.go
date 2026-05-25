@@ -304,7 +304,7 @@ WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&member
 	return groupHome(group, membership, season, recentStunts), InviteAccepted, nil
 }
 
-func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
@@ -349,10 +349,12 @@ WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')`, groupID).
 		GroupID:              groupID,
 		CommissionerPlayerID: player.ID,
 		Status:               "Active",
+		SubmissionDeadline:   submissionDeadline.UTC(),
+		JudgingDeadline:      judgingDeadline.UTC(),
 	}
 	if _, err := tx.ExecContext(ctx, `
-INSERT INTO seasons (id, group_id, commissioner_player_id, status)
-VALUES ($1, $2, $3, $4)`, season.ID, season.GroupID, season.CommissionerPlayerID, season.Status); err != nil {
+INSERT INTO seasons (id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline)
+VALUES ($1, $2, $3, $4, $5, $6)`, season.ID, season.GroupID, season.CommissionerPlayerID, season.Status, season.SubmissionDeadline, season.JudgingDeadline); err != nil {
 		if isSeasonOpenConflict(err) {
 			return GroupHomeResponse{}, true, ErrSeasonAlreadyOpen
 		}
