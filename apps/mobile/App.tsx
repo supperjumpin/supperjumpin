@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { GoTrueClient } from "@supabase/auth-js";
 import { useEffect, useState } from "react";
 import { Button, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, PanResponder } from "react-native";
 
@@ -23,10 +23,14 @@ import type {
   Stunt,
 } from "@supperjumpin/api-client";
 
-const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
-);
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://example.supabase.co";
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabase = {
+  auth: new GoTrueClient({
+    url: `${supabaseUrl.replace(/\/$/, "")}/auth/v1`,
+    headers: { apikey: supabaseAnonKey },
+  }),
+};
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 

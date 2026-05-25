@@ -22,6 +22,7 @@ coverage/
 
 # Caches
 .cache/
+.expo/
 .next/
 .turbo/
 
