@@ -229,7 +229,10 @@ func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
-	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
 	if startRec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", startRec.Code, startRec.Body.String())
 	}
@@ -428,6 +431,30 @@ func TestAuthorizedEvidenceSubmissionPerformsStuntAndOwnsMediaObjectKey(t *testi
 	}
 }
 
+func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
+	store := httpapi.NewMemoryStore()
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	future := time.Now().Add(1 * time.Hour)
+	farFuture := time.Now().Add(2 * time.Hour)
+	season := startSeasonWithDeadlines(t, server, "alice-token", group.Group.ID, future, farFuture)
+
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+	plan := createPlannedStunt(t, server, "alice-token", idea.ID, false)
+
+	store.SetSeasonStatus(season.ActiveSeason.ID, "Judging Grace Period")
+
+	auth := authorizeEvidenceUpload(t, server, "alice-token", plan.ID, "image/jpeg")
+	submitRec := doJSON(server, http.MethodPost, "/v1/stunts/"+plan.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationID": auth.ID,
+		"caption":               "Attempted after deadline",
+	})
+	if submitRec.Code != http.StatusConflict {
+		t.Fatalf("expected submission window closed status 409, got %d: %s", submitRec.Code, submitRec.Body.String())
+	}
+}
+
 func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -607,12 +634,18 @@ func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
-	firstRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	firstRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
 	if firstRec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", firstRec.Code, firstRec.Body.String())
 	}
 
-	secondRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	secondRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
 	if secondRec.Code != http.StatusConflict {
 		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
 	}
@@ -657,7 +690,10 @@ func TestPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason(t *testing
 		t.Fatalf("expected durable Season Commissioner, got %#v", home.ActiveSeason)
 	}
 
-	secondRec := doJSON(restartedServer, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+	secondRec := doJSON(restartedServer, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
 	if secondRec.Code != http.StatusConflict {
 		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
 	}
@@ -682,7 +718,10 @@ func TestPostgresConcurrentSeasonStartsReturnCreatedAndConflict(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			rec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", nil)
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+				"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+				"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+			})
 			statuses <- rec.Code
 		}()
 	}
@@ -1053,7 +1092,24 @@ func createGroup(t *testing.T, server http.Handler, token string, name string) g
 
 func startSeason(t *testing.T, server http.Handler, token string, groupID string) groupHomeBody {
 	t.Helper()
-	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/seasons", token, nil)
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/seasons", token, map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func startSeasonWithDeadlines(t *testing.T, server http.Handler, token string, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) groupHomeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/seasons", token, map[string]string{
+		"submissionDeadline": submissionDeadline.Format(time.RFC3339),
+		"judgingDeadline":    judgingDeadline.Format(time.RFC3339),
+	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
