@@ -65,8 +65,6 @@ git fetch origin
 git worktree add worktrees/issue-<number> -b agent/issue-<number> origin/main
 ```
 
-Keep worktrees under `worktrees/` inside the current repository checkout so OpenCode can access them without external-directory permission prompts during AFK runs.
-
 If there are zero ready issues, do not launch workers. Report why the remaining open sub-issues are not runnable: blocked by open issues, `ready-for-human`, `needs-triage`, `needs-info`, missing triage label, or already in progress.
 
 Launch one worker per worktree. If the runtime has a Task/subagent tool, use it; otherwise ask the user to start separate OpenCode sessions in each worktree. Give each worker this prompt, replacing placeholders:

@@ -33,5 +33,8 @@ jobs:
       - name: Run npm tests
         run: npm test
 
+      - name: Run mobile typecheck
+        run: npm --workspace @supperjumpin/mobile run typecheck
+
       - name: Run Go tests
         run: go test ./apps/api/...

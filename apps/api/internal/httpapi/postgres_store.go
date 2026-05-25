@@ -100,10 +100,13 @@ VALUES ($1, $2, $3)`, membership.GroupID, membership.PlayerID, membership.Role);
 	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, err
 	}
-	return groupHome(group, membership, nil, []PerformedStuntView{}), nil
+	return groupHome(group, membership, nil, []PerformedStuntView{}, []StandingEntry{}), nil
 }
 
 func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+	if err := s.ensureSeasonStatusesForGroup(ctx, groupID); err != nil {
+		return GroupHomeResponse{}, false, err
+	}
 	var group Group
 	var membership GroupMembership
 	if err := s.db.QueryRowContext(ctx, `
@@ -130,7 +133,11 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	return groupHome(group, membership, season, recentStunts), true, nil
+	standings, err := s.standingsForGroup(ctx, group.ID)
+	if err != nil {
+		return GroupHomeResponse{}, false, err
+	}
+	return groupHome(group, membership, season, recentStunts, standings), true, nil
 }
 
 func (s *PostgresStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
@@ -301,7 +308,7 @@ WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&member
 	if err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	return groupHome(group, membership, season, recentStunts), InviteAccepted, nil
+	return groupHome(group, membership, season, recentStunts, []StandingEntry{}), InviteAccepted, nil
 }
 
 func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
@@ -367,7 +374,7 @@ VALUES ($1, $2, $3, $4, $5, $6)`, season.ID, season.GroupID, season.Commissioner
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	return groupHome(group, membership, &season, recentStunts), true, nil
+	return groupHome(group, membership, &season, recentStunts, []StandingEntry{}), true, nil
 }
 
 func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
@@ -467,7 +474,7 @@ WHERE id = $1
     WHERE group_memberships.group_id = stunts.group_id
       AND group_memberships.player_id = $3
   )
-RETURNING id, group_id, player_id, season_id, status, source, destination, food`, stunt.ID, seasonID, player.ID).Scan(
+RETURNING id, group_id, player_id, season_id, status, source, destination, food, final_score`, stunt.ID, seasonID, player.ID).Scan(
 		&updated.ID,
 		&updated.GroupID,
 		&updated.PlayerID,
@@ -476,6 +483,7 @@ RETURNING id, group_id, player_id, season_id, status, source, destination, food`
 		&updated.Source,
 		&updated.Destination,
 		&updated.Food,
+		&updated.FinalScore,
 	); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return Stunt{}, false, err
@@ -652,6 +660,9 @@ func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stunt
 	if !validJudgmentScores(difficulty, transgression, creativity, documentation) {
 		return Judgment{}, false, false, ErrInvalidJudgmentScore
 	}
+	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
+		return Judgment{}, false, false, err
+	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -666,8 +677,11 @@ func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stunt
 	if err != nil {
 		return Judgment{}, false, false, err
 	}
-	if stunt.Status != "Performed Stunt" {
+	if !visiblePerformedStatus(stunt.Status) {
 		return Judgment{}, false, false, ErrStuntNotFound
+	}
+	if stunt.Status != "Performed Stunt" {
+		return Judgment{}, false, false, ErrJudgingWindowClosed
 	}
 	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
 		return Judgment{}, false, false, err
@@ -714,7 +728,7 @@ SELECT created FROM upsert`, judgmentID, stuntID, player.ID, difficulty, transgr
 func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
 	var season Season
 	if err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, commissioner_player_id, status
+SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
 FROM seasons
 WHERE group_id = $1 AND status = 'Active'
 ORDER BY created_at DESC
@@ -723,6 +737,8 @@ LIMIT 1`, groupID).Scan(
 		&season.GroupID,
 		&season.CommissionerPlayerID,
 		&season.Status,
+		&season.SubmissionDeadline,
+		&season.JudgingDeadline,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -730,6 +746,167 @@ LIMIT 1`, groupID).Scan(
 		return nil, err
 	}
 	return &season, nil
+}
+
+func (s *PostgresStore) ensureSeasonStatusesForGroup(ctx context.Context, groupID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *PostgresStore) ensureSeasonStatusesForStunt(ctx context.Context, stuntID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var groupID string
+	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM stunts WHERE id = $1`, stuntID).Scan(&groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func ensureSeasonStatusesForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) error {
+	rows, err := tx.QueryContext(ctx, `
+SELECT id, status, submission_deadline, judging_deadline
+FROM seasons
+WHERE group_id = $1`, groupID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type seasonStatus struct {
+		id                 string
+		status             string
+		submissionDeadline time.Time
+		judgingDeadline    time.Time
+	}
+	seasons := []seasonStatus{}
+	for rows.Next() {
+		var season seasonStatus
+		if err := rows.Scan(&season.id, &season.status, &season.submissionDeadline, &season.judgingDeadline); err != nil {
+			return err
+		}
+		seasons = append(seasons, season)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	for _, season := range seasons {
+		newStatus := season.status
+		if newStatus == "Active" && now.After(season.submissionDeadline) {
+			newStatus = "Judging Grace Period"
+		}
+		if newStatus == "Judging Grace Period" && now.After(season.judgingDeadline) {
+			newStatus = "Finalized"
+		}
+		if newStatus == season.status {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE seasons SET status = $2 WHERE id = $1`, season.id, newStatus); err != nil {
+			return err
+		}
+		if newStatus == "Finalized" {
+			if err := finalizeSeasonStuntsInTx(ctx, tx, season.id); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func finalizeSeasonStuntsInTx(ctx context.Context, tx *sql.Tx, seasonID string) error {
+	if _, err := tx.ExecContext(ctx, `
+UPDATE stunts
+SET status = 'Judged Stunt',
+    final_score = scores.final_score
+FROM (
+    SELECT stunt_id, ((sum(difficulty + transgression + creativity + documentation)) / count(*))::int AS final_score
+    FROM judgments
+    GROUP BY stunt_id
+) AS scores
+WHERE stunts.id = scores.stunt_id
+  AND stunts.season_id = $1
+  AND stunts.status = 'Performed Stunt'`, seasonID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+UPDATE stunts
+SET status = 'Unjudged Stunt', final_score = NULL
+WHERE season_id = $1
+  AND status = 'Performed Stunt'
+  AND NOT EXISTS (SELECT 1 FROM judgments WHERE judgments.stunt_id = stunts.id)`, seasonID)
+	return err
+}
+
+func (s *PostgresStore) standingsForGroup(ctx context.Context, groupID string) ([]StandingEntry, error) {
+	seasonID, err := latestSeasonIDForGroup(ctx, s.db, groupID)
+	if err != nil || seasonID == "" {
+		return []StandingEntry{}, err
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT players.id, players.display_name, sum(stunts.final_score)::int AS season_score, count(*)::int AS judged_stunts
+FROM stunts
+JOIN players ON players.id = stunts.player_id
+WHERE stunts.group_id = $1
+  AND stunts.season_id = $2
+  AND stunts.status = 'Judged Stunt'
+  AND stunts.final_score IS NOT NULL
+GROUP BY players.id, players.display_name
+ORDER BY season_score DESC, players.display_name ASC`, groupID, seasonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	standings := []StandingEntry{}
+	for rows.Next() {
+		var entry StandingEntry
+		if err := rows.Scan(&entry.Player.ID, &entry.Player.DisplayName, &entry.SeasonScore, &entry.JudgedStunts); err != nil {
+			return nil, err
+		}
+		standings = append(standings, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return standings, nil
+}
+
+func latestSeasonIDForGroup(ctx context.Context, queryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, groupID string) (string, error) {
+	var seasonID string
+	if err := queryer.QueryRowContext(ctx, `
+SELECT id
+FROM seasons
+WHERE group_id = $1
+ORDER BY created_at DESC
+LIMIT 1`, groupID).Scan(&seasonID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return seasonID, nil
 }
 
 func groupMembershipInTx(ctx context.Context, tx *sql.Tx, player Player, groupID string) (GroupMembership, bool, error) {
@@ -750,7 +927,7 @@ func stuntInTx(ctx context.Context, tx *sql.Tx, stuntID string) (Stunt, error) {
 	var stunt Stunt
 	var seasonID sql.NullString
 	if err := tx.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food
+SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score
 FROM stunts
 WHERE id = $1`, stuntID).Scan(
 		&stunt.ID,
@@ -761,6 +938,7 @@ WHERE id = $1`, stuntID).Scan(
 		&stunt.Source,
 		&stunt.Destination,
 		&stunt.Food,
+		&stunt.FinalScore,
 	); err != nil {
 		return Stunt{}, err
 	}
@@ -814,13 +992,13 @@ type stuntViewQueryer interface {
 
 func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedStuntView, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food,
+SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food, stunts.final_score,
        evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
        players.id, players.display_name
 FROM stunts
 JOIN evidences ON evidences.stunt_id = stunts.id
 JOIN players ON players.id = stunts.player_id
-WHERE stunts.group_id = $1 AND stunts.status = 'Performed Stunt'
+WHERE stunts.group_id = $1 AND stunts.status IN ('Performed Stunt', 'Judged Stunt', 'Unjudged Stunt')
 ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 	if err != nil {
 		return nil, err
@@ -842,6 +1020,7 @@ ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 			&stunt.Source,
 			&stunt.Destination,
 			&stunt.Food,
+			&stunt.FinalScore,
 			&evidence.ID,
 			&evidence.Caption,
 			&evidence.MediaObjectKey,

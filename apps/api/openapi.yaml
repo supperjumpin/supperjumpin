@@ -450,7 +450,7 @@ components:
           enum: [Active, Judging Grace Period, Finalized]
     Stunt:
       type: object
-      required: [id, groupId, playerId, seasonId, status, source, destination, food, offSeason]
+      required: [id, groupId, playerId, seasonId, status, source, destination, food, offSeason, finalScore]
       properties:
         id:
           type: string
@@ -466,7 +466,7 @@ components:
           description: Present only for Season-linked Planned Stunts.
         status:
           type: string
-          enum: [Idea, Planned Stunt, Performed Stunt]
+          enum: [Idea, Planned Stunt, Performed Stunt, Judged Stunt, Unjudged Stunt]
         source:
           type: string
         destination:
@@ -475,6 +475,11 @@ components:
           type: string
         offSeason:
           type: boolean
+        finalScore:
+          anyOf:
+            - type: integer
+            - type: "null"
+          description: Present only after a Season-linked Performed Stunt becomes a Judged Stunt.
     EvidenceUploadAuthorization:
       type: object
       required: [id, stuntId, uploadUrl, uploadMethod, uploadHeaders, mediaObjectKey, expiresAt]
@@ -556,6 +561,16 @@ components:
           $ref: "#/components/schemas/Player"
         evidence:
           $ref: "#/components/schemas/Evidence"
+    StandingEntry:
+      type: object
+      required: [player, seasonScore, judgedStunts]
+      properties:
+        player:
+          $ref: "#/components/schemas/Player"
+        seasonScore:
+          type: integer
+        judgedStunts:
+          type: integer
     GroupHomeResponse:
       type: object
       required: [group, membership, activeSeason, recentStunts, standings]
@@ -575,7 +590,8 @@ components:
             $ref: "#/components/schemas/PerformedStuntView"
         standings:
           type: array
-          items: {}
+          items:
+            $ref: "#/components/schemas/StandingEntry"
     GroupMembershipSummary:
       type: object
       required: [group, membership]
