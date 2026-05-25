@@ -297,11 +297,14 @@ FROM group_memberships
 WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&membership.Role); err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	season, err := s.activeSeasonForGroup(ctx, group.ID)
-	if err != nil {
+	if err := tx.Commit(); err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	if err := tx.Commit(); err != nil {
+	if err := s.ensureSeasonStatusesForGroup(ctx, group.ID); err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	season, err := s.activeSeasonForGroup(ctx, group.ID)
+	if err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
 	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, invite.GroupID)

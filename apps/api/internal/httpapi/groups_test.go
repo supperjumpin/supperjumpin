@@ -1035,13 +1035,13 @@ func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	store := newPostgresTestStore(t, databaseURL)
 	server := newGroupsTestServerWithStore(store)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-	startSeasonWithDeadlines(
+	season := startSeasonWithDeadlines(
 		t,
 		server,
 		"alice-token",
 		group.Group.ID,
-		time.Now().Add(-48*time.Hour),
-		time.Now().Add(-24*time.Hour),
+		time.Now().Add(24*time.Hour),
+		time.Now().Add(48*time.Hour),
 	)
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -1051,9 +1051,20 @@ func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
 	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
 
-	home := getGroupHome(t, server, "alice-token", group.Group.ID)
-	if len(home.Standings) != 1 || home.Standings[0].SeasonScore != 14 {
-		t.Fatalf("expected finalized standings before second Invite accept, got %#v", home.Standings)
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+UPDATE seasons
+SET submission_deadline = now() - interval '48 hours', judging_deadline = now() - interval '24 hours'
+WHERE id = $1`, season.ActiveSeason.ID); err != nil {
+		t.Fatalf("expire Season deadlines: %v", err)
 	}
 
 	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
