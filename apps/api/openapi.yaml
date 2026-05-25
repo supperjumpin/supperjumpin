@@ -157,6 +157,81 @@ paths:
           description: The signed-in Player does not have a Group Membership for this Group.
         "409":
           description: The Group already has an active or closing Season.
+  /v1/seasons/{seasonId}/close-submissions:
+    post:
+      operationId: closeSeasonSubmissions
+      summary: Close the Submission Window and move the Season into Judging Grace Period
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The Group home after the Season moves into Judging Grace Period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupHomeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not the Season Commissioner or a Group Admin override actor.
+        "404":
+          description: Season not found.
+  /v1/seasons/{seasonId}/finalize:
+    post:
+      operationId: finalizeSeason
+      summary: Finalize a Season, cap remaining Judging Windows, and lock Standings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The Group home after the Season is finalized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupHomeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not the Season Commissioner or a Group Admin override actor.
+        "404":
+          description: Season not found.
+  /v1/seasons/{seasonId}/history:
+    get:
+      operationId: getSeasonHistory
+      summary: Fetch visible Season history, including Group Admin override actions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit-style Season history entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeasonHistoryResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player does not have a Group Membership for this Season's Group.
+        "404":
+          description: Season not found.
   /v1/groups/{groupId}/ideas:
     post:
       operationId: createIdea
@@ -528,6 +603,41 @@ components:
         status:
           type: string
           enum: [Active, Judging Grace Period, Finalized]
+    SeasonHistoryEntry:
+      type: object
+      required: [id, seasonId, action, actorPlayerId, actorRole, override, fromStatus, toStatus, createdAt]
+      properties:
+        id:
+          type: string
+        seasonId:
+          type: string
+        action:
+          type: string
+          enum: [Submissions Closed, Season Finalized]
+        actorPlayerId:
+          type: string
+        actorRole:
+          type: string
+          enum: [Player, Group Admin]
+        override:
+          type: boolean
+        fromStatus:
+          type: string
+          enum: [Active, Judging Grace Period, Finalized]
+        toStatus:
+          type: string
+          enum: [Active, Judging Grace Period, Finalized]
+        createdAt:
+          type: string
+          format: date-time
+    SeasonHistoryResponse:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeasonHistoryEntry"
     Stunt:
       type: object
       required: [id, groupId, playerId, seasonId, status, source, destination, food, offSeason, finalScore]
@@ -719,7 +829,7 @@ components:
           anyOf:
             - $ref: "#/components/schemas/Season"
             - type: "null"
-          description: The Group's Active Season, or null when none exists.
+          description: The Group's currently open Season, including Judging Grace Period, or null when none exists.
         recentStunts:
           type: array
           items:
