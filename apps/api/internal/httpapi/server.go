@@ -188,6 +188,72 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, home)
 	})
+	mux.HandleFunc("POST /v1/seasons/{seasonID}/close-submissions", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		home, ok, err := config.Store.CloseSeasonSubmissions(r.Context(), profile.Player, r.PathValue("seasonID"))
+		if errors.Is(err, ErrSeasonNotFound) {
+			http.Error(w, "Season not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "close Season submissions", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Season Commissioner or Group Admin required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, home)
+	})
+	mux.HandleFunc("POST /v1/seasons/{seasonID}/finalize", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		home, ok, err := config.Store.FinalizeSeason(r.Context(), profile.Player, r.PathValue("seasonID"))
+		if errors.Is(err, ErrSeasonNotFound) {
+			http.Error(w, "Season not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "finalize Season", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Season Commissioner or Group Admin required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, home)
+	})
+	mux.HandleFunc("GET /v1/seasons/{seasonID}/history", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		history, ok, err := config.Store.SeasonHistory(r.Context(), profile.Player, r.PathValue("seasonID"))
+		if errors.Is(err, ErrSeasonNotFound) {
+			http.Error(w, "Season not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "get Season history", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Group Membership required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, history)
+	})
 	mux.HandleFunc("POST /v1/groups/{groupID}/ideas", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
