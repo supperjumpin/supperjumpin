@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 
 const skipDatabaseSetup = process.argv.includes("--no-db");
-const databaseURL = process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable";
+const dockerDatabaseURL = "postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable";
+const databaseURL = skipDatabaseSetup ? process.env.DATABASE_URL ?? dockerDatabaseURL : dockerDatabaseURL;
 const devToken = process.env.SUPPERJUMPIN_DEV_AUTH_TOKEN ?? "dev-token";
 
 function run(command, args, options = {}) {
@@ -41,7 +42,7 @@ function assertDockerAvailable() {
 }
 
 function waitForPostgres() {
-  for (let attempt = 1; attempt <= 40; attempt += 1) {
+  for (let attempt = 1; attempt <= 80; attempt += 1) {
     const result = capture("docker", [
       "compose",
       "exec",
