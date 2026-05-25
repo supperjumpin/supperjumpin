@@ -1073,6 +1073,43 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibilit
 	}
 }
 
+func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	if performed.Stunt.SeasonID != nil || !performed.Stunt.OffSeason {
+		t.Fatalf("expected Off-Season Stunt, got %#v", performed.Stunt)
+	}
+	dispute := raiseDispute(t, server, "bob-token", performed.Stunt.ID, "House Rules", "This should be removed from normal Group visibility.")
+
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Stunt",
+		"resolutionReason": "Off-Season Stunt contains a serious privacy issue.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Stunt.Status != "Removed Stunt" {
+		t.Fatalf("expected Group Admin to remove Off-Season Stunt, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Stunt" {
+		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentStunts) != 0 {
+		t.Fatalf("expected Removed Off-Season Stunt hidden from normal Group visibility, got %#v", home.RecentStunts)
+	}
+}
+
 func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	currentTime := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
@@ -1431,6 +1468,49 @@ func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *test
 	}
 	if history.Entries[1].Action != "Season Finalized" || !history.Entries[1].Override || history.Entries[1].ToStatus != "Finalized" {
 		t.Fatalf("expected visible Group Admin finalize override entry, got %#v", history.Entries[1])
+	}
+}
+
+func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	if performed.Stunt.SeasonID != nil || !performed.Stunt.OffSeason {
+		t.Fatalf("expected Off-Season Stunt, got %#v", performed.Stunt)
+	}
+	dispute := raiseDispute(t, server, "bob-token", performed.Stunt.ID, "House Rules", "This should be removed from normal Group visibility.")
+
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Stunt",
+		"resolutionReason": "Off-Season Stunt contains a serious privacy issue.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Stunt.Status != "Removed Stunt" {
+		t.Fatalf("expected Group Admin to remove Off-Season Stunt, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Stunt" {
+		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentStunts) != 0 {
+		t.Fatalf("expected Removed Off-Season Stunt hidden from normal Group visibility, got %#v", home.RecentStunts)
 	}
 }
 

@@ -1030,18 +1030,24 @@ func (s *PostgresStore) ResolveDispute(ctx context.Context, player Player, dispu
 	}
 
 	if dispute.Status == "Open" {
-		if stunt.SeasonID == nil || resolution == "Removed Stunt" {
-			return DisputeResolution{}, false, nil
-		}
-		season, err := seasonInTx(ctx, tx, *stunt.SeasonID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return DisputeResolution{}, false, nil
-		}
-		if err != nil {
-			return DisputeResolution{}, false, err
-		}
-		if season.CommissionerPlayerID != player.ID {
-			return DisputeResolution{}, false, nil
+		if stunt.SeasonID == nil {
+			if membership.Role != "Group Admin" || resolution == "Disqualified Stunt" {
+				return DisputeResolution{}, false, nil
+			}
+		} else {
+			if resolution == "Removed Stunt" {
+				return DisputeResolution{}, false, nil
+			}
+			season, err := seasonInTx(ctx, tx, *stunt.SeasonID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return DisputeResolution{}, false, nil
+			}
+			if err != nil {
+				return DisputeResolution{}, false, err
+			}
+			if season.CommissionerPlayerID != player.ID {
+				return DisputeResolution{}, false, nil
+			}
 		}
 		dispute.Status = "Resolved"
 		dispute.Resolution = stringPointer(resolution)

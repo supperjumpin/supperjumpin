@@ -702,12 +702,18 @@ func (s *MemoryStore) ResolveDispute(ctx context.Context, player Player, dispute
 	}
 
 	if dispute.Status == "Open" {
-		if stunt.SeasonID == nil || resolution == "Removed Stunt" {
-			return DisputeResolution{}, false, nil
-		}
-		season, ok := s.seasons[*stunt.SeasonID]
-		if !ok || season.CommissionerPlayerID != player.ID {
-			return DisputeResolution{}, false, nil
+		if stunt.SeasonID == nil {
+			if membership.Role != "Group Admin" || resolution == "Disqualified Stunt" {
+				return DisputeResolution{}, false, nil
+			}
+		} else {
+			if resolution == "Removed Stunt" {
+				return DisputeResolution{}, false, nil
+			}
+			season, ok := s.seasons[*stunt.SeasonID]
+			if !ok || season.CommissionerPlayerID != player.ID {
+				return DisputeResolution{}, false, nil
+			}
 		}
 		dispute.Status = "Resolved"
 		dispute.Resolution = stringPointer(resolution)
