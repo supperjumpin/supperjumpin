@@ -457,6 +457,88 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 		writeJSON(w, status, judgment)
 	})
+	mux.HandleFunc("POST /v1/stunts/{stuntID}/disputes", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			Concern string `json:"concern"`
+			Details string `json:"details"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		concern := strings.TrimSpace(request.Concern)
+		details := strings.TrimSpace(request.Details)
+		if concern == "" || details == "" {
+			http.Error(w, "concern and details are required", http.StatusBadRequest)
+			return
+		}
+
+		dispute, ok, err := config.Store.CreateDispute(r.Context(), profile.Player, r.PathValue("stuntID"), concern, details)
+		if errors.Is(err, ErrStuntNotFound) {
+			http.Error(w, "Visible Stunt not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrInvalidDisputeConcern) {
+			http.Error(w, "Dispute concern must be House Rules, Credibility, Source, Destination, Food, duplicate, or other", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "create Dispute", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Group Membership required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, dispute)
+	})
+	mux.HandleFunc("POST /v1/disputes/{disputeID}/resolution", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			Resolution       string `json:"resolution"`
+			ResolutionReason string `json:"resolutionReason"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		resolution := strings.TrimSpace(request.Resolution)
+		resolutionReason := strings.TrimSpace(request.ResolutionReason)
+		if resolution == "" || resolutionReason == "" {
+			http.Error(w, "resolution and resolutionReason are required", http.StatusBadRequest)
+			return
+		}
+
+		resolved, ok, err := config.Store.ResolveDispute(r.Context(), profile.Player, r.PathValue("disputeID"), resolution, resolutionReason)
+		if errors.Is(err, ErrDisputeNotFound) {
+			http.Error(w, "Dispute not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrInvalidDisputeResolution) {
+			http.Error(w, "Dispute resolution must be No Action, Disqualified Stunt, or Removed Stunt", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "resolve Dispute", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "authorized resolver required", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, resolved)
+	})
 	return mux
 }
 

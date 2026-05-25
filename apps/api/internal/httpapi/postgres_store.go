@@ -943,6 +943,148 @@ SELECT created FROM upsert`, judgmentID, stuntID, player.ID, difficulty, transgr
 	}, true, created, nil
 }
 
+func (s *PostgresStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
+	if !validDisputeConcern(concern) {
+		return Dispute{}, false, ErrInvalidDisputeConcern
+	}
+	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
+		return Dispute{}, false, err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Dispute{}, false, err
+	}
+	defer tx.Rollback()
+
+	stunt, err := stuntInTx(ctx, tx, stuntID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Dispute{}, false, ErrStuntNotFound
+	}
+	if err != nil {
+		return Dispute{}, false, err
+	}
+	if !disputableStuntStatus(stunt.Status) {
+		return Dispute{}, false, ErrStuntNotFound
+	}
+	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
+		return Dispute{}, false, err
+	} else if !ok {
+		return Dispute{}, false, nil
+	}
+
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM disputes WHERE stunt_id = $1`, stuntID).Scan(&count); err != nil {
+		return Dispute{}, false, err
+	}
+	dispute := Dispute{
+		ID:               stableID("dispute", stuntID+":"+player.ID+":"+strconv.Itoa(count+1)),
+		StuntID:          stuntID,
+		RaisedByPlayerID: player.ID,
+		Concern:          concern,
+		Details:          details,
+		Status:           "Open",
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO disputes (id, stunt_id, raised_by_player_id, concern, details, status)
+VALUES ($1, $2, $3, $4, $5, $6)`, dispute.ID, dispute.StuntID, dispute.RaisedByPlayerID, dispute.Concern, dispute.Details, dispute.Status); err != nil {
+		return Dispute{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Dispute{}, false, err
+	}
+	return dispute, true, nil
+}
+
+func (s *PostgresStore) ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error) {
+	if !validDisputeResolution(resolution) {
+		return DisputeResolution{}, false, ErrInvalidDisputeResolution
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return DisputeResolution{}, false, err
+	}
+	defer tx.Rollback()
+
+	dispute, err := disputeInTx(ctx, tx, disputeID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return DisputeResolution{}, false, ErrDisputeNotFound
+	}
+	if err != nil {
+		return DisputeResolution{}, false, err
+	}
+	stunt, err := stuntInTx(ctx, tx, dispute.StuntID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return DisputeResolution{}, false, ErrStuntNotFound
+	}
+	if err != nil {
+		return DisputeResolution{}, false, err
+	}
+	membership, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID)
+	if err != nil {
+		return DisputeResolution{}, false, err
+	}
+	if !ok {
+		return DisputeResolution{}, false, nil
+	}
+
+	if dispute.Status == "Open" {
+		if stunt.SeasonID == nil {
+			if membership.Role != "Group Admin" || resolution == "Disqualified Stunt" {
+				return DisputeResolution{}, false, nil
+			}
+		} else {
+			if resolution == "Removed Stunt" {
+				return DisputeResolution{}, false, nil
+			}
+			season, err := seasonInTx(ctx, tx, *stunt.SeasonID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return DisputeResolution{}, false, nil
+			}
+			if err != nil {
+				return DisputeResolution{}, false, err
+			}
+			if season.CommissionerPlayerID != player.ID {
+				return DisputeResolution{}, false, nil
+			}
+		}
+		dispute.Status = "Resolved"
+		dispute.Resolution = stringPointer(resolution)
+		dispute.ResolutionReason = stringPointer(resolutionReason)
+		dispute.ResolvedByPlayerID = stringPointer(player.ID)
+		if _, err := tx.ExecContext(ctx, `
+UPDATE disputes
+SET status = 'Resolved', resolution = $2, resolution_reason = $3, resolved_by_player_id = $4
+WHERE id = $1`, dispute.ID, resolution, resolutionReason, player.ID); err != nil {
+			return DisputeResolution{}, false, err
+		}
+	} else {
+		if membership.Role != "Group Admin" || resolution == "No Action" {
+			return DisputeResolution{}, false, nil
+		}
+		dispute.Status = "Overridden"
+		dispute.OverrideResolution = stringPointer(resolution)
+		dispute.OverrideReason = stringPointer(resolutionReason)
+		dispute.OverrideByPlayerID = stringPointer(player.ID)
+		if _, err := tx.ExecContext(ctx, `
+UPDATE disputes
+SET status = 'Overridden', override_resolution = $2, override_reason = $3, override_by_player_id = $4
+WHERE id = $1`, dispute.ID, resolution, resolutionReason, player.ID); err != nil {
+			return DisputeResolution{}, false, err
+		}
+	}
+
+	stunt = applyDisputeResolutionToStunt(stunt, effectiveDisputeResolution(dispute))
+	if _, err := tx.ExecContext(ctx, `UPDATE stunts SET status = $2, final_score = $3 WHERE id = $1`, stunt.ID, stunt.Status, stunt.FinalScore); err != nil {
+		return DisputeResolution{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return DisputeResolution{}, false, err
+	}
+	return DisputeResolution{Stunt: stunt, Dispute: dispute}, true, nil
+}
+
 func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
 	var season Season
 	if err := s.db.QueryRowContext(ctx, `
@@ -1285,7 +1427,7 @@ SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.st
 FROM stunts
 JOIN evidences ON evidences.stunt_id = stunts.id
 JOIN players ON players.id = stunts.player_id
-WHERE stunts.group_id = $1 AND stunts.status IN ('Performed Stunt', 'Judged Stunt', 'Unjudged Stunt')
+WHERE stunts.group_id = $1 AND stunts.status IN ('Performed Stunt', 'Judged Stunt', 'Unjudged Stunt', 'Disqualified Stunt')
 ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 	if err != nil {
 		return nil, err
@@ -1323,12 +1465,148 @@ ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 		} else {
 			stunt.OffSeason = true
 		}
-		performed = append(performed, PerformedStuntView{Stunt: stunt, Performer: performer, Evidence: evidence})
+		disputes, err := disputesForStuntQuery(ctx, queryer, stunt.ID)
+		if err != nil {
+			return nil, err
+		}
+		performed = append(performed, PerformedStuntView{Stunt: stunt, Performer: performer, Evidence: evidence, Disputes: disputes})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return performed, nil
+}
+
+func disputesForStuntQuery(ctx context.Context, queryer stuntViewQueryer, stuntID string) ([]Dispute, error) {
+	rows, err := queryer.QueryContext(ctx, `
+SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+       resolution, resolution_reason, resolved_by_player_id,
+       override_resolution, override_reason, override_by_player_id
+FROM disputes
+WHERE stunt_id = $1
+ORDER BY created_at ASC, id ASC`, stuntID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	disputes := []Dispute{}
+	for rows.Next() {
+		var dispute Dispute
+		var resolution sql.NullString
+		var resolutionReason sql.NullString
+		var resolvedByPlayerID sql.NullString
+		var overrideResolution sql.NullString
+		var overrideReason sql.NullString
+		var overrideByPlayerID sql.NullString
+		if err := rows.Scan(
+			&dispute.ID,
+			&dispute.StuntID,
+			&dispute.RaisedByPlayerID,
+			&dispute.Concern,
+			&dispute.Details,
+			&dispute.Status,
+			&resolution,
+			&resolutionReason,
+			&resolvedByPlayerID,
+			&overrideResolution,
+			&overrideReason,
+			&overrideByPlayerID,
+		); err != nil {
+			return nil, err
+		}
+		if resolution.Valid {
+			dispute.Resolution = &resolution.String
+		}
+		if resolutionReason.Valid {
+			dispute.ResolutionReason = &resolutionReason.String
+		}
+		if resolvedByPlayerID.Valid {
+			dispute.ResolvedByPlayerID = &resolvedByPlayerID.String
+		}
+		if overrideResolution.Valid {
+			dispute.OverrideResolution = &overrideResolution.String
+		}
+		if overrideReason.Valid {
+			dispute.OverrideReason = &overrideReason.String
+		}
+		if overrideByPlayerID.Valid {
+			dispute.OverrideByPlayerID = &overrideByPlayerID.String
+		}
+		disputes = append(disputes, dispute)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return disputes, nil
+}
+
+func disputeInTx(ctx context.Context, tx *sql.Tx, disputeID string) (Dispute, error) {
+	var dispute Dispute
+	var resolution sql.NullString
+	var resolutionReason sql.NullString
+	var resolvedByPlayerID sql.NullString
+	var overrideResolution sql.NullString
+	var overrideReason sql.NullString
+	var overrideByPlayerID sql.NullString
+	if err := tx.QueryRowContext(ctx, `
+SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+       resolution, resolution_reason, resolved_by_player_id,
+       override_resolution, override_reason, override_by_player_id
+FROM disputes
+WHERE id = $1`, disputeID).Scan(
+		&dispute.ID,
+		&dispute.StuntID,
+		&dispute.RaisedByPlayerID,
+		&dispute.Concern,
+		&dispute.Details,
+		&dispute.Status,
+		&resolution,
+		&resolutionReason,
+		&resolvedByPlayerID,
+		&overrideResolution,
+		&overrideReason,
+		&overrideByPlayerID,
+	); err != nil {
+		return Dispute{}, err
+	}
+	if resolution.Valid {
+		dispute.Resolution = &resolution.String
+	}
+	if resolutionReason.Valid {
+		dispute.ResolutionReason = &resolutionReason.String
+	}
+	if resolvedByPlayerID.Valid {
+		dispute.ResolvedByPlayerID = &resolvedByPlayerID.String
+	}
+	if overrideResolution.Valid {
+		dispute.OverrideResolution = &overrideResolution.String
+	}
+	if overrideReason.Valid {
+		dispute.OverrideReason = &overrideReason.String
+	}
+	if overrideByPlayerID.Valid {
+		dispute.OverrideByPlayerID = &overrideByPlayerID.String
+	}
+	return dispute, nil
+}
+
+func seasonInTx(ctx context.Context, tx *sql.Tx, seasonID string) (Season, error) {
+	var season Season
+	if err := tx.QueryRowContext(ctx, `
+SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
+FROM seasons
+WHERE id = $1`, seasonID).Scan(
+		&season.ID,
+		&season.GroupID,
+		&season.CommissionerPlayerID,
+		&season.Status,
+		&season.SubmissionDeadline,
+		&season.JudgingDeadline,
+	); err != nil {
+		return Season{}, err
+	}
+	return season, nil
 }
 
 func (s *PostgresStore) inviteStatus(ctx context.Context, tx *sql.Tx, token string) (InviteAcceptStatus, error) {

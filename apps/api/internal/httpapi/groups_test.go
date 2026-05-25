@@ -664,6 +664,68 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
 	}
 }
 
+func TestGroupMemberCanRaiseDisputeOnVisiblePerformedStunt(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/disputes", "bob-token", map[string]string{
+		"concern": "House Rules",
+		"details": "This looked like it blocked the emergency exit.",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected Dispute status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var dispute disputeBody
+	decodeResponse(t, rec, &dispute)
+	if dispute.ID == "" || dispute.StuntID != performed.Stunt.ID {
+		t.Fatalf("expected created Dispute for visible Stunt, got %#v", dispute)
+	}
+	if dispute.RaisedByPlayerID == performed.Stunt.PlayerID {
+		t.Fatalf("expected different Group member to raise Dispute, got %#v", dispute)
+	}
+	if dispute.Concern != "House Rules" || dispute.Details != "This looked like it blocked the emergency exit." || dispute.Status != "Open" {
+		t.Fatalf("expected open House Rules Dispute, got %#v", dispute)
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.RecentStunts) != 1 || len(home.RecentStunts[0].Disputes) != 1 {
+		t.Fatalf("expected Group home to show raised Dispute, got %#v", home.RecentStunts)
+	}
+	if home.RecentStunts[0].Disputes[0].ID != dispute.ID {
+		t.Fatalf("expected Group home to show created Dispute, got %#v", home.RecentStunts[0].Disputes)
+	}
+}
+
+func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Disputes, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+
+	for _, concern := range []string{"House Rules", "Credibility", "Source", "Destination", "Food", "duplicate", "other"} {
+		t.Run(concern, func(t *testing.T) {
+			rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/disputes", "bob-token", map[string]string{
+				"concern": concern,
+				"details": "MVP concern coverage",
+			})
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected concern %q to be accepted, got %d: %s", concern, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestPerformerCannotJudgeTheirOwnPerformedStunt(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -840,6 +902,66 @@ func TestFinalizedSeasonScoresJudgedStuntsAndLocksStandings(t *testing.T) {
 	}
 }
 
+func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandings(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+	before := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(before.Standings) != 1 {
+		t.Fatalf("expected judged Stunt to reach Standings before Dispute resolution, got %#v", before.Standings)
+	}
+
+	dispute := raiseDispute(t, server, "bob-token", performed.Stunt.ID, "Credibility", "The receipt timestamp does not match the Caption.")
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Disqualified Stunt",
+		"resolutionReason": "Evidence does not support the claimed performance.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Dispute resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Stunt.Status != "Disqualified Stunt" {
+		t.Fatalf("expected resolved Stunt to become Disqualified Stunt, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Disqualified Stunt" {
+		t.Fatalf("expected resolved Dispute to record disqualification, got %#v", resolution.Dispute)
+	}
+
+	after := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(after.RecentStunts) != 1 || after.RecentStunts[0].Stunt.Status != "Disqualified Stunt" {
+		t.Fatalf("expected Disqualified Stunt to remain visible, got %#v", after.RecentStunts)
+	}
+	if len(after.Standings) != 0 {
+		t.Fatalf("expected Disqualified Stunt to be excluded from Standings, got %#v", after.Standings)
+	}
+	if after.RecentStunts[0].Disputes[0].ResolutionReason == nil || *after.RecentStunts[0].Disputes[0].ResolutionReason != "Evidence does not support the claimed performance." {
+		t.Fatalf("expected visible disqualification reason, got %#v", after.RecentStunts[0].Disputes)
+	}
+}
+
 func TestFinalizedSeasonMarksUnjudgedStuntsAndExcludesOffSeasonStuntsFromStandings(t *testing.T) {
 	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -890,6 +1012,101 @@ func TestFinalizedSeasonMarksUnjudgedStuntsAndExcludesOffSeasonStuntsFromStandin
 	}
 	if len(home.Standings) != 0 {
 		t.Fatalf("expected Off-Season Judgment and Unjudged Stunt not to affect Standings, got %#v", home.Standings)
+	}
+}
+
+func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibility(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "carol-token", "Breakfast Crew")
+	aliceInvite := createInvite(t, server, "carol-token", group.Group.ID)
+	aliceAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+aliceInvite.Token+"/accept", "alice-token", nil)
+	if aliceAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Alice to join Group before starting Season, got %d: %s", aliceAcceptRec.Code, aliceAcceptRec.Body.String())
+	}
+	bobInvite := createInvite(t, server, "carol-token", group.Group.ID)
+	bobAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+bobInvite.Token+"/accept", "bob-token", nil)
+	if bobAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", bobAcceptRec.Code, bobAcceptRec.Body.String())
+	}
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	dispute := raiseDispute(t, server, "bob-token", performed.Stunt.ID, "other", "Identifiable bystander appears in the photo.")
+
+	resolveRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Disqualified Stunt",
+		"resolutionReason": "Competition evidence should be redacted before scoring.",
+	})
+	if resolveRec.Code != http.StatusOK {
+		t.Fatalf("expected commissioner resolution status 200, got %d: %s", resolveRec.Code, resolveRec.Body.String())
+	}
+
+	overrideRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "carol-token", map[string]string{
+		"resolution":       "Removed Stunt",
+		"resolutionReason": "Serious privacy violation requires hiding the Stunt.",
+	})
+	if overrideRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin override status 200, got %d: %s", overrideRec.Code, overrideRec.Body.String())
+	}
+
+	var override disputeResolutionBody
+	decodeResponse(t, overrideRec, &override)
+	if override.Stunt.Status != "Removed Stunt" {
+		t.Fatalf("expected Group Admin override to remove Stunt, got %#v", override)
+	}
+	if override.Dispute.Status != "Overridden" || override.Dispute.OverrideResolution == nil || *override.Dispute.OverrideResolution != "Removed Stunt" {
+		t.Fatalf("expected override to remain visible on Dispute, got %#v", override.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentStunts) != 0 {
+		t.Fatalf("expected Removed Stunt hidden from normal Group visibility, got %#v", home.RecentStunts)
+	}
+}
+
+func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	if performed.Stunt.SeasonID != nil || !performed.Stunt.OffSeason {
+		t.Fatalf("expected Off-Season Stunt, got %#v", performed.Stunt)
+	}
+	dispute := raiseDispute(t, server, "bob-token", performed.Stunt.ID, "House Rules", "This should be removed from normal Group visibility.")
+
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Stunt",
+		"resolutionReason": "Off-Season Stunt contains a serious privacy issue.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Stunt.Status != "Removed Stunt" {
+		t.Fatalf("expected Group Admin to remove Off-Season Stunt, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Stunt" {
+		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentStunts) != 0 {
+		t.Fatalf("expected Removed Off-Season Stunt hidden from normal Group visibility, got %#v", home.RecentStunts)
 	}
 }
 
@@ -1254,6 +1471,49 @@ func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *test
 	}
 }
 
+func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	if performed.Stunt.SeasonID != nil || !performed.Stunt.OffSeason {
+		t.Fatalf("expected Off-Season Stunt, got %#v", performed.Stunt)
+	}
+	dispute := raiseDispute(t, server, "bob-token", performed.Stunt.ID, "House Rules", "This should be removed from normal Group visibility.")
+
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Stunt",
+		"resolutionReason": "Off-Season Stunt contains a serious privacy issue.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Stunt.Status != "Removed Stunt" {
+		t.Fatalf("expected Group Admin to remove Off-Season Stunt, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Stunt" {
+		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentStunts) != 0 {
+		t.Fatalf("expected Removed Off-Season Stunt hidden from normal Group visibility, got %#v", home.RecentStunts)
+	}
+}
+
 func TestPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -1536,6 +1796,27 @@ type performedStuntViewBody struct {
 		Caption        string `json:"caption"`
 		MediaObjectKey string `json:"mediaObjectKey"`
 	} `json:"evidence"`
+	Disputes []disputeBody `json:"disputes"`
+}
+
+type disputeBody struct {
+	ID                 string  `json:"id"`
+	StuntID            string  `json:"stuntId"`
+	RaisedByPlayerID   string  `json:"raisedByPlayerId"`
+	Concern            string  `json:"concern"`
+	Details            string  `json:"details"`
+	Status             string  `json:"status"`
+	Resolution         *string `json:"resolution"`
+	ResolutionReason   *string `json:"resolutionReason"`
+	ResolvedByPlayerID *string `json:"resolvedByPlayerId"`
+	OverrideResolution *string `json:"overrideResolution"`
+	OverrideReason     *string `json:"overrideReason"`
+	OverrideByPlayerID *string `json:"overrideByPlayerId"`
+}
+
+type disputeResolutionBody struct {
+	Stunt   stuntBody   `json:"stunt"`
+	Dispute disputeBody `json:"dispute"`
 }
 
 func createGroup(t *testing.T, server http.Handler, token string, name string) groupHomeBody {
@@ -1738,6 +2019,20 @@ func performStunt(t *testing.T, server http.Handler, token string, groupID strin
 	var submission evidenceSubmissionBody
 	decodeResponse(t, rec, &submission)
 	return submission
+}
+
+func raiseDispute(t *testing.T, server http.Handler, token string, stuntID string, concern string, details string) disputeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+stuntID+"/disputes", token, map[string]string{
+		"concern": concern,
+		"details": details,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected Dispute status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var dispute disputeBody
+	decodeResponse(t, rec, &dispute)
+	return dispute
 }
 
 func submitJudgment(t *testing.T, server http.Handler, token string, stuntID string, difficulty int, transgression int, creativity int, documentation int, expectedStatus int) judgmentBody {
