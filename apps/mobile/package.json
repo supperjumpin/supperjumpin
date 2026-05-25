@@ -2,20 +2,20 @@
   "name": "@supperjumpin/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "index.js",
   "scripts": {
     "dev": "expo start",
     "start": "expo start"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.47.10",
+    "@supabase/auth-js": "^2.106.1",
     "@supperjumpin/api-client": "0.1.0",
-    "expo": "^52.0.0",
-    "react": "^18.3.1",
-    "react-native": "^0.76.0"
+    "expo": "^54.0.34",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   },
   "devDependencies": {
-    "@types/react": "^18.3.29",
-    "typescript": "^5.7.2"
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
   }
 }
