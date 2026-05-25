@@ -8,7 +8,9 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "generate:api-client": "npm --workspace @supperjumpin/api-client run generate",
-    "api:dev": "SUPPERJUMPIN_DEV_AUTH_TOKEN=dev-token go run ./apps/api/cmd/api",
+    "api:dev": "node ./scripts/demo-api.mjs --no-db",
+    "demo:api": "node ./scripts/demo-api.mjs",
+    "demo:mobile": "npm --workspace @supperjumpin/mobile run dev",
     "api:test": "go test ./apps/api/..."
   }
 }
