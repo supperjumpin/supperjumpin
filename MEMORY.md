@@ -1,5 +1,20 @@
 # Project Memory
 
+## 📋 PRD #1: First Playable Group Stunt Loop
+**Status**: OPEN | **Author**: Ben Turney
+
+Single-player-per-group social game where players perform absurd food-location stunts, share evidence, judge each other's stunts on 4 axes (Difficulty, Transgression, Creativity, Documentation), and compete for season standings. Uses Supabase Auth + Postgres + Expo mobile app + Go REST API. MVP excludes progression systems, public feed, auto-scoring, video evidence, push notifications.
+
+---
+### Key Mechanisms
+- Groups multi-member with admin/commissioner roles
+- Season phases: submission → judging grace period → finalized
+- Stunt lifecycle: Idea → Planned → Performed (requires evidence + caption)
+- Judging: one judgment per judge, editable during window, locked after close
+- Standings based on season-linked judged stunts only; off-season excluded
+
+---
+
 ## 🟢 Current Focus
 - **Objective**: Implement Quick-Judge Interaction Layer (T-A #20)
 - **Active Issue**: #20
@@ -39,8 +54,9 @@
 ## ⚠️ Hurdles & Gotchas
 - **Gesture Sensitivity**: 50px threshold for score changes may need tuning based on user feedback.
 - **Touch Targets**: Score rows now have padding for better touch interaction.
-- **API Stability**: Endpoint signatures confirmed stable via Ben's PR #32.
+- **API Stability**: Endpoint signatures confirmed stable via Ben's PR #32 (merged).
 - **ScrollView Conflict**: PanResponder may conflict with parent ScrollView; monitoring for issues.
+- ~~API Client Generator~~: **Resolved** - Ben's PR #32 merged with working client integration.
 
 ## 💡 Working Hypotheses
 - **Tracer Bullet**: By implementing a basic scoring UI first, we can verify the end-to-end loop before adding complex swipe gestures.
@@ -48,7 +64,7 @@
 
 ## 📡 Session Wrap-up & Hand-off
 - **Completed in this session**:
-    - Added `submitJudgment` API client integration.
+    - Added `submitJudgment` API client integration (Ben's PR #32 merged).
     - Implemented gesture score state management.
     - Built judging UI with score adjustment controls (+/- buttons).
     - Added PanResponder-based swipe gestures for all four scoring factors.
@@ -61,5 +77,5 @@
     - Tune gesture sensitivity (currently 50px threshold) based on user feedback.
     - Consider adding haptic feedback on score change.
     - Monitor for ScrollView gesture conflicts.
-- **Warning**: Ensure the backend's temporal window check (Season status) is respected before allowing submission.
+- **Warning**: Ensure the backend's temporal window check (Season status) is respected before allowing submission. Ben's implementation in PR #32 handles this.
 
