@@ -6,26 +6,53 @@ https://github.com/orgs/supperjumpin/projects/1
 
 ## Fields
 
-- **Status**: Kanban lane. Use `Todo`, `In Progress`, or `Done`.
-- **Priority**: `P0`, `P1`, or `P2`.
-- **Area**: `Product`, `Mobile`, `API`, `Data`, `Auth`, `Evidence`, `Contract`, `Infra`, or `Future`.
-- **Size**: `XS`, `S`, `M`, `L`, or `XL`.
-- **Work Type**: `PRD`, `Feature`, `Tech Decision`, `Chore`, or `Bug`.
+**Status** — Kanban lane. Keep accurate through the issue lifecycle:
+- `Todo` (default when added to the project)
+- `In Progress` (set when actively working)
+- `Done` (moved automatically if PR references issue number)
+
+**Priority** — Relative importance, set during triage (leave unset until then):
+- `P0` — Sequence-changing blocker. Blocks multiple workstreams or a critical path. Late P0s cause other work to slip or ship broken. Requires explicit team awareness.
+- `P1` — Active delivery. WIP-able in the current or next cycle without triage escalation.
+- `P2` — Nice-to-have. No downstream dependency. May sit without causing problems.
+
+**Area** — Layer of the stack the issue primarily touches (pick one):
+- `App` — React Native / Expo frontend
+- `API` — Go backend, REST handlers
+- `Data` — DB schema, sqlc queries, migrations
+- `Auth` — Authentication, account management
+- `Infra` — Deployment, CI/CD, hosting, Docker
+
+**Size** — Implementation effort, AI-calibrated:
+- `XS` — Quick fix, single file. ~15–30 min.
+- `S` — Self-contained feature. ~1–2 hours.
+- `M` — Crosses a couple layers. ~3–5 hours.
+- `L` — Would take a whole focused day.
+- `XL` — Needs decomposition. Run the PRD → issues breakdown flow below.
+
+## Title Prefixes
+
+Issue titles use a prefix to signal the type of work (replaces a dedicated Work Type field):
+
+- `PRD:` — Parent product spec
+- `Spike:` — Investigation or tech decision
+- `Docs:` — Documentation
+- `Bug:` — Regression or defect
+- *(no prefix)* — Default feature implementation
 
 ## Workflows
 
 The project has the default GitHub workflows enabled, including auto-add, auto-add sub-issues, item closed, pull request merged, pull request linked to issue, and auto-close issue. Keep these enabled unless they start creating noise.
 
-When creating issues from PRDs, add them to this project and set all custom fields before implementation starts: `Status`, `Priority`, `Area`, `Size`, and `Work Type`. Sub-issues may auto-add through the project workflow, but still verify field values after creation.
+When creating issues from PRDs, add them to this project and set all custom fields before implementation starts: `Status`, `Priority`, `Area`, and `Size`. Sub-issues may auto-add through the project workflow, but still verify field values after creation.
 
 Default new implementation issues to:
 
 - **Assignee**: current GitHub user (`@me`) unless the user specifies otherwise.
 - **Status**: `Todo`.
-- **Priority**: `P1`, unless the issue is sequence-changing or blocks multiple workstreams (`P0`) or is low urgency (`P2`).
-- **Area**: the primary area touched by the vertical slice. Pick one even when the slice crosses layers.
-- **Size**: estimate implementation size as `XS`, `S`, `M`, `L`, or `XL`.
-- **Work Type**: `Feature` for PRD implementation slices, `PRD` for parent product specs, `Tech Decision` for architecture decisions, `Chore` for maintenance, and `Bug` for regressions.
+- **Priority**: unset (determined during triage).
+- **Area**: the primary layer touched by the slice. Pick one even when the slice crosses layers.
+- **Size**: estimate implementation size per the definitions above.
 
 Use GitHub's relationship fields in addition to project fields:
 
