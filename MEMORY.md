@@ -1,13 +1,14 @@
 # Project Memory
 
 ## 🟢 Current Focus
-- **Objective**: Implement Quick-Judge Interaction Layer (T-A #20)
-- **Active Issue**: #20
-- **Status**: Complete (Gesture-based UI implemented with PanResponder)
+- **Objective**: Implement Seasonal Boundaries & Temporal State (#21) - PRD #15 complete
+- **Active Issue**: #21 (COMPLETE)
+- **Status**: All PRD #15 acceptance criteria met
 - **Agent ID**: prn_dev
-- **Last Updated**: 2026-05-25T00:55:00Z
+- **Last Updated**: 2026-05-25T02:15:00Z
 
 ## ⏳ Activity Timeline (Current Session)
+- 2026-05-25T02:15:00Z [prn_dev]: Implemented seasonal boundaries (#21) -> Submission window enforcement, auto-transition logic, deadline-based API.
 - 2026-05-25T00:55:00Z [prn_dev]: Added accessibility labels to all score adjustment buttons -> Screen reader compatible.
 - 2026-05-25T00:54:00Z [prn_dev]: Updated memory protocol with security warning and append-only rule -> Prevents secret leaks and merge conflicts.
 - 2026-05-25T00:50:00Z [prn_dev]: Rebased feature branch on main -> Incorporated Ben's PR #32 (Judgment API) and PR #31 (Group home views).
@@ -24,7 +25,12 @@
 - **Identity**: Many-to-One mapping (Auth → Account → Player) implemented in `PostgresStore`.
 - **Stunt Lifecycle**: Idea → Planned → Performed (gated by Evidence).
 - **Judging Logic**: Implemented authoritative guards (must be a group member, cannot judge own stunt, stunt must be 'Performed'). Scoring uses an upsert model (one judgment per player per stunt).
-- **Temporal Logic**: Judging window is open when Season status is 'Active' or 'Judging Grace Period' (implemented by Ben Turney in PR #32).
+- **Temporal Logic**: 
+  - Season status auto-transitions: Active → Judging Grace Period → Finalized (based on deadline comparison)
+  - Submission window open: Season status == "Active" AND now < submissionDeadline
+  - Judging window open: Season status IN ("Active", "Judging Grace Period")
+  - Evidence submission rejected after submission deadline (ErrSubmissionWindowClosed → 409)
+- **Season Deadlines**: ISO 8601 timestamps stored in DB; enforced at API boundary and store layer.
 - **Gesture Layer**: Implemented with PanResponder; vertical swipes adjust scores, API call only on explicit 'Submit' (per PRD #15).
 - **Accessibility**: All score adjustment buttons have explicit labels for screen readers.
 
