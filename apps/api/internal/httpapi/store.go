@@ -16,6 +16,8 @@ import (
 
 var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Season")
 
+var ErrSeasonNotFound = errors.New("Season not found")
+
 var ErrStuntNotFound = errors.New("Stunt not found")
 
 var ErrEvidenceUploadAuthorizationNotFound = errors.New("Evidence upload authorization not found")
@@ -59,6 +61,22 @@ type Season struct {
 	Status               string    `json:"status"`
 	SubmissionDeadline   time.Time `json:"submissionDeadline"`
 	JudgingDeadline      time.Time `json:"judgingDeadline"`
+}
+
+type SeasonHistoryEntry struct {
+	ID            string    `json:"id"`
+	SeasonID      string    `json:"seasonId"`
+	Action        string    `json:"action"`
+	ActorPlayerID string    `json:"actorPlayerId"`
+	ActorRole     string    `json:"actorRole"`
+	Override      bool      `json:"override"`
+	FromStatus    string    `json:"fromStatus"`
+	ToStatus      string    `json:"toStatus"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+type SeasonHistoryResponse struct {
+	Entries []SeasonHistoryEntry `json:"entries"`
 }
 
 type GroupHomeResponse struct {
@@ -162,6 +180,9 @@ type Store interface {
 	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
 	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
 	StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error)
+	CloseSeasonSubmissions(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error)
+	FinalizeSeason(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error)
+	SeasonHistory(ctx context.Context, player Player, seasonID string) (SeasonHistoryResponse, bool, error)
 	CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error)
 	CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error)
 	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
@@ -170,24 +191,26 @@ type Store interface {
 }
 
 type MemoryStore struct {
-	mu           sync.Mutex
-	accounts     map[string]MeResponse
-	players      map[string]Player
-	groups       map[string]Group
-	memberships  map[string]map[string]GroupMembership
-	invites      map[string]memoryInvite
-	seasons      map[string]Season
-	seasonOrder  map[string]int
-	stunts       map[string]Stunt
-	uploads      map[string]EvidenceUploadAuthorization
-	evidences    map[string]Evidence
-	judgments    map[string]Judgment
-	now          func() time.Time
-	groupNumber  int
-	inviteNumber int
-	seasonNumber int
-	stuntNumber  int
-	uploadNumber int
+	mu                sync.Mutex
+	accounts          map[string]MeResponse
+	players           map[string]Player
+	groups            map[string]Group
+	memberships       map[string]map[string]GroupMembership
+	invites           map[string]memoryInvite
+	seasons           map[string]Season
+	seasonEvents      map[string][]SeasonHistoryEntry
+	seasonOrder       map[string]int
+	stunts            map[string]Stunt
+	uploads           map[string]EvidenceUploadAuthorization
+	evidences         map[string]Evidence
+	judgments         map[string]Judgment
+	now               func() time.Time
+	groupNumber       int
+	inviteNumber      int
+	seasonNumber      int
+	stuntNumber       int
+	uploadNumber      int
+	seasonEventNumber int
 }
 
 type memoryInvite struct {
@@ -201,18 +224,19 @@ func NewMemoryStore() *MemoryStore {
 
 func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 	return &MemoryStore{
-		accounts:    map[string]MeResponse{},
-		players:     map[string]Player{},
-		groups:      map[string]Group{},
-		memberships: map[string]map[string]GroupMembership{},
-		invites:     map[string]memoryInvite{},
-		seasons:     map[string]Season{},
-		seasonOrder: map[string]int{},
-		stunts:      map[string]Stunt{},
-		uploads:     map[string]EvidenceUploadAuthorization{},
-		evidences:   map[string]Evidence{},
-		judgments:   map[string]Judgment{},
-		now:         now,
+		accounts:     map[string]MeResponse{},
+		players:      map[string]Player{},
+		groups:       map[string]Group{},
+		memberships:  map[string]map[string]GroupMembership{},
+		invites:      map[string]memoryInvite{},
+		seasons:      map[string]Season{},
+		seasonEvents: map[string][]SeasonHistoryEntry{},
+		seasonOrder:  map[string]int{},
+		stunts:       map[string]Stunt{},
+		uploads:      map[string]EvidenceUploadAuthorization{},
+		evidences:    map[string]Evidence{},
+		judgments:    map[string]Judgment{},
+		now:          now,
 	}
 }
 
@@ -277,7 +301,7 @@ func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID stri
 		return GroupHomeResponse{}, false, nil
 	}
 	s.ensureSeasonStatusesForGroup(groupID)
-	season := s.activeSeasonForGroup(groupID)
+	season := s.currentSeasonForGroup(groupID)
 	return groupHome(group, membership, season, s.recentPerformedStuntsForGroup(groupID), s.standingsForGroup(groupID)), true, nil
 }
 
@@ -348,7 +372,7 @@ func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token str
 	s.memberships[invite.GroupID][player.ID] = membership
 	invite.UsedBy = player.ID
 	s.invites[token] = invite
-	return groupHome(group, membership, s.activeSeasonForGroup(invite.GroupID), s.recentPerformedStuntsForGroup(invite.GroupID), s.standingsForGroup(invite.GroupID)), InviteAccepted, nil
+	return groupHome(group, membership, s.currentSeasonForGroup(invite.GroupID), s.recentPerformedStuntsForGroup(invite.GroupID), s.standingsForGroup(invite.GroupID)), InviteAccepted, nil
 }
 
 func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
@@ -379,6 +403,78 @@ func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID st
 	s.seasons[season.ID] = season
 	s.seasonOrder[season.ID] = s.seasonNumber
 	return groupHome(group, membership, &season, s.recentPerformedStuntsForGroup(groupID), s.standingsForGroup(groupID)), true, nil
+}
+
+func (s *MemoryStore) CloseSeasonSubmissions(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	season, ok := s.seasons[seasonID]
+	if !ok {
+		return GroupHomeResponse{}, false, ErrSeasonNotFound
+	}
+	group, ok := s.groups[season.GroupID]
+	if !ok {
+		return GroupHomeResponse{}, false, ErrSeasonNotFound
+	}
+	membership, ok := s.memberships[season.GroupID][player.ID]
+	if !ok {
+		return GroupHomeResponse{}, false, nil
+	}
+	if player.ID != season.CommissionerPlayerID && membership.Role != "Group Admin" {
+		return GroupHomeResponse{}, false, nil
+	}
+	if season.Status == "Active" {
+		fromStatus := season.Status
+		season.Status = "Judging Grace Period"
+		s.seasons[season.ID] = season
+		s.recordSeasonHistory(season.ID, "Submissions Closed", player.ID, membership.Role, player.ID != season.CommissionerPlayerID, fromStatus, season.Status)
+	}
+	return groupHome(group, membership, s.currentSeasonForGroup(season.GroupID), s.recentPerformedStuntsForGroup(season.GroupID), s.standingsForGroup(season.GroupID)), true, nil
+}
+
+func (s *MemoryStore) FinalizeSeason(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	season, ok := s.seasons[seasonID]
+	if !ok {
+		return GroupHomeResponse{}, false, ErrSeasonNotFound
+	}
+	group, ok := s.groups[season.GroupID]
+	if !ok {
+		return GroupHomeResponse{}, false, ErrSeasonNotFound
+	}
+	membership, ok := s.memberships[season.GroupID][player.ID]
+	if !ok {
+		return GroupHomeResponse{}, false, nil
+	}
+	if player.ID != season.CommissionerPlayerID && membership.Role != "Group Admin" {
+		return GroupHomeResponse{}, false, nil
+	}
+	if season.Status != "Finalized" {
+		fromStatus := season.Status
+		season.Status = "Finalized"
+		s.seasons[season.ID] = season
+		s.finalizeSeasonStunts(season.ID)
+		s.recordSeasonHistory(season.ID, "Season Finalized", player.ID, membership.Role, player.ID != season.CommissionerPlayerID, fromStatus, season.Status)
+	}
+	return groupHome(group, membership, s.currentSeasonForGroup(season.GroupID), s.recentPerformedStuntsForGroup(season.GroupID), s.standingsForGroup(season.GroupID)), true, nil
+}
+
+func (s *MemoryStore) SeasonHistory(ctx context.Context, player Player, seasonID string) (SeasonHistoryResponse, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	season, ok := s.seasons[seasonID]
+	if !ok {
+		return SeasonHistoryResponse{}, false, ErrSeasonNotFound
+	}
+	if _, ok := s.memberships[season.GroupID][player.ID]; !ok {
+		return SeasonHistoryResponse{}, false, nil
+	}
+	entries := append([]SeasonHistoryEntry(nil), s.seasonEvents[seasonID]...)
+	return SeasonHistoryResponse{Entries: entries}, true, nil
 }
 
 func (s *MemoryStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
@@ -557,6 +653,10 @@ func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
 	return nil
 }
 
+func (s *MemoryStore) currentSeasonForGroup(groupID string) *Season {
+	return s.openSeasonForGroup(groupID)
+}
+
 func (s *MemoryStore) recentPerformedStuntsForGroup(groupID string) []PerformedStuntView {
 	performed := []PerformedStuntView{}
 	for _, stunt := range s.stunts {
@@ -685,6 +785,21 @@ func (s *MemoryStore) ensureSeasonStatus(season *Season) {
 	if season.Status == "Judging Grace Period" && s.now().After(season.JudgingDeadline) {
 		season.Status = "Finalized"
 	}
+}
+
+func (s *MemoryStore) recordSeasonHistory(seasonID string, action string, actorPlayerID string, actorRole string, override bool, fromStatus string, toStatus string) {
+	s.seasonEventNumber++
+	s.seasonEvents[seasonID] = append(s.seasonEvents[seasonID], SeasonHistoryEntry{
+		ID:            stableID("season_history", seasonID+":"+strconv.Itoa(s.seasonEventNumber)),
+		SeasonID:      seasonID,
+		Action:        action,
+		ActorPlayerID: actorPlayerID,
+		ActorRole:     actorRole,
+		Override:      override,
+		FromStatus:    fromStatus,
+		ToStatus:      toStatus,
+		CreatedAt:     s.now().UTC(),
+	})
 }
 
 func isOpenSeasonStatus(status string) bool {
