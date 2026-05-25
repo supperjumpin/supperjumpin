@@ -368,6 +368,86 @@ paths:
           description: Performed Stunt not found.
         "409":
           description: The Judging Window is closed.
+  /v1/stunts/{stuntId}/disputes:
+    post:
+      operationId: createDispute
+      summary: Raise a Dispute on a visible Stunt in the Group
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stuntId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [concern, details]
+              properties:
+                concern:
+                  type: string
+                  enum: [House Rules, Credibility, Source, Destination, Food, duplicate, other]
+                details:
+                  type: string
+      responses:
+        "201":
+          description: The created Dispute.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dispute"
+        "400":
+          description: Invalid Dispute request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player does not have a Group Membership for this Group.
+        "404":
+          description: Visible Stunt not found.
+  /v1/disputes/{disputeId}/resolution:
+    post:
+      operationId: resolveDispute
+      summary: Resolve or override a Dispute with visible Stunt outcome changes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: disputeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, resolutionReason]
+              properties:
+                resolution:
+                  type: string
+                  enum: [No Action, Disqualified Stunt, Removed Stunt]
+                resolutionReason:
+                  type: string
+      responses:
+        "200":
+          description: The updated Stunt and Dispute resolution state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisputeResolution"
+        "400":
+          description: Invalid Dispute resolution request.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: The signed-in Player is not an authorized resolver for this Dispute.
+        "404":
+          description: Dispute not found.
 components:
   securitySchemes:
     bearerAuth:
@@ -466,7 +546,7 @@ components:
           description: Present only for Season-linked Planned Stunts.
         status:
           type: string
-          enum: [Idea, Planned Stunt, Performed Stunt, Judged Stunt, Unjudged Stunt]
+          enum: [Idea, Planned Stunt, Performed Stunt, Judged Stunt, Unjudged Stunt, Disqualified Stunt, Removed Stunt]
         source:
           type: string
         destination:
@@ -553,7 +633,7 @@ components:
           maximum: 10
     PerformedStuntView:
       type: object
-      required: [stunt, performer, evidence]
+      required: [stunt, performer, evidence, disputes]
       properties:
         stunt:
           $ref: "#/components/schemas/Stunt"
@@ -561,6 +641,62 @@ components:
           $ref: "#/components/schemas/Player"
         evidence:
           $ref: "#/components/schemas/Evidence"
+        disputes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dispute"
+    Dispute:
+      type: object
+      required: [id, stuntId, raisedByPlayerId, concern, details, status]
+      properties:
+        id:
+          type: string
+        stuntId:
+          type: string
+        raisedByPlayerId:
+          type: string
+        concern:
+          type: string
+          enum: [House Rules, Credibility, Source, Destination, Food, duplicate, other]
+        details:
+          type: string
+        status:
+          type: string
+          enum: [Open, Resolved, Overridden]
+        resolution:
+          anyOf:
+            - type: string
+              enum: [No Action, Disqualified Stunt, Removed Stunt]
+            - type: "null"
+        resolutionReason:
+          anyOf:
+            - type: string
+            - type: "null"
+        resolvedByPlayerId:
+          anyOf:
+            - type: string
+            - type: "null"
+        overrideResolution:
+          anyOf:
+            - type: string
+              enum: [Disqualified Stunt, Removed Stunt]
+            - type: "null"
+        overrideReason:
+          anyOf:
+            - type: string
+            - type: "null"
+        overrideByPlayerId:
+          anyOf:
+            - type: string
+            - type: "null"
+    DisputeResolution:
+      type: object
+      required: [stunt, dispute]
+      properties:
+        stunt:
+          $ref: "#/components/schemas/Stunt"
+        dispute:
+          $ref: "#/components/schemas/Dispute"
     StandingEntry:
       type: object
       required: [player, seasonScore, judgedStunts]

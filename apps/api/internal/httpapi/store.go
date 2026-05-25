@@ -26,6 +26,12 @@ var ErrSubmissionWindowClosed = errors.New("Submission Window closed")
 
 var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
 
+var ErrInvalidDisputeConcern = errors.New("Dispute concern must be House Rules, Credibility, Source, Destination, Food, duplicate, or other")
+
+var ErrDisputeNotFound = errors.New("Dispute not found")
+
+var ErrInvalidDisputeResolution = errors.New("Dispute resolution must be No Action, Disqualified Stunt, or Removed Stunt")
+
 type Account struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
@@ -76,9 +82,10 @@ type StandingEntry struct {
 }
 
 type PerformedStuntView struct {
-	Stunt     Stunt    `json:"stunt"`
-	Performer Player   `json:"performer"`
-	Evidence  Evidence `json:"evidence"`
+	Stunt     Stunt     `json:"stunt"`
+	Performer Player    `json:"performer"`
+	Evidence  Evidence  `json:"evidence"`
+	Disputes  []Dispute `json:"disputes"`
 }
 
 type Stunt struct {
@@ -127,6 +134,26 @@ type Judgment struct {
 	Documentation int    `json:"documentation"`
 }
 
+type Dispute struct {
+	ID                 string  `json:"id"`
+	StuntID            string  `json:"stuntId"`
+	RaisedByPlayerID   string  `json:"raisedByPlayerId"`
+	Concern            string  `json:"concern"`
+	Details            string  `json:"details"`
+	Status             string  `json:"status"`
+	Resolution         *string `json:"resolution"`
+	ResolutionReason   *string `json:"resolutionReason"`
+	ResolvedByPlayerID *string `json:"resolvedByPlayerId"`
+	OverrideResolution *string `json:"overrideResolution"`
+	OverrideReason     *string `json:"overrideReason"`
+	OverrideByPlayerID *string `json:"overrideByPlayerId"`
+}
+
+type DisputeResolution struct {
+	Stunt   Stunt   `json:"stunt"`
+	Dispute Dispute `json:"dispute"`
+}
+
 type GroupMembershipSummary struct {
 	Group      Group           `json:"group"`
 	Membership GroupMembership `json:"membership"`
@@ -167,6 +194,8 @@ type Store interface {
 	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
 	SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error)
 	SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error)
+	CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error)
+	ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error)
 }
 
 type MemoryStore struct {
@@ -182,6 +211,7 @@ type MemoryStore struct {
 	uploads      map[string]EvidenceUploadAuthorization
 	evidences    map[string]Evidence
 	judgments    map[string]Judgment
+	disputes     map[string]Dispute
 	now          func() time.Time
 	groupNumber  int
 	inviteNumber int
@@ -212,6 +242,7 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		uploads:     map[string]EvidenceUploadAuthorization{},
 		evidences:   map[string]Evidence{},
 		judgments:   map[string]Judgment{},
+		disputes:    map[string]Dispute{},
 		now:         now,
 	}
 }
@@ -524,6 +555,84 @@ func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID
 	return judgment, true, !existed, nil
 }
 
+func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !validDisputeConcern(concern) {
+		return Dispute{}, false, ErrInvalidDisputeConcern
+	}
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok || !disputableStuntStatus(stunt.Status) {
+		return Dispute{}, false, ErrStuntNotFound
+	}
+	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok {
+		return Dispute{}, false, nil
+	}
+
+	id := stableID("dispute", stuntID+":"+player.ID+":"+strconv.Itoa(len(s.disputes)+1))
+	dispute := Dispute{
+		ID:               id,
+		StuntID:          stuntID,
+		RaisedByPlayerID: player.ID,
+		Concern:          concern,
+		Details:          details,
+		Status:           "Open",
+	}
+	s.disputes[dispute.ID] = dispute
+	return dispute, true, nil
+}
+
+func (s *MemoryStore) ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !validDisputeResolution(resolution) {
+		return DisputeResolution{}, false, ErrInvalidDisputeResolution
+	}
+
+	dispute, ok := s.disputes[disputeID]
+	if !ok {
+		return DisputeResolution{}, false, ErrDisputeNotFound
+	}
+	stunt, ok := s.stunts[dispute.StuntID]
+	if !ok {
+		return DisputeResolution{}, false, ErrStuntNotFound
+	}
+	membership, ok := s.memberships[stunt.GroupID][player.ID]
+	if !ok {
+		return DisputeResolution{}, false, nil
+	}
+
+	if dispute.Status == "Open" {
+		if stunt.SeasonID == nil || resolution == "Removed Stunt" {
+			return DisputeResolution{}, false, nil
+		}
+		season, ok := s.seasons[*stunt.SeasonID]
+		if !ok || season.CommissionerPlayerID != player.ID {
+			return DisputeResolution{}, false, nil
+		}
+		dispute.Status = "Resolved"
+		dispute.Resolution = stringPointer(resolution)
+		dispute.ResolutionReason = stringPointer(resolutionReason)
+		dispute.ResolvedByPlayerID = stringPointer(player.ID)
+	} else {
+		if membership.Role != "Group Admin" || resolution == "No Action" {
+			return DisputeResolution{}, false, nil
+		}
+		dispute.Status = "Overridden"
+		dispute.OverrideResolution = stringPointer(resolution)
+		dispute.OverrideReason = stringPointer(resolutionReason)
+		dispute.OverrideByPlayerID = stringPointer(player.ID)
+	}
+
+	stunt = applyDisputeResolutionToStunt(stunt, effectiveDisputeResolution(dispute))
+	s.disputes[dispute.ID] = dispute
+	s.stunts[stunt.ID] = stunt
+	return DisputeResolution{Stunt: stunt, Dispute: dispute}, true, nil
+}
+
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
 	s.ensureSeasonStatusesForGroup(groupID)
 	for _, season := range s.seasons {
@@ -571,6 +680,7 @@ func (s *MemoryStore) recentPerformedStuntsForGroup(groupID string) []PerformedS
 			Stunt:     stunt,
 			Performer: s.players[stunt.PlayerID],
 			Evidence:  evidence,
+			Disputes:  s.disputesForStunt(stunt.ID),
 		})
 	}
 	sort.Slice(performed, func(i, j int) bool {
@@ -580,6 +690,20 @@ func (s *MemoryStore) recentPerformedStuntsForGroup(groupID string) []PerformedS
 		return performed[i].Evidence.CreatedAt.After(performed[j].Evidence.CreatedAt)
 	})
 	return performed
+}
+
+func (s *MemoryStore) disputesForStunt(stuntID string) []Dispute {
+	disputes := []Dispute{}
+	for _, dispute := range s.disputes {
+		if dispute.StuntID != stuntID {
+			continue
+		}
+		disputes = append(disputes, dispute)
+	}
+	sort.Slice(disputes, func(i, j int) bool {
+		return disputes[i].ID < disputes[j].ID
+	})
+	return disputes
 }
 
 func (s *MemoryStore) finalizeSeasonStunts(seasonID string) {
@@ -700,6 +824,24 @@ func validJudgmentScores(scores ...int) bool {
 	return true
 }
 
+func validDisputeConcern(concern string) bool {
+	switch concern {
+	case "House Rules", "Credibility", "Source", "Destination", "Food", "duplicate", "other":
+		return true
+	default:
+		return false
+	}
+}
+
+func validDisputeResolution(resolution string) bool {
+	switch resolution {
+	case "No Action", "Disqualified Stunt", "Removed Stunt":
+		return true
+	default:
+		return false
+	}
+}
+
 func randomToken(kind string) (string, error) {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
@@ -721,7 +863,37 @@ func groupHome(group Group, membership GroupMembership, activeSeason *Season, re
 }
 
 func visiblePerformedStatus(status string) bool {
-	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt"
+	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt" || status == "Disqualified Stunt"
+}
+
+func disputableStuntStatus(status string) bool {
+	return visiblePerformedStatus(status) || status == "Disqualified Stunt"
+}
+
+func effectiveDisputeResolution(dispute Dispute) string {
+	if dispute.OverrideResolution != nil {
+		return *dispute.OverrideResolution
+	}
+	if dispute.Resolution != nil {
+		return *dispute.Resolution
+	}
+	return "No Action"
+}
+
+func applyDisputeResolutionToStunt(stunt Stunt, resolution string) Stunt {
+	switch resolution {
+	case "Disqualified Stunt":
+		stunt.Status = "Disqualified Stunt"
+		stunt.FinalScore = nil
+	case "Removed Stunt":
+		stunt.Status = "Removed Stunt"
+		stunt.FinalScore = nil
+	}
+	return stunt
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func stableID(kind string, value string) string {
