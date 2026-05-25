@@ -782,6 +782,10 @@ VALUES ($1, $2, $3, $4, $5, $6)`,
 }
 
 func (s *PostgresStore) SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
+	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
+		return EvidenceSubmission{}, false, err
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return EvidenceSubmission{}, false, err
@@ -802,6 +806,11 @@ func (s *PostgresStore) SubmitEvidence(ctx context.Context, player Player, stunt
 		return EvidenceSubmission{}, false, err
 	} else if !ok || stunt.PlayerID != player.ID {
 		return EvidenceSubmission{}, false, nil
+	}
+	if open, err := submissionWindowOpenInTx(ctx, tx, stunt); err != nil {
+		return EvidenceSubmission{}, false, err
+	} else if !open {
+		return EvidenceSubmission{}, false, ErrSubmissionWindowClosed
 	}
 
 	var authorization EvidenceUploadAuthorization
@@ -1247,6 +1256,21 @@ func judgingWindowOpenInTx(ctx context.Context, tx *sql.Tx, stunt Stunt) (bool, 
 		return false, err
 	}
 	return isOpenSeasonStatus(status), nil
+}
+
+func submissionWindowOpenInTx(ctx context.Context, tx *sql.Tx, stunt Stunt) (bool, error) {
+	if stunt.SeasonID == nil {
+		return true, nil
+	}
+	var status string
+	var submissionDeadline time.Time
+	if err := tx.QueryRowContext(ctx, `SELECT status, submission_deadline FROM seasons WHERE id = $1`, *stunt.SeasonID).Scan(&status, &submissionDeadline); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return status == "Active" && time.Now().Before(submissionDeadline), nil
 }
 
 type stuntViewQueryer interface {

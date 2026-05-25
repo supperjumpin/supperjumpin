@@ -1254,6 +1254,34 @@ func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *test
 	}
 }
 
+func TestPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+	planned := createPlannedStunt(t, server, "alice-token", idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+
+	submitRec := doJSON(server, http.MethodPost, "/v1/stunts/"+planned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Too late for competition.",
+	})
+	if submitRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed submission status 409, got %d: %s", submitRec.Code, submitRec.Body.String())
+	}
+}
+
 func TestPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
