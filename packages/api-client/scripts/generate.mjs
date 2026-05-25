@@ -25,6 +25,7 @@ for (const required of [
   "EvidenceSubmission:",
   "Judgment:",
   "PerformedStuntView:",
+  "StandingEntry:",
   "GroupHomeResponse:",
   "Invite:",
   "Season:",
@@ -77,11 +78,12 @@ await writeFile(
     `  groupId: string;\n` +
     `  playerId: string;\n` +
     `  seasonId: string | null;\n` +
-    `  status: "Idea" | "Planned Stunt" | "Performed Stunt";\n` +
+    `  status: "Idea" | "Planned Stunt" | "Performed Stunt" | "Judged Stunt" | "Unjudged Stunt";\n` +
     `  source: string;\n` +
     `  destination: string;\n` +
     `  food: string;\n` +
     `  offSeason: boolean;\n` +
+    `  finalScore: number | null;\n` +
     `}\n\n` +
     `export interface EvidenceUploadAuthorization {\n` +
     `  id: string;\n` +
@@ -117,12 +119,17 @@ await writeFile(
     `  performer: Player;\n` +
     `  evidence: Evidence;\n` +
     `}\n\n` +
+    `export interface StandingEntry {\n` +
+    `  player: Player;\n` +
+    `  seasonScore: number;\n` +
+    `  judgedStunts: number;\n` +
+    `}\n\n` +
     `export interface GroupHomeResponse {\n` +
     `  group: Group;\n` +
     `  membership: GroupMembership;\n` +
     `  activeSeason: Season | null;\n` +
     `  recentStunts: PerformedStuntView[];\n` +
-    `  standings: unknown[];\n` +
+    `  standings: StandingEntry[];\n` +
     `}\n\n` +
     `export interface GroupMembershipSummary {\n` +
     `  group: Group;\n` +

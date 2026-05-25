@@ -45,11 +45,12 @@ export interface Stunt {
   groupId: string;
   playerId: string;
   seasonId: string | null;
-  status: "Idea" | "Planned Stunt" | "Performed Stunt";
+  status: "Idea" | "Planned Stunt" | "Performed Stunt" | "Judged Stunt" | "Unjudged Stunt";
   source: string;
   destination: string;
   food: string;
   offSeason: boolean;
+  finalScore: number | null;
 }
 
 export interface EvidenceUploadAuthorization {
@@ -91,12 +92,18 @@ export interface PerformedStuntView {
   evidence: Evidence;
 }
 
+export interface StandingEntry {
+  player: Player;
+  seasonScore: number;
+  judgedStunts: number;
+}
+
 export interface GroupHomeResponse {
   group: Group;
   membership: GroupMembership;
   activeSeason: Season | null;
   recentStunts: PerformedStuntView[];
-  standings: unknown[];
+  standings: StandingEntry[];
 }
 
 export interface GroupMembershipSummary {

@@ -66,7 +66,13 @@ type GroupHomeResponse struct {
 	Membership   GroupMembership      `json:"membership"`
 	ActiveSeason *Season              `json:"activeSeason"`
 	RecentStunts []PerformedStuntView `json:"recentStunts"`
-	Standings    []any                `json:"standings"`
+	Standings    []StandingEntry      `json:"standings"`
+}
+
+type StandingEntry struct {
+	Player       Player `json:"player"`
+	SeasonScore  int    `json:"seasonScore"`
+	JudgedStunts int    `json:"judgedStunts"`
 }
 
 type PerformedStuntView struct {
@@ -85,6 +91,7 @@ type Stunt struct {
 	Destination string  `json:"destination"`
 	Food        string  `json:"food"`
 	OffSeason   bool    `json:"offSeason"`
+	FinalScore  *int    `json:"finalScore"`
 }
 
 type EvidenceUploadAuthorization struct {
@@ -170,6 +177,7 @@ type MemoryStore struct {
 	memberships  map[string]map[string]GroupMembership
 	invites      map[string]memoryInvite
 	seasons      map[string]Season
+	seasonOrder  map[string]int
 	stunts       map[string]Stunt
 	uploads      map[string]EvidenceUploadAuthorization
 	evidences    map[string]Evidence
@@ -199,6 +207,7 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 		memberships: map[string]map[string]GroupMembership{},
 		invites:     map[string]memoryInvite{},
 		seasons:     map[string]Season{},
+		seasonOrder: map[string]int{},
 		stunts:      map[string]Stunt{},
 		uploads:     map[string]EvidenceUploadAuthorization{},
 		evidences:   map[string]Evidence{},
@@ -252,7 +261,7 @@ func (s *MemoryStore) CreateGroup(ctx context.Context, player Player, name strin
 		s.memberships[group.ID] = map[string]GroupMembership{}
 	}
 	s.memberships[group.ID][player.ID] = membership
-	return groupHome(group, membership, nil, s.recentPerformedStuntsForGroup(group.ID)), nil
+	return groupHome(group, membership, nil, s.recentPerformedStuntsForGroup(group.ID), s.standingsForGroup(group.ID)), nil
 }
 
 func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
@@ -267,8 +276,9 @@ func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID stri
 	if !ok {
 		return GroupHomeResponse{}, false, nil
 	}
+	s.ensureSeasonStatusesForGroup(groupID)
 	season := s.activeSeasonForGroup(groupID)
-	return groupHome(group, membership, season, s.recentPerformedStuntsForGroup(groupID)), true, nil
+	return groupHome(group, membership, season, s.recentPerformedStuntsForGroup(groupID), s.standingsForGroup(groupID)), true, nil
 }
 
 func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
@@ -338,7 +348,7 @@ func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token str
 	s.memberships[invite.GroupID][player.ID] = membership
 	invite.UsedBy = player.ID
 	s.invites[token] = invite
-	return groupHome(group, membership, s.activeSeasonForGroup(invite.GroupID), s.recentPerformedStuntsForGroup(invite.GroupID)), InviteAccepted, nil
+	return groupHome(group, membership, s.activeSeasonForGroup(invite.GroupID), s.recentPerformedStuntsForGroup(invite.GroupID), s.standingsForGroup(invite.GroupID)), InviteAccepted, nil
 }
 
 func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
@@ -367,7 +377,8 @@ func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID st
 		JudgingDeadline:      judgingDeadline.UTC(),
 	}
 	s.seasons[season.ID] = season
-	return groupHome(group, membership, &season, s.recentPerformedStuntsForGroup(groupID)), true, nil
+	s.seasonOrder[season.ID] = s.seasonNumber
+	return groupHome(group, membership, &season, s.recentPerformedStuntsForGroup(groupID), s.standingsForGroup(groupID)), true, nil
 }
 
 func (s *MemoryStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
@@ -485,8 +496,11 @@ func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID
 	}
 
 	stunt, ok := s.stunts[stuntID]
-	if !ok || stunt.Status != "Performed Stunt" {
+	if !ok || !visiblePerformedStatus(stunt.Status) {
 		return Judgment{}, false, false, ErrStuntNotFound
+	}
+	if stunt.Status != "Performed Stunt" {
+		return Judgment{}, false, false, ErrJudgingWindowClosed
 	}
 	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok || stunt.PlayerID == player.ID {
 		return Judgment{}, false, false, nil
@@ -511,17 +525,28 @@ func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID
 }
 
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
-	for id, season := range s.seasons {
-		if season.GroupID == groupID {
-			s.ensureSeasonStatus(&season)
-			s.seasons[id] = season
-			if isOpenSeasonStatus(season.Status) {
-				result := season
-				return &result
-			}
+	s.ensureSeasonStatusesForGroup(groupID)
+	for _, season := range s.seasons {
+		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
+			result := season
+			return &result
 		}
 	}
 	return nil
+}
+
+func (s *MemoryStore) ensureSeasonStatusesForGroup(groupID string) {
+	for id, season := range s.seasons {
+		if season.GroupID != groupID {
+			continue
+		}
+		wasFinalized := season.Status == "Finalized"
+		s.ensureSeasonStatus(&season)
+		s.seasons[id] = season
+		if !wasFinalized && season.Status == "Finalized" {
+			s.finalizeSeasonStunts(season.ID)
+		}
+	}
 }
 
 func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
@@ -535,7 +560,7 @@ func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
 func (s *MemoryStore) recentPerformedStuntsForGroup(groupID string) []PerformedStuntView {
 	performed := []PerformedStuntView{}
 	for _, stunt := range s.stunts {
-		if stunt.GroupID != groupID || stunt.Status != "Performed Stunt" {
+		if stunt.GroupID != groupID || !visiblePerformedStatus(stunt.Status) {
 			continue
 		}
 		evidence, ok := s.evidences[stunt.ID]
@@ -555,6 +580,86 @@ func (s *MemoryStore) recentPerformedStuntsForGroup(groupID string) []PerformedS
 		return performed[i].Evidence.CreatedAt.After(performed[j].Evidence.CreatedAt)
 	})
 	return performed
+}
+
+func (s *MemoryStore) finalizeSeasonStunts(seasonID string) {
+	for id, stunt := range s.stunts {
+		if stunt.SeasonID == nil || *stunt.SeasonID != seasonID || stunt.Status != "Performed Stunt" {
+			continue
+		}
+		if score, ok := s.finalScoreForStunt(stunt.ID); ok {
+			stunt.Status = "Judged Stunt"
+			stunt.FinalScore = &score
+		} else {
+			stunt.Status = "Unjudged Stunt"
+			stunt.FinalScore = nil
+		}
+		s.stunts[id] = stunt
+	}
+}
+
+func (s *MemoryStore) finalScoreForStunt(stuntID string) (int, bool) {
+	total := 0
+	count := 0
+	for _, judgment := range s.judgments {
+		if judgment.StuntID != stuntID {
+			continue
+		}
+		total += judgment.Difficulty + judgment.Transgression + judgment.Creativity + judgment.Documentation
+		count++
+	}
+	if count == 0 {
+		return 0, false
+	}
+	return total / count, true
+}
+
+func (s *MemoryStore) standingsForGroup(groupID string) []StandingEntry {
+	season := s.latestSeasonForGroup(groupID)
+	if season == nil {
+		return []StandingEntry{}
+	}
+	byPlayer := map[string]*StandingEntry{}
+	for _, stunt := range s.stunts {
+		if stunt.GroupID != groupID || stunt.SeasonID == nil || *stunt.SeasonID != season.ID || stunt.Status != "Judged Stunt" || stunt.FinalScore == nil {
+			continue
+		}
+		entry := byPlayer[stunt.PlayerID]
+		if entry == nil {
+			entry = &StandingEntry{Player: s.players[stunt.PlayerID]}
+			byPlayer[stunt.PlayerID] = entry
+		}
+		entry.SeasonScore += *stunt.FinalScore
+		entry.JudgedStunts++
+	}
+	standings := []StandingEntry{}
+	for _, entry := range byPlayer {
+		standings = append(standings, *entry)
+	}
+	sort.Slice(standings, func(i, j int) bool {
+		if standings[i].SeasonScore == standings[j].SeasonScore {
+			return standings[i].Player.DisplayName < standings[j].Player.DisplayName
+		}
+		return standings[i].SeasonScore > standings[j].SeasonScore
+	})
+	return standings
+}
+
+func (s *MemoryStore) latestSeasonForGroup(groupID string) *Season {
+	var latest *Season
+	latestOrder := 0
+	for _, season := range s.seasons {
+		if season.GroupID != groupID {
+			continue
+		}
+		candidate := season
+		candidateOrder := s.seasonOrder[candidate.ID]
+		if latest == nil || candidateOrder > latestOrder {
+			latest = &candidate
+			latestOrder = candidateOrder
+		}
+	}
+	return latest
 }
 
 func (s *MemoryStore) judgingWindowOpen(stunt Stunt) bool {
@@ -605,14 +710,18 @@ func randomToken(kind string) (string, error) {
 
 const httpMethodPut = "PUT"
 
-func groupHome(group Group, membership GroupMembership, activeSeason *Season, recentStunts []PerformedStuntView) GroupHomeResponse {
+func groupHome(group Group, membership GroupMembership, activeSeason *Season, recentStunts []PerformedStuntView, standings []StandingEntry) GroupHomeResponse {
 	return GroupHomeResponse{
 		Group:        group,
 		Membership:   membership,
 		ActiveSeason: activeSeason,
 		RecentStunts: recentStunts,
-		Standings:    []any{},
+		Standings:    standings,
 	}
+}
+
+func visiblePerformedStatus(status string) bool {
+	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt"
 }
 
 func stableID(kind string, value string) string {

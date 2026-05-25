@@ -215,6 +215,46 @@ func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
 	}
 }
 
+func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+
+	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
+	if carolAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Carol to join Group after judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
+	}
+	var accepted groupHomeBody
+	decodeResponse(t, carolAcceptRec, &accepted)
+	if len(accepted.Standings) != 1 {
+		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
+	}
+	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedStunts != 1 {
+		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
+	}
+}
+
 func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
 	server := newGroupsTestServer()
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -610,6 +650,168 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 	}
 }
 
+func TestFinalizedSeasonScoresJudgedStuntsAndLocksStandings(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if home.ActiveSeason != nil {
+		t.Fatalf("expected Finalized Season to no longer be active, got %#v", home.ActiveSeason)
+	}
+	if len(home.RecentStunts) != 1 {
+		t.Fatalf("expected judged Stunt to remain visible, got %#v", home.RecentStunts)
+	}
+	if home.RecentStunts[0].Stunt.Status != "Judged Stunt" || home.RecentStunts[0].Stunt.FinalScore == nil || *home.RecentStunts[0].Stunt.FinalScore != 14 {
+		t.Fatalf("expected closed Performed Stunt to receive Final Score 14, got %#v", home.RecentStunts[0].Stunt)
+	}
+	if len(home.Standings) != 1 {
+		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
+	}
+	if home.Standings[0].Player.ID != group.Membership.PlayerID || home.Standings[0].SeasonScore != 14 || home.Standings[0].JudgedStunts != 1 {
+		t.Fatalf("expected Alice to lead with Season Score 14 from one Judged Stunt, got %#v", home.Standings[0])
+	}
+
+	editRec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
+		"difficulty":    10,
+		"transgression": 10,
+		"creativity":    10,
+		"documentation": 10,
+	})
+	if editRec.Code != http.StatusConflict {
+		t.Fatalf("expected Finalized Season to lock Judgment edits, got %d: %s", editRec.Code, editRec.Body.String())
+	}
+}
+
+func TestFinalizedSeasonMarksUnjudgedStuntsAndExcludesOffSeasonStuntsFromStandings(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	unjudged := performStunt(t, server, "alice-token", group.Group.ID)
+	offSeasonIdea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
+	offSeasonPlanned := createPlannedStunt(t, server, "alice-token", offSeasonIdea.ID, true)
+	offSeasonAuthorization := authorizeEvidenceUpload(t, server, "alice-token", offSeasonPlanned.ID, "image/jpeg")
+	offSeasonRec := doJSON(server, http.MethodPost, "/v1/stunts/"+offSeasonPlanned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": offSeasonAuthorization.ID,
+		"caption":               "Pizza Hut did make it to the library.",
+	})
+	if offSeasonRec.Code != http.StatusCreated {
+		t.Fatalf("expected Off-Season Evidence status 201, got %d: %s", offSeasonRec.Code, offSeasonRec.Body.String())
+	}
+	submitJudgment(t, server, "bob-token", offSeasonPlanned.ID, 10, 10, 10, 10, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	stuntsByID := map[string]stuntBody{}
+	for _, recent := range home.RecentStunts {
+		stuntsByID[recent.Stunt.ID] = recent.Stunt
+	}
+	if stuntsByID[unjudged.Stunt.ID].Status != "Unjudged Stunt" || stuntsByID[unjudged.Stunt.ID].FinalScore != nil {
+		t.Fatalf("expected Season-linked Stunt without Judgments to be Unjudged, got %#v", stuntsByID[unjudged.Stunt.ID])
+	}
+	if stuntsByID[offSeasonPlanned.ID].Status != "Performed Stunt" || stuntsByID[offSeasonPlanned.ID].FinalScore != nil {
+		t.Fatalf("expected Off-Season Stunt to remain outside Season scoring, got %#v", stuntsByID[offSeasonPlanned.ID])
+	}
+	if len(home.Standings) != 0 {
+		t.Fatalf("expected Off-Season Judgment and Unjudged Stunt not to affect Standings, got %#v", home.Standings)
+	}
+}
+
+func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
+	currentTime := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return currentTime
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	latestScore := 0
+	maxIDSeasonNumber := 0
+	maxID := ""
+	foundOutOfOrder := false
+	for seasonNumber := 1; seasonNumber <= 8; seasonNumber++ {
+		season := startSeasonWithDeadlines(
+			t,
+			server,
+			"alice-token",
+			group.Group.ID,
+			currentTime.Add(time.Hour),
+			currentTime.Add(2*time.Hour),
+		)
+		performed := performStunt(t, server, "alice-token", group.Group.ID)
+		score := seasonNumber
+		submitJudgment(t, server, "bob-token", performed.Stunt.ID, score, 0, 0, 0, http.StatusCreated)
+		currentTime = currentTime.Add(3 * time.Hour)
+		getGroupHome(t, server, "alice-token", group.Group.ID)
+
+		latestScore = score
+		if maxID == "" || season.ActiveSeason.ID > maxID {
+			maxID = season.ActiveSeason.ID
+			maxIDSeasonNumber = seasonNumber
+		}
+		if maxIDSeasonNumber != seasonNumber {
+			foundOutOfOrder = true
+			break
+		}
+	}
+	if !foundOutOfOrder {
+		t.Fatalf("expected at least one latest season ID ordering inversion across hashed IDs")
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.Standings) != 1 {
+		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
+	}
+	if home.Standings[0].SeasonScore != latestScore || home.Standings[0].JudgedStunts != 1 {
+		t.Fatalf("expected latest season score %d to drive standings, got %#v", latestScore, home.Standings[0])
+	}
+}
+
 func TestIdeaAndPlannedStuntRequireGroupMembership(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -821,6 +1023,61 @@ func TestPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *tes
 	}
 	if seen[http.StatusOK] != 1 || seen[http.StatusConflict] != 1 {
 		t.Fatalf("expected one winner and one already-used Invite conflict, got %#v", seen)
+	}
+}
+
+func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Now().Add(24*time.Hour),
+		time.Now().Add(48*time.Hour),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+UPDATE seasons
+SET submission_deadline = now() - interval '48 hours', judging_deadline = now() - interval '24 hours'
+WHERE id = $1`, season.ActiveSeason.ID); err != nil {
+		t.Fatalf("expire Season deadlines: %v", err)
+	}
+
+	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
+	if carolAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Carol to join Group after judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
+	}
+	var accepted groupHomeBody
+	decodeResponse(t, carolAcceptRec, &accepted)
+	if len(accepted.Standings) != 1 {
+		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
+	}
+	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedStunts != 1 {
+		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
 	}
 }
 
@@ -1052,7 +1309,7 @@ type groupHomeBody struct {
 		CommissionerPlayerID string `json:"commissionerPlayerId"`
 	} `json:"activeSeason"`
 	RecentStunts []performedStuntViewBody `json:"recentStunts"`
-	Standings    []any                    `json:"standings"`
+	Standings    []standingBody           `json:"standings"`
 }
 
 type performedStuntViewBody struct {
@@ -1066,6 +1323,7 @@ type performedStuntViewBody struct {
 		Destination string  `json:"destination"`
 		Food        string  `json:"food"`
 		OffSeason   bool    `json:"offSeason"`
+		FinalScore  *int    `json:"finalScore"`
 	} `json:"stunt"`
 	Performer struct {
 		ID          string `json:"id"`
@@ -1145,6 +1403,16 @@ type stuntBody struct {
 	Destination string  `json:"destination"`
 	Food        string  `json:"food"`
 	OffSeason   bool    `json:"offSeason"`
+	FinalScore  *int    `json:"finalScore"`
+}
+
+type standingBody struct {
+	Player struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"player"`
+	SeasonScore  int `json:"seasonScore"`
+	JudgedStunts int `json:"judgedStunts"`
 }
 
 type evidenceUploadAuthorizationBody struct {
