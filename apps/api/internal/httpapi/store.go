@@ -22,6 +22,8 @@ var ErrEvidenceUploadAuthorizationNotFound = errors.New("Evidence upload authori
 
 var ErrJudgingWindowClosed = errors.New("Judging Window closed")
 
+var ErrSubmissionWindowClosed = errors.New("Submission Window closed")
+
 var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
 
 type Account struct {
@@ -51,10 +53,12 @@ type GroupMembership struct {
 }
 
 type Season struct {
-	ID                   string `json:"id"`
-	GroupID              string `json:"groupId"`
-	CommissionerPlayerID string `json:"commissionerPlayerId"`
-	Status               string `json:"status"`
+	ID                   string    `json:"id"`
+	GroupID              string    `json:"groupId"`
+	CommissionerPlayerID string    `json:"commissionerPlayerId"`
+	Status               string    `json:"status"`
+	SubmissionDeadline   time.Time `json:"submissionDeadline"`
+	JudgingDeadline      time.Time `json:"judgingDeadline"`
 }
 
 type GroupHomeResponse struct {
@@ -150,7 +154,7 @@ type Store interface {
 	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
 	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
 	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
-	StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
+	StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error)
 	CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error)
 	CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error)
 	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
@@ -337,7 +341,7 @@ func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token str
 	return groupHome(group, membership, s.activeSeasonForGroup(invite.GroupID), s.recentPerformedStuntsForGroup(invite.GroupID)), InviteAccepted, nil
 }
 
-func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -359,6 +363,8 @@ func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID st
 		GroupID:              groupID,
 		CommissionerPlayerID: player.ID,
 		Status:               "Active",
+		SubmissionDeadline:   submissionDeadline.UTC(),
+		JudgingDeadline:      judgingDeadline.UTC(),
 	}
 	s.seasons[season.ID] = season
 	return groupHome(group, membership, &season, s.recentPerformedStuntsForGroup(groupID)), true, nil
@@ -453,6 +459,9 @@ func (s *MemoryStore) SubmitEvidence(ctx context.Context, player Player, stuntID
 	}
 
 	delete(s.uploads, uploadAuthorizationID)
+	if !s.submissionWindowOpen(stunt) {
+		return EvidenceSubmission{}, false, ErrSubmissionWindowClosed
+	}
 	stunt.Status = "Performed Stunt"
 	s.stunts[stunt.ID] = stunt
 
@@ -502,9 +511,14 @@ func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID
 }
 
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
-	for _, season := range s.seasons {
-		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
-			return &season
+	for id, season := range s.seasons {
+		if season.GroupID == groupID {
+			s.ensureSeasonStatus(&season)
+			s.seasons[id] = season
+			if isOpenSeasonStatus(season.Status) {
+				result := season
+				return &result
+			}
 		}
 	}
 	return nil
@@ -549,6 +563,23 @@ func (s *MemoryStore) judgingWindowOpen(stunt Stunt) bool {
 	}
 	season, ok := s.seasons[*stunt.SeasonID]
 	return ok && isOpenSeasonStatus(season.Status)
+}
+
+func (s *MemoryStore) submissionWindowOpen(stunt Stunt) bool {
+	if stunt.SeasonID == nil {
+		return true
+	}
+	season, ok := s.seasons[*stunt.SeasonID]
+	return ok && season.Status == "Active" && s.now().Before(season.SubmissionDeadline)
+}
+
+func (s *MemoryStore) ensureSeasonStatus(season *Season) {
+	if season.Status == "Active" && s.now().After(season.SubmissionDeadline) {
+		season.Status = "Judging Grace Period"
+	}
+	if season.Status == "Judging Grace Period" && s.now().After(season.JudgingDeadline) {
+		season.Status = "Finalized"
+	}
 }
 
 func isOpenSeasonStatus(status string) bool {

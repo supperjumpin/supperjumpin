@@ -3,8 +3,10 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type AuthIdentity struct {
@@ -150,7 +152,27 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, ok, err := config.Store.StartSeason(r.Context(), profile.Player, r.PathValue("groupID"))
+		var body struct {
+			SubmissionDeadline string `json:"submissionDeadline"`
+			JudgingDeadline    string `json:"judgingDeadline"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		submissionDeadline, err := time.Parse(time.RFC3339, body.SubmissionDeadline)
+		if err != nil {
+			http.Error(w, "submissionDeadline must be ISO 8601 format", http.StatusBadRequest)
+			return
+		}
+		judgingDeadline, err := time.Parse(time.RFC3339, body.JudgingDeadline)
+		if err != nil {
+			http.Error(w, "judgingDeadline must be ISO 8601 format", http.StatusBadRequest)
+			return
+		}
+
+		home, ok, err := config.Store.StartSeason(r.Context(), profile.Player, r.PathValue("groupID"), submissionDeadline, judgingDeadline)
 		if errors.Is(err, ErrSeasonAlreadyOpen) {
 			http.Error(w, "Group already has an active or closing Season", http.StatusConflict)
 			return
@@ -295,6 +317,10 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 		if errors.Is(err, ErrEvidenceUploadAuthorizationNotFound) {
 			http.Error(w, "Evidence upload authorization not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrSubmissionWindowClosed) {
+			http.Error(w, "Submission Window closed", http.StatusConflict)
 			return
 		}
 		if err != nil {
