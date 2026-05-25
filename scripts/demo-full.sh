@@ -57,7 +57,7 @@ trap cleanup EXIT INT TERM
 
 check_prereqs() {
   local missing=false
-  for cmd in go docker curl jq node; do
+  for cmd in go docker curl jq node lsof; do
     if ! command -v "$cmd" &>/dev/null; then
       fail "$cmd is required but not found."
       missing=true
@@ -66,7 +66,7 @@ check_prereqs() {
   if [ "$missing" = true ]; then
     exit 1
   fi
-  ok "All prerequisites found (go, docker, curl, jq, node)"
+  ok "All prerequisites found (go, docker, curl, jq, node, lsof)"
 }
 
 port_free() {
@@ -111,12 +111,22 @@ main() {
     warn "Port 5432 is already in use — assuming Postgres is running externally"
   fi
 
+  # Choose migration command: Docker container or direct psql
+  if [ "$DOCKER_UP" = true ]; then
+    psql_exec() { docker compose -f "$REPO_ROOT/docker-compose.yml" exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d supperjumpin "$@"; }
+  elif command -v psql &>/dev/null; then
+    psql_exec() { psql -v ON_ERROR_STOP=1 "$DB_URL" "$@"; }
+  else
+    fail "Postgres is external but psql CLI is not installed. Install psql or start a local Docker Postgres."
+    exit 1
+  fi
+
   # ── 2. Apply migrations ────────────────────────────────
   step "2/12  Applying database migrations"
   cd "$REPO_ROOT"
 
   # Bootstrap schema_migrations table
-  docker compose -f docker-compose.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d supperjumpin <<'EOSQL' 2>/dev/null
+  psql_exec <<'EOSQL' 2>/dev/null
 CREATE TABLE IF NOT EXISTS schema_migrations (
   filename TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -126,16 +136,16 @@ EOSQL
   # Apply each migration that hasn't been applied yet
   for f in $(ls apps/api/db/migrations/*.sql | sort); do
     filename=$(basename "$f")
-    applied=$(docker compose -f docker-compose.yml exec -T postgres psql -tAc \
+    applied=$(psql_exec -tAc \
       "SELECT 1 FROM schema_migrations WHERE filename = '${filename//\'/\'\'}'" \
-      -U postgres -d supperjumpin 2>/dev/null | tr -d '[:space:]')
+      2>/dev/null | tr -d '[:space:]')
     if [ "$applied" = "1" ]; then
       info "  [skip] $filename (already applied)"
       continue
     fi
     sql=$(cat "$f")
     escaped="${filename//\'/\'\'}"
-    docker compose -f docker-compose.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d supperjumpin <<EOSQL 2>/dev/null
+    psql_exec <<EOSQL 2>/dev/null
 BEGIN;
 $sql
 INSERT INTO schema_migrations (filename) VALUES ('$escaped');
@@ -257,31 +267,36 @@ EOSQL
   # ── 8. Season ──────────────────────────────────────────
   step "8/12  Season lifecycle — start, close, finalize"
 
-  # Start season (deadlines far in future)
+  # Start season (deadlines relative to current time)
+  SUBMISSION_DEADLINE=$(date -u -v+21d +"%Y-%m-%dT23:59:59Z" 2>/dev/null || date -u -d "+21 days" +"%Y-%m-%dT23:59:59Z")
+  JUDGING_DEADLINE=$(date -u -v+35d +"%Y-%m-%dT23:59:59Z" 2>/dev/null || date -u -d "+35 days" +"%Y-%m-%dT23:59:59Z")
   SEASON_RESP=$(curl -sf -X POST "http://localhost:$API_A_PORT/v1/groups/$GROUP_ID/seasons" \
     -H "Authorization: Bearer $TOKEN_A" \
     -H "Content-Type: application/json" \
-    -d '{
-      "submissionDeadline": "2026-06-15T23:59:59Z",
-      "judgingDeadline": "2026-06-30T23:59:59Z"
-    }')
+    -d "{
+      \"submissionDeadline\": \"$SUBMISSION_DEADLINE\",
+      \"judgingDeadline\": \"$JUDGING_DEADLINE\"
+    }")
   SEASON_ID=$(echo "$SEASON_RESP" | jq -r '.activeSeason.id')
   SEASON_STATUS=$(echo "$SEASON_RESP" | jq -r '.activeSeason.status')
   COMMISSIONER=$(echo "$SEASON_RESP" | jq -r '.activeSeason.commissionerPlayerId')
   ok "Season started: status=$SEASON_STATUS, commissioner=$COMMISSIONER"
 
-  # Duplicate season guard
+  # Duplicate season guard (deadlines past the original so they're distinct)
+  DUP_DEADLINE=$(date -u -v+22d +"%Y-%m-%dT23:59:59Z" 2>/dev/null || date -u -d "+22 days" +"%Y-%m-%dT23:59:59Z")
+  DUP_JUDGING=$(date -u -v+36d +"%Y-%m-%dT23:59:59Z" 2>/dev/null || date -u -d "+36 days" +"%Y-%m-%dT23:59:59Z")
   DUP_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$API_A_PORT/v1/groups/$GROUP_ID/seasons" \
     -H "Authorization: Bearer $TOKEN_A" \
     -H "Content-Type: application/json" \
-    -d '{
-      "submissionDeadline": "2026-07-15T23:59:59Z",
-      "judgingDeadline": "2026-07-30T23:59:59Z"
-    }')
+    -d "{
+      \"submissionDeadline\": \"$DUP_DEADLINE\",
+      \"judgingDeadline\": \"$DUP_JUDGING\"
+    }")
   if [ "$DUP_RESP" = "409" ]; then
     ok "Duplicate season guard works (HTTP 409)"
   else
-    warn "Expected 409 for duplicate season, got $DUP_RESP"
+    fail "Expected 409 for duplicate season, got $DUP_RESP"
+    exit 1
   fi
 
   # ── 9. Stunt lifecycle ────────────────────────────────
@@ -346,7 +361,8 @@ EOSQL
   if [ "$SELF_JUDGE" = "403" ]; then
     ok "Self-judging correctly rejected (HTTP 403)"
   else
-    warn "Expected 403 for self-judging, got $SELF_JUDGE"
+    fail "Expected 403 for self-judging, got $SELF_JUDGE"
+    exit 1
   fi
 
   # Invalid score guard
@@ -357,7 +373,8 @@ EOSQL
   if [ "$BAD_SCORE" = "400" ]; then
     ok "Out-of-range scores correctly rejected (HTTP 400)"
   else
-    warn "Expected 400 for bad scores, got $BAD_SCORE"
+    fail "Expected 400 for bad scores, got $BAD_SCORE"
+    exit 1
   fi
 
   # Player B judges

@@ -101,6 +101,7 @@ sleep 10
 ```sh
 DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
 SUPPERJUMPIN_DEV_AUTH_TOKEN=player-a-token \
+SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-a \
 SUPPERJUMPIN_DEV_AUTH_EMAIL="alice@example.com" \
 PORT=8080 \
 go run ./apps/api/cmd/api
@@ -111,6 +112,7 @@ go run ./apps/api/cmd/api
 ```sh
 DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
 SUPPERJUMPIN_DEV_AUTH_TOKEN=player-b-token \
+SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-b \
 SUPPERJUMPIN_DEV_AUTH_EMAIL="bob@example.com" \
 PORT=8081 \
 go run ./apps/api/cmd/api
