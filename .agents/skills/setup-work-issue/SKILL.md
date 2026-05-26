@@ -1,13 +1,19 @@
 ---
 name: setup-work-issue
-description: Configure local runtime settings for the work-issue skill. Use before work-issue when .work-issue/operator-config.yaml is missing, invalid, or needs to change.
+description: Configures local runtime settings for the work-issue skill. Use before work-issue when .work-issue/operator-config.yaml is missing, invalid, unsafe, or needs to change.
 ---
 
 # Setup Work Issue
 
-Configure local, gitignored operator settings for the `work-issue` orchestration skill.
+Configure local, gitignored operator settings for the `work-issue` orchestration skill. This is setup-only: do not dispatch workers, modify implementation files, or work GitHub issues.
 
-This skill is setup-only. It does not dispatch workers, modify implementation files, or work GitHub issues.
+## Quick start
+
+1. Read `.work-issue/operator-config.yaml` if it exists.
+2. Validate it against the rules below.
+3. If missing or invalid, interview the operator and draft YAML from `templates/operator-config.example.yaml`.
+4. Show the final YAML and write it only after operator approval.
+5. Check whether `.work-issue/` is ignored by git and offer a `.gitignore` patch if needed.
 
 ## Responsibilities
 
@@ -19,19 +25,11 @@ Use this skill to:
 - Validate the operator config.
 - Optionally update `.gitignore` to ignore `.work-issue/`.
 
-Do not silently choose runtime, provider, model, or merge settings. Recommend values when useful, but ask the operator before writing config.
+Never silently choose runtime, provider, model, or merge settings. Recommend values when useful, but ask before writing config.
 
-## Required setup output
+## Output
 
-The setup output is:
-
-```text
-.work-issue/operator-config.yaml
-```
-
-This file is local operator configuration and should not be committed.
-
-Use `templates/operator-config.example.yaml` as the starting point.
+Create or update `.work-issue/operator-config.yaml` from `templates/operator-config.example.yaml`. This file is local operator configuration and should not be committed.
 
 ## Dispatch modes
 
@@ -47,20 +45,14 @@ The selected mode must provide `dispatch.instructions`. Treat these instructions
 
 ## Setup flow
 
-1. If `.work-issue/operator-config.yaml` exists, read and validate it.
-2. If it is valid, summarize the current settings and ask whether the operator wants changes.
-3. If it is missing or invalid, ask for setup details.
-4. Ask for dispatch mode first.
-5. Ask only the follow-up questions needed for the selected mode.
-6. Ask for `max_concurrency`; default to `2`; allowed range is `1` through `3`.
-7. Ask whether the selected runtime supports worker model selection.
-8. If model selection is supported, ask for `models.worker`.
-9. Ask PR and merge permissions.
-10. Show the final YAML.
-11. Write `.work-issue/operator-config.yaml` only after operator approval.
-12. Check whether `.work-issue/` is ignored by git.
-13. If not ignored, offer to patch `.gitignore`.
-14. Patch `.gitignore` only after operator approval.
+1. Existing config: read, validate, summarize current settings, identify invalid fields, and ask whether to make targeted edits.
+2. Missing or invalid config: ask for dispatch mode first, then only the follow-up questions needed for that mode.
+3. Ask for `max_concurrency`; recommend `2`; allowed values are `1`, `2`, or `3`.
+4. Ask whether the runtime supports worker model selection; if yes, ask for `models.worker`.
+5. Ask PR and merge permissions.
+6. Show the final YAML before writing.
+7. Write `.work-issue/operator-config.yaml` only after operator approval.
+8. Check whether `.work-issue/` is ignored by git; patch `.gitignore` only after operator approval.
 
 ## Safe defaults
 
@@ -94,27 +86,13 @@ A valid config must satisfy:
 - `permissions.coordinator_may_open_prs` is boolean.
 - `permissions.coordinator_may_merge` is boolean.
 
-## Existing config behavior
+## Gitignore
 
-If `.work-issue/operator-config.yaml` already exists:
-
-- Do not overwrite it.
-- Read it.
-- Validate it.
-- Summarize the current settings.
-- Identify missing or invalid fields.
-- Propose targeted edits.
-- Apply edits only after operator approval.
-
-## Gitignore behavior
-
-If `.work-issue/` is not ignored, propose adding:
+If `.work-issue/` is not ignored, propose adding this to the repo's existing local/agent section if one exists:
 
 ```gitignore
 # Local work-issue orchestration state
 .work-issue/
 ```
-
-Use the repo's existing local/agent section if one exists.
 
 Do not require this patch for setup success unless the operator wants it.
