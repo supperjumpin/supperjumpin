@@ -294,7 +294,7 @@ export interface components {
         Player: {
             /** @description Internal in-game Player identifier. */
             id: string;
-            displayName_test?: string;
+            displayName: string;
         };
         Group: {
             id: string;
