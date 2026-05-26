@@ -82,5 +82,5 @@ Single-player-per-group social game where players perform absurd food-location s
     - Test end-to-end: Performed Stunt → Judge → Submit → Verify in DB.
     - Tune gesture sensitivity (currently 50px threshold) based on user feedback.
     - Consider adding haptic feedback on score change.
-    - Monitor for Scroll la gest conflict.
-    - Warning: Ensure the backend's temporal window check (Season status) is respected before allowing submission. Ben's implementation in PR #32 handles this.
+    - Monitor for ScrollView gesture conflicts.
+- **Warning**: Ensure the backend's temporal window check (Season status) is respected before allowing submission. Ben's implementation in PR #32 handles this.
