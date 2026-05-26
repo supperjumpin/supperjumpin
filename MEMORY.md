@@ -5,9 +5,10 @@
 - **Active Issue**: #18
 - **Status**: Backend verified as complete; Mobile frontend integration missing.
 - **Agent ID**: hermes-agent
-- **Last Updated**: 2026-05-25T20:15:00Z
+- **Last Updated**: 2026-05-26T03:15:00Z
 
 ## ⏳ Activity Timeline (Current Session)
+- 2026-05-26T02:50:00Z [hermes-agent]: Implemented hard-failure API client sync verification (#48) -> Replaced fake generator with `openapi-typescript` and added CI check to fail on stale types.
 - 2026-05-25T02:15:00Z [prn_dev]: Implemented seasonal boundaries (#21) -> Submission window enforcement, auto-transition logic, deadline-based API.
 - 2026-05-25T00:55:00Z [prn_dev]: Added accessibility labels to all score adjustment buttons -> Screen reader compatible.
 - 2026-05-25T00:54:00Z [prn_dev]: Updated memory protocol with security warning and append-only rule -> Prevents secret leaks and merge conflicts.
@@ -27,12 +28,15 @@
 - **Judging Logic**: Implemented authoritative guards (must be a group member, cannot judge own stunt, stunt must be 'Performed'). Scoring uses an upsert model (one judgment per player per stunt).
 - **Temporal Logic**: 
   - Season status auto-transitions: Active → Judging Grace Period → Finalized (based on deadline comparison)
-  - Submission window open: Season status == "Active" AND now < submissionDeadline
-  - Judging window open: Season status IN ("Active", "Judging Grace Period")
+  - Submission window open: Season status == \"Active\" AND now < submissionDeadline
+  - Judging window open: Season status IN (\"Active\", \"Judging Grace Period\")
   - Evidence submission rejected after submission deadline (ErrSubmissionWindowClosed → 409)
 - **Season Deadlines**: ISO 8601 timestamps stored in DB; enforced at API boundary and store layer.
 - **Gesture Layer**: Implemented with PanResponder; vertical swipes adjust scores, API call only on explicit 'Submit' (per PRD #15).
 - **Accessibility**: All score adjustment buttons have explicit labels for screen readers.
+- **API Client Sync**: Strictly enforced via CI using `openapi-typescript`. Any divergence between `openapi.yaml` and `packages/api-client/src` results in a hard build failure to prevent runtime type mismatches.
+
+---
 
 ## 💡 Working Hypotheses
 - **Tracer Bullet**: By implementing a basic scoring UI first, we can verify the end-to-end loop before adding complex swipe gestures.
@@ -80,5 +84,3 @@ Single-player-per-group social game where players perform absurd food-location s
     - Consider adding haptic feedback on score change.
     - Monitor for ScrollView gesture conflicts.
 - **Warning**: Ensure the backend's temporal window check (Season status) is respected before allowing submission. Ben's implementation in PR #32 handles this.
-
-
