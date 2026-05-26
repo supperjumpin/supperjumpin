@@ -339,7 +339,7 @@ export default function App() {
             {groupHome.recentStunts.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Recent Performed Stunts</Text>
-                {groupHome.recentStunts.map((performedStunt) => (
+                {groupHome.recentStunts.map((performedStunt: PerformedStuntView) => (
                   <Button
                     key={performedStunt.stunt.id}
                     onPress={() => setSelectedStunt(performedStunt)}
