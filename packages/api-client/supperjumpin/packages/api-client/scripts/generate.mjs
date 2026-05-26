@@ -7,15 +7,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const contractPath = resolve(root, "apps/api/openapi.yaml");
 const outputPath = resolve(root, "packages/api-client/src/generated.d.ts");
 
-console.log(`Reading contract from: ${contractPath}`);
+console.log(`Generating types from ${contractPath}...`);
 
 try {
   const contractContent = await readFile(contractPath, "utf8");
-  console.log("Contract first 100 chars:", contractContent.substring(0, 100));
-  
   const types = await OpenApiTypeScript(contractContent);
-  console.log("Types generated successfully. Write length:", types.length);
-  
   await writeFile(outputPath, types);
   console.log(`Successfully wrote types to ${outputPath}`);
 } catch (error) {
