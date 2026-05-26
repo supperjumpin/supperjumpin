@@ -1,110 +1,211 @@
 ---
 name: work-issue
-description: Work issue trees in parallel from a parent GitHub issue and its sub-issues. Use when the user says "work issue" or wants agents to execute a PRD, issue tree, or blocked/unblocked issue graph until acceptance criteria are met.
+description: Coordinate one wave of ready-for-agent GitHub issue work using isolated worker worktrees, a local run ledger, structured worker reports, and coordinator-owned review/PR gates.
 ---
 
 # Work Issue
 
-Coordinate a parent PRD through dependency-ordered implementation waves. The coordinator is the user's interface; workers each own one issue in one isolated git worktree.
+Coordinate one wave of GitHub issue work.
 
-## Guardrails
+This is an orchestrator-only skill. The coordinator does not implement issues directly. Workers implement exactly one issue each in isolated worktrees. The coordinator owns readiness checks, dispatch, run ledger state, GitHub issue/project state, review, PR creation, run summaries, and cleanup.
 
-- Use GitHub as source of truth for parent/sub-issue relationships, blocker relationships, labels, assignees, PR links, and project fields.
-- Start only issues labeled `ready-for-agent` with `Status: Todo` and no open blockers.
-- Stop when there are no unblocked `ready-for-agent` issues. Do not work `ready-for-human`, `needs-triage`, `needs-info`, `wontfix`, or unlabeled issues.
-- Use one git worktree and one branch per worker. Never let multiple workers write in the same checkout.
-- Workers implement exactly one issue and must not broaden scope beyond that issue's acceptance criteria.
-- Workers must load and follow the `tdd` skill for red-green-refactor implementation.
-- Do not merge PRs without explicit user approval unless the user delegated merge authority.
-- Stop if a worker discovers an unresolved architecture, product, or dependency conflict.
+## Required configuration
 
-## Quick Start
+Before dispatching workers, require:
 
-When invoked, ask for any missing run controls:
-
-- Parent issue number or URL.
-- Maximum concurrent workers. Default: 3.
-- Whether workers may open PRs. Default: yes.
-- Whether the coordinator may merge approved PRs. Default: no.
-
-Then inspect `docs/agents/issue-tracker.md`, `docs/project-board.md`, `docs/agents/triage-labels.md`, `docs/agents/domain.md`, `CONTEXT.md`, and relevant ADRs in `docs/adr/`.
-
-## Discover The Issue Graph
-
-Fetch parent, sub-issues, blockers, assignees, labels, and project data.
-
-```bash
-gh issue view <parent> --comments --json number,title,body,labels,assignees,projectItems,url
-gh api repos/supperjumpin/supperjumpin/issues/<parent>/sub_issues
-gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { issue(number:$number) { number title subIssues(first:100) { nodes { number title state labels(first:20) { nodes { name } } assignees(first:20) { nodes { login } } blockedBy(first:20) { nodes { number state } } projectItems(first:20) { nodes { id project { title } fieldValues(first:50) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { field { ... on ProjectV2SingleSelectField { name } } name } } } } } } } } } }' -f owner=supperjumpin -f repo=supperjumpin -F number=<parent>
+```text
+.work-issue/operator-config.yaml
 ```
 
-A ready issue satisfies all of these:
+If this file is missing or invalid, do not dispatch workers. Report the exact problem and tell the operator to run `setup-work-issue`.
 
-- It is a sub-issue of the parent PRD.
-- It is open.
-- It has `ready-for-agent`.
-- Its project `Status` is `Todo`.
-- Every issue in `blockedBy` is closed or has a merged linked PR that closes it.
+Do not inspect or warn about `.gitignore` status. Assume setup handled local ignore hygiene.
 
-Label routing:
+## Source of truth
 
-- `ready-for-agent`: eligible for worker waves when unblocked.
-- `ready-for-human`: report in the human lane and stop if no agent-ready work remains.
-- `needs-triage`: report as needing the `triage` skill before implementation.
-- `needs-info`: report as blocked on external or user input.
-- `wontfix`: exclude from worker waves and summarize only if relevant.
-- Missing triage label: report as a tracker hygiene issue; do not start a worker.
+Use GitHub as the durable source of truth for:
 
-## Run A Wave
+- issues
+- parent/sub-issue relationships
+- blocker relationships
+- labels
+- project fields
+- PR links
+- comments
+- merged state
 
-For each ready issue up to the concurrency limit:
+Use the local run ledger only as ephemeral coordinator state:
 
-```bash
-git fetch origin
-git worktree add worktrees/issue-<number> -b agent/issue-<number> origin/main
+```text
+.work-issue/runs/<run-id>/
 ```
 
-If there are zero ready issues, do not launch workers. Report why the remaining open sub-issues are not runnable: blocked by open issues, `ready-for-human`, `needs-triage`, `needs-info`, missing triage label, or already in progress.
+The coordinator is the only writer to the canonical run ledger.
 
-Launch one worker per worktree. If the runtime has a Task/subagent tool, use it; otherwise ask the user to start separate OpenCode sessions in each worktree. Give each worker this prompt, replacing placeholders:
+## Target modes
 
-```md
-You are implementing GitHub issue #<number> in supperjumpin/supperjumpin.
+Given a target issue:
 
-First, load and follow the `tdd` skill. Use red-green-refactor with vertical tracer bullets.
+- Tree mode: if the target has structured GitHub sub-issues, only structured sub-issues are dispatch candidates.
+- Single-issue mode: if the target has no structured sub-issues, the target issue itself is the dispatch candidate.
 
-Read issue #<number>, parent issue #<parent>, CONTEXT.md, relevant ADRs, and docs/agents guidance.
+In both modes, implementation still happens through a worker worktree and coordinator review gate.
 
-Work only in this git worktree: <worktree-path>.
+## Readiness rule
 
-Rules:
-- Implement only issue #<number>.
-- Preserve Supperjumpin glossary terms.
-- Satisfy every acceptance criterion.
-- Add or update behavior tests through public interfaces.
-- Run relevant checks.
-- Open a PR from branch agent/issue-<number> linked to issue #<number>.
-- In the PR body, map changes to acceptance criteria and list test results.
-- Update project status to In Progress while working and report if blocked.
-- Stop and report if the issue needs a product or architecture decision.
+Only work issues that are `ready-for-agent`.
+
+A dispatch candidate is runnable only if it satisfies all of these:
+
+- open issue
+- exactly one canonical triage label
+- triage label is `ready-for-agent`
+- project `Status` is `Todo`
+- no open structured blockers
+
+Anything else is skipped in tree mode or stops the run in single-issue mode.
+
+Do not route other labels to other skills in v1. Just report the reason and stop or skip.
+
+## One wave only
+
+Run exactly one wave per invocation.
+
+Flow:
+
+1. Validate config.
+2. Run pre-dispatch sanity checks.
+3. Discover target mode and issue graph.
+4. Build the ready queue.
+5. Dispatch up to `dispatch.max_concurrency` workers.
+6. Review workers as they finish.
+7. Allow one fix pass per issue per run if coordinator review fails.
+8. Open PRs for accepted work if configured.
+9. Post a concise run summary comment.
+10. Offer explicit cleanup.
+11. Stop.
+
+Do not automatically start a second wave after PRs merge or blockers clear. The operator can invoke this skill again.
+
+## Required runbooks
+
+Load the runbooks as needed:
+
+- `runbooks/discover-issue-graph.md`
+- `runbooks/classify-ready-work.md`
+- `runbooks/dispatch-workers.md`
+- `runbooks/review-worker-output.md`
+- `runbooks/complete-parent.md`
+- `runbooks/cleanup.md`
+
+Use templates from:
+
+- `templates/worker-prompt.md`
+- `templates/worker-report.md`
+- `templates/ready-queue.md`
+- `templates/coordinator-review.md`
+- `templates/pull-request-body.md`
+- `templates/parent-run-summary-comment.md`
+- `templates/completion-summary.md`
+
+## Hard guardrails
+
+- Do not implement code in the coordinator checkout.
+- Do not dispatch non-`ready-for-agent` issues.
+- Do not dispatch issues with open blockers.
+- Do not use issue-body parent links as dispatch membership.
+- Do not use issue-body blocker text as authoritative blocker state.
+- Do not let multiple workers write in the same checkout.
+- Do not let workers update GitHub issue labels, project fields, blockers, or parent relationships.
+- Do not push worker branches before coordinator review passes.
+- Do not open PRs unless `permissions.coordinator_may_open_prs` is true.
+- Do not merge PRs unless `permissions.coordinator_may_merge` is true and the operator explicitly delegated merge authority.
+- Do not commit `.work-issue-worker-report.md`.
+- Stop if configuration, dispatch instructions, GitHub state, or architecture/product requirements are contradictory or unsafe.
+
+## Worker lifecycle
+
+Every worker follows this lifecycle:
+
+```text
+created -> started -> working -> blocked | ready-for-review -> accepted | needs-fix | abandoned
 ```
 
-## Between Waves
+Each issue gets one implementation attempt and one fix pass per run.
 
-- Monitor worker results and PR links.
-- Review each PR for scope, tests, acceptance criteria coverage, and glossary/ADR alignment.
-- Ask the user before merging unless merge authority was delegated.
-- After a PR merges, update the issue/project status if automation did not.
-- Rebase or recreate downstream worktrees on latest `origin/main` before starting dependent work.
-- Recompute the ready queue from GitHub relationships, then start the next wave.
+Workers must write a structured report at this fixed path in their own worktree:
+
+```text
+.work-issue-worker-report.md
+```
+
+The coordinator imports that report into:
+
+```text
+.work-issue/runs/<run-id>/reports/issue-<number>.md
+```
+
+## Branch and worktree naming
+
+Use run-scoped worktrees:
+
+```text
+worktrees/<run-id>/issue-<number>/
+```
+
+Use branches that include the issue number and run slug:
+
+```text
+agent/issue-<number>-<run-slug>
+```
+
+If paths or branches already exist, stop and ask the operator to clean up or choose a new run.
+
+## GitHub state ownership
+
+The coordinator owns GitHub issue/project state.
+
+On dispatch:
+
+```text
+Todo -> In Progress
+```
+
+If abandoned before PR creation:
+
+```text
+In Progress -> Todo
+```
+
+When a linked PR merges:
+
+```text
+In Progress -> Done
+```
+
+Let GitHub automation close issues and update done state when possible.
+
+## PR ownership
+
+Workers do not open PRs by default.
+
+Default flow:
+
+```text
+worker ready-for-review -> coordinator review -> coordinator pushes branch -> coordinator opens PR
+```
+
+Coordinator-created PRs are not drafts by default.
+
+Use the skill-local PR body template. Include `Closes #<issue-number>`.
 
 ## Completion
 
-The parent PRD is complete only when:
+At the end of each run, post a concise run summary comment to:
 
-- Every sub-issue is closed.
-- The parent's sub-issues progress is complete.
-- No sub-issue is blocked by an open issue.
-- Project fields are set on all issues.
-- The coordinator can summarize which acceptance criteria were satisfied by which PRs.
+- the parent issue in tree mode
+- the target issue in single-issue mode
+
+Include worked issues, PRs opened, skipped issues and reasons, blocked/abandoned issues, and next actions.
+
+Do not paste the full local ledger into GitHub.
