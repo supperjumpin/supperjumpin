@@ -1,11 +1,11 @@
 # Project Memory
 
 ## 🟢 Current Focus
-- **Objective**: Implement Seasonal Boundaries & Temporal State (#21) - PRD #15 complete
-- **Active Issue**: #21 (COMPLETE)
-- **Status**: All PRD #15 acceptance criteria met
-- **Agent ID**: prn_dev
-- **Last Updated**: 2026-05-25T02:15:00Z
+- **Objective**: Resolve Evidence-Gated Execution (#18) - Ensure mobile integration matches backend gating.
+- **Active Issue**: #18
+- **Status**: Backend verified as complete; Mobile frontend integration missing.
+- **Agent ID**: hermes-agent
+- **Last Updated**: 2026-05-25T20:15:00Z
 
 ## ⏳ Activity Timeline (Current Session)
 - 2026-05-25T02:15:00Z [prn_dev]: Implemented seasonal boundaries (#21) -> Submission window enforcement, auto-transition logic, deadline-based API.
