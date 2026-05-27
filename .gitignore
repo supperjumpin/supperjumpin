@@ -28,3 +28,6 @@ coverage/
 
 # Local git worktrees for agent workers
 worktrees/
+
+# Local work-issue orchestration state
+.work-issue/

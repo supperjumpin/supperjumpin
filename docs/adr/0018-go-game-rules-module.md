@@ -1,0 +1,3 @@
+# Go Game Rules Module
+
+We will move Supperjumpin's Stunt, Season, Evidence, Judgment, Dispute, Group Membership authority, Group Home, and Standings rule orchestration into a Go backend `internal/game` module behind the HTTP adapter. The module owns command ordering and typed outcomes while Postgres and memory implementations become adapters behind internal seams; `BootstrapIdentity` remains outside because Account/Player auth bootstrap is identity plumbing rather than Stunt/Season game behavior. Migration will proceed in independently mergeable command slices, and each slice must delete the old duplicate rule implementation for the command it moves.
