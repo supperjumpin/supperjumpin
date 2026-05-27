@@ -331,9 +331,16 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 	membership.GroupID = group.ID
 	var openCount int
 	if err := tx.QueryRowContext(ctx, `
-SELECT count(*)
-FROM seasons
-WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')`, groupID).Scan(&openCount); err != nil {
+WITH transitioned AS (
+    UPDATE seasons SET status = CASE
+        WHEN status = 'Active' AND NOW() >= submission_deadline THEN 'Judging Grace Period'
+        WHEN status = 'Judging Grace Period' AND NOW() >= judging_deadline THEN 'Finalized'
+        ELSE status
+    END
+    WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')
+    RETURNING id
+)
+SELECT count(*) FROM transitioned`, groupID).Scan(&openCount); err != nil {
 		return GroupHomeResponse{}, false, err
 	}
 	if openCount > 0 {
@@ -368,6 +375,17 @@ VALUES ($1, $2, $3, $4, $5, $6)`, season.ID, season.GroupID, season.Commissioner
 		return GroupHomeResponse{}, false, err
 	}
 	return groupHome(group, membership, &season, recentStunts), true, nil
+}
+
+func (s *PostgresStore) TransitionSeasonStatus(ctx context.Context, seasonID string) error {
+	_, err := s.db.ExecContext(ctx, `
+UPDATE seasons SET status = CASE
+    WHEN status = 'Active' AND NOW() >= submission_deadline THEN 'Judging Grace Period'
+    WHEN status = 'Judging Grace Period' AND NOW() >= judging_deadline THEN 'Finalized'
+    ELSE status
+END
+WHERE id = $1`, seasonID)
+	return err
 }
 
 func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
@@ -714,9 +732,18 @@ SELECT created FROM upsert`, judgmentID, stuntID, player.ID, difficulty, transgr
 func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
 	var season Season
 	if err := s.db.QueryRowContext(ctx, `
+WITH transitioned AS (
+    UPDATE seasons SET status = CASE
+        WHEN status = 'Active' AND NOW() >= submission_deadline THEN 'Judging Grace Period'
+        WHEN status = 'Judging Grace Period' AND NOW() >= judging_deadline THEN 'Finalized'
+        ELSE status
+    END
+    WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')
+    RETURNING id, group_id, commissioner_player_id, status
+)
 SELECT id, group_id, commissioner_player_id, status
-FROM seasons
-WHERE group_id = $1 AND status = 'Active'
+FROM transitioned
+WHERE status = 'Active'
 ORDER BY created_at DESC
 LIMIT 1`, groupID).Scan(
 		&season.ID,
@@ -776,9 +803,18 @@ WHERE id = $1`, stuntID).Scan(
 func activeSeasonForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) (*Season, error) {
 	var season Season
 	if err := tx.QueryRowContext(ctx, `
+WITH transitioned AS (
+    UPDATE seasons SET status = CASE
+        WHEN status = 'Active' AND NOW() >= submission_deadline THEN 'Judging Grace Period'
+        WHEN status = 'Judging Grace Period' AND NOW() >= judging_deadline THEN 'Finalized'
+        ELSE status
+    END
+    WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')
+    RETURNING id, group_id, commissioner_player_id, status
+)
 SELECT id, group_id, commissioner_player_id, status
-FROM seasons
-WHERE group_id = $1 AND status = 'Active'
+FROM transitioned
+WHERE status = 'Active'
 ORDER BY created_at DESC
 LIMIT 1`, groupID).Scan(
 		&season.ID,

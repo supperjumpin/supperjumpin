@@ -160,6 +160,7 @@ type Store interface {
 	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
 	SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error)
 	SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error)
+	TransitionSeasonStatus(ctx context.Context, seasonID string) error
 }
 
 type MemoryStore struct {
@@ -353,6 +354,7 @@ func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID st
 	if !ok {
 		return GroupHomeResponse{}, false, nil
 	}
+	s.transitionGroupSeasonsLocked(groupID)
 	if s.openSeasonForGroup(groupID) != nil {
 		return GroupHomeResponse{}, true, ErrSeasonAlreadyOpen
 	}
@@ -511,20 +513,17 @@ func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID
 }
 
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
-	for id, season := range s.seasons {
-		if season.GroupID == groupID {
-			s.ensureSeasonStatus(&season)
-			s.seasons[id] = season
-			if isOpenSeasonStatus(season.Status) {
-				result := season
-				return &result
-			}
+	for _, season := range s.seasons {
+		if season.GroupID == groupID && isOpenSeasonStatus(season.Status) {
+			result := season
+			return &result
 		}
 	}
 	return nil
 }
 
 func (s *MemoryStore) activeSeasonForGroup(groupID string) *Season {
+	s.transitionGroupSeasonsLocked(groupID)
 	season := s.openSeasonForGroup(groupID)
 	if season != nil && season.Status == "Active" {
 		return season
@@ -561,6 +560,7 @@ func (s *MemoryStore) judgingWindowOpen(stunt Stunt) bool {
 	if stunt.SeasonID == nil {
 		return true
 	}
+	s.transitionSeasonStatusLocked(*stunt.SeasonID)
 	season, ok := s.seasons[*stunt.SeasonID]
 	return ok && isOpenSeasonStatus(season.Status)
 }
@@ -569,16 +569,42 @@ func (s *MemoryStore) submissionWindowOpen(stunt Stunt) bool {
 	if stunt.SeasonID == nil {
 		return true
 	}
+	s.transitionSeasonStatusLocked(*stunt.SeasonID)
 	season, ok := s.seasons[*stunt.SeasonID]
 	return ok && season.Status == "Active" && s.now().Before(season.SubmissionDeadline)
 }
 
-func (s *MemoryStore) ensureSeasonStatus(season *Season) {
+func (s *MemoryStore) TransitionSeasonStatus(ctx context.Context, seasonID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.transitionSeasonStatusLocked(seasonID)
+}
+
+func (s *MemoryStore) transitionSeasonStatusLocked(seasonID string) error {
+	season, ok := s.seasons[seasonID]
+	if !ok {
+		return nil
+	}
+	changed := false
 	if season.Status == "Active" && s.now().After(season.SubmissionDeadline) {
 		season.Status = "Judging Grace Period"
+		changed = true
 	}
 	if season.Status == "Judging Grace Period" && s.now().After(season.JudgingDeadline) {
 		season.Status = "Finalized"
+		changed = true
+	}
+	if changed {
+		s.seasons[seasonID] = season
+	}
+	return nil
+}
+
+func (s *MemoryStore) transitionGroupSeasonsLocked(groupID string) {
+	for id, season := range s.seasons {
+		if season.GroupID == groupID {
+			s.transitionSeasonStatusLocked(id)
+		}
 	}
 }
 
