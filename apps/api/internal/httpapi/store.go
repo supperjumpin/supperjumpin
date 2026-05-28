@@ -526,49 +526,35 @@ func (s *MemoryStore) SeasonHistory(ctx context.Context, player Player, seasonID
 }
 
 func (s *MemoryStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.memberships[groupID][player.ID]; !ok {
-		return Stunt{}, false, nil
-	}
-	s.stuntNumber++
-	stunt := Stunt{
-		ID:          stableID("stunt", groupID+":"+player.ID+":"+strconv.Itoa(s.stuntNumber)),
+	result := game.CreateIdea(ctx, s, game.CreateIdeaInput{
 		GroupID:     groupID,
 		PlayerID:    player.ID,
-		Status:      "Idea",
 		Source:      source,
 		Destination: destination,
 		Food:        food,
-		OffSeason:   true,
+	})
+	if result.Err != nil {
+		return Stunt{}, false, result.Err
 	}
-	s.stunts[stunt.ID] = stunt
-	return stunt, true, nil
+	if !result.Allowed {
+		return Stunt{}, false, nil
+	}
+	return stuntFromGame(result.Stunt), true, nil
 }
 
 func (s *MemoryStore) CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	stunt, ok := s.stunts[ideaID]
-	if !ok || stunt.Status != "Idea" {
-		return Stunt{}, false, ErrStuntNotFound
+	result := game.CreatePlannedStunt(ctx, s, game.CreatePlannedStuntInput{
+		IdeaID:    ideaID,
+		PlayerID:  player.ID,
+		OffSeason: offSeason,
+	})
+	if result.Err != nil {
+		return Stunt{}, false, mapGameErr(result.Err)
 	}
-	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok || stunt.PlayerID != player.ID {
+	if !result.Allowed {
 		return Stunt{}, false, nil
 	}
-	stunt.Status = "Planned Stunt"
-	stunt.SeasonID = nil
-	stunt.OffSeason = true
-	if !offSeason {
-		if season := s.activeSeasonForGroup(stunt.GroupID); season != nil {
-			stunt.SeasonID = &season.ID
-			stunt.OffSeason = false
-		}
-	}
-	s.stunts[stunt.ID] = stunt
-	return stunt, true, nil
+	return stuntFromGame(result.Stunt), true, nil
 }
 
 func (s *MemoryStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
@@ -668,13 +654,7 @@ func (s *MemoryStore) Stunt(ctx context.Context, stuntID string) (game.StuntSnap
 	if !ok || !visiblePerformedStatus(stunt.Status) {
 		return game.StuntSnapshot{}, false, nil
 	}
-	return game.StuntSnapshot{
-		ID:       stunt.ID,
-		GroupID:  stunt.GroupID,
-		PlayerID: stunt.PlayerID,
-		Status:   stunt.Status,
-		SeasonID: stunt.SeasonID,
-	}, true, nil
+	return stuntToSnapshot(stunt), true, nil
 }
 
 func (s *MemoryStore) Season(ctx context.Context, seasonID string) (game.SeasonSnapshot, error) {
@@ -724,6 +704,90 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, stuntID, playerID stri
 		Creativity:    httpJudgment.Creativity,
 		Documentation: httpJudgment.Documentation,
 	}, !existed, nil
+}
+
+// stuntFromGame converts a game.StuntSnapshot to the httpapi Stunt type.
+// The caller must set fields the game module doesn't return (FinalScore, OffSeason bool).
+func stuntFromGame(snap game.StuntSnapshot) Stunt {
+	return Stunt{
+		ID:          snap.ID,
+		GroupID:     snap.GroupID,
+		PlayerID:    snap.PlayerID,
+		Status:      snap.Status,
+		SeasonID:    snap.SeasonID,
+		Source:      snap.Source,
+		Destination: snap.Destination,
+		Food:        snap.Food,
+		OffSeason:   snap.SeasonID == nil,
+	}
+}
+
+func stuntToSnapshot(stunt Stunt) game.StuntSnapshot {
+	return game.StuntSnapshot{
+		ID:          stunt.ID,
+		GroupID:     stunt.GroupID,
+		PlayerID:    stunt.PlayerID,
+		Status:      stunt.Status,
+		SeasonID:    stunt.SeasonID,
+		Source:      stunt.Source,
+		Destination: stunt.Destination,
+		Food:        stunt.Food,
+	}
+}
+
+// game.StuntPlanningRepository adapter methods
+
+func (s *MemoryStore) InsertIdea(ctx context.Context, groupID, playerID, source, destination, food string) (game.StuntSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.stuntNumber++
+	stunt := Stunt{
+		ID:          stableID("stunt", groupID+":"+playerID+":"+strconv.Itoa(s.stuntNumber)),
+		GroupID:     groupID,
+		PlayerID:    playerID,
+		Status:      "Idea",
+		Source:      source,
+		Destination: destination,
+		Food:        food,
+		OffSeason:   true,
+	}
+	s.stunts[stunt.ID] = stunt
+	return stuntToSnapshot(stunt), nil
+}
+
+func (s *MemoryStore) Idea(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok {
+		return game.StuntSnapshot{}, false, nil
+	}
+	return stuntToSnapshot(stunt), true, nil
+}
+
+func (s *MemoryStore) ActiveSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	season := s.activeSeasonForGroup(groupID)
+	if season == nil {
+		return game.SeasonSnapshot{}, nil
+	}
+	return game.SeasonSnapshot{ID: season.ID, Status: season.Status}, nil
+}
+
+func (s *MemoryStore) UpdateStuntToPlanned(ctx context.Context, stuntID, playerID string, seasonID *string) (game.StuntSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt := s.stunts[stuntID]
+	stunt.Status = "Planned Stunt"
+	stunt.SeasonID = seasonID
+	stunt.OffSeason = seasonID == nil
+	s.stunts[stuntID] = stunt
+	return stuntToSnapshot(stunt), nil
 }
 
 func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
