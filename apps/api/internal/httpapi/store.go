@@ -48,6 +48,12 @@ func mapGameErr(err error) error {
 	if errors.Is(err, game.ErrJudgingWindowClosed) {
 		return ErrJudgingWindowClosed
 	}
+	if errors.Is(err, game.ErrEvidenceUploadAuthorizationNotFound) {
+		return ErrEvidenceUploadAuthorizationNotFound
+	}
+	if errors.Is(err, game.ErrSubmissionWindowClosed) {
+		return ErrSubmissionWindowClosed
+	}
 	return err
 }
 
@@ -558,63 +564,61 @@ func (s *MemoryStore) CreatePlannedStunt(ctx context.Context, player Player, ide
 }
 
 func (s *MemoryStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	stunt, ok := s.stunts[stuntID]
-	if !ok || stunt.Status != "Planned Stunt" {
-		return EvidenceUploadAuthorization{}, false, ErrStuntNotFound
+	result := game.AuthorizeEvidenceUpload(ctx, s, game.AuthorizeEvidenceUploadInput{
+		StuntID:     stuntID,
+		PlayerID:    player.ID,
+		ContentType: contentType,
+	})
+	if result.Err != nil {
+		return EvidenceUploadAuthorization{}, false, mapGameErr(result.Err)
 	}
-	if stunt.PlayerID != player.ID {
+	if !result.Allowed {
 		return EvidenceUploadAuthorization{}, false, nil
 	}
-
-	s.uploadNumber++
-	authorization := EvidenceUploadAuthorization{
-		ID:             stableID("evidence_upload", stuntID+":"+strconv.Itoa(s.uploadNumber)),
-		StuntID:        stuntID,
-		UploadURL:      "https://storage.supperjumpin.test/uploads/" + stuntID,
+	return EvidenceUploadAuthorization{
+		ID:             result.Authorization.ID,
+		StuntID:        result.Authorization.StuntID,
+		UploadURL:      "https://storage.supperjumpin.test/uploads/" + result.Authorization.MediaObjectKey,
 		UploadMethod:   httpMethodPut,
 		UploadHeaders:  map[string]string{"Content-Type": contentType},
-		MediaObjectKey: "uploads/" + stuntID + "/" + strconv.Itoa(s.uploadNumber),
-		ExpiresAt:      s.now().Add(15 * time.Minute).UTC(),
-	}
-	s.uploads[authorization.ID] = authorization
-	return authorization, true, nil
+		MediaObjectKey: result.Authorization.MediaObjectKey,
+		ExpiresAt:      result.Authorization.ExpiresAt,
+	}, true, nil
 }
 
 func (s *MemoryStore) SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	stunt, ok := s.stunts[stuntID]
-	if !ok || stunt.Status != "Planned Stunt" {
-		return EvidenceSubmission{}, false, ErrStuntNotFound
+	result := game.SubmitEvidence(ctx, s, game.SubmitEvidenceInput{
+		StuntID:              stuntID,
+		PlayerID:             player.ID,
+		UploadAuthorizationID: uploadAuthorizationID,
+		Caption:              caption,
+	}, s.now())
+	if result.Err != nil {
+		return EvidenceSubmission{}, false, mapGameErr(result.Err)
 	}
-	if stunt.PlayerID != player.ID {
+	if !result.Allowed {
 		return EvidenceSubmission{}, false, nil
 	}
-	authorization, ok := s.uploads[uploadAuthorizationID]
-	if !ok || authorization.StuntID != stuntID || s.now().After(authorization.ExpiresAt) {
-		return EvidenceSubmission{}, false, ErrEvidenceUploadAuthorizationNotFound
-	}
-
-	delete(s.uploads, uploadAuthorizationID)
-	if !s.submissionWindowOpen(stunt) {
-		return EvidenceSubmission{}, false, ErrSubmissionWindowClosed
-	}
-	stunt.Status = "Performed Stunt"
-	s.stunts[stunt.ID] = stunt
-
-	evidence := Evidence{
-		ID:             stableID("evidence", stuntID+":"+uploadAuthorizationID),
-		StuntID:        stuntID,
-		Caption:        caption,
-		MediaObjectKey: authorization.MediaObjectKey,
-		CreatedAt:      s.now().UTC(),
-	}
-	s.evidences[stuntID] = evidence
-	return EvidenceSubmission{Stunt: stunt, Evidence: evidence}, true, nil
+	return EvidenceSubmission{
+		Stunt: Stunt{
+			ID:          result.Stunt.ID,
+			GroupID:     result.Stunt.GroupID,
+			PlayerID:    result.Stunt.PlayerID,
+			SeasonID:    result.Stunt.SeasonID,
+			Status:      result.Stunt.Status,
+			Source:      result.Stunt.Source,
+			Destination: result.Stunt.Destination,
+			Food:        result.Stunt.Food,
+			OffSeason:   result.Stunt.SeasonID == nil,
+		},
+		Evidence: Evidence{
+			ID:             result.Evidence.ID,
+			StuntID:        result.Evidence.StuntID,
+			Caption:        result.Evidence.Caption,
+			MediaObjectKey: result.Evidence.MediaObjectKey,
+			CreatedAt:      result.Evidence.CreatedAt,
+		},
+	}, true, nil
 }
 
 func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
@@ -665,7 +669,7 @@ func (s *MemoryStore) Season(ctx context.Context, seasonID string) (game.SeasonS
 	if !ok {
 		return game.SeasonSnapshot{}, nil
 	}
-	return game.SeasonSnapshot{Status: season.Status}, nil
+	return game.SeasonSnapshot{Status: season.Status, SubmissionDeadline: season.SubmissionDeadline}, nil
 }
 
 func (s *MemoryStore) GroupMembership(ctx context.Context, playerID, groupID string) (game.MembershipSnapshot, bool, error) {
@@ -707,7 +711,6 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, stuntID, playerID stri
 }
 
 // stuntFromGame converts a game.StuntSnapshot to the httpapi Stunt type.
-// The caller must set fields the game module doesn't return (FinalScore, OffSeason bool).
 func stuntFromGame(snap game.StuntSnapshot) Stunt {
 	return Stunt{
 		ID:          snap.ID,
@@ -788,6 +791,73 @@ func (s *MemoryStore) UpdateStuntToPlanned(ctx context.Context, stuntID, playerI
 	stunt.OffSeason = seasonID == nil
 	s.stunts[stuntID] = stunt
 	return stuntToSnapshot(stunt), nil
+}
+
+// game.EvidenceRepository adapter methods for MemoryStore
+
+func (s *MemoryStore) PlannedStunt(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok || stunt.Status != "Planned Stunt" {
+		return game.StuntSnapshot{}, false, nil
+	}
+	return stuntToSnapshot(stunt), true, nil
+}
+
+func (s *MemoryStore) CreateAuthorization(ctx context.Context, stuntID, playerID, contentType string) (game.AuthorizationSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.uploadNumber++
+	now := s.now()
+	id := stableID("evidence_upload", stuntID+":"+strconv.Itoa(s.uploadNumber))
+	mediaObjectKey := "uploads/" + stuntID + "/" + strconv.Itoa(s.uploadNumber)
+	auth := EvidenceUploadAuthorization{
+		ID:             id,
+		StuntID:        stuntID,
+		UploadURL:      "https://storage.supperjumpin.test/uploads/" + mediaObjectKey,
+		UploadMethod:   httpMethodPut,
+		UploadHeaders:  map[string]string{"Content-Type": contentType},
+		MediaObjectKey: mediaObjectKey,
+		ExpiresAt:      now.Add(15 * time.Minute).UTC(),
+	}
+	s.uploads[id] = auth
+	return game.AuthorizationSnapshot{
+		ID:             id,
+		StuntID:        stuntID,
+		MediaObjectKey: mediaObjectKey,
+		ExpiresAt:      auth.ExpiresAt,
+	}, nil
+}
+
+func (s *MemoryStore) ClaimAndAdvance(ctx context.Context, authorizationID, stuntID, playerID, caption string) (game.EvidenceCreateResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	auth, ok := s.uploads[authorizationID]
+	if !ok || auth.StuntID != stuntID || s.now().After(auth.ExpiresAt) {
+		return game.EvidenceCreateResult{}, game.ErrEvidenceUploadAuthorizationNotFound
+	}
+	delete(s.uploads, authorizationID)
+
+	stunt := s.stunts[stuntID]
+	stunt.Status = "Performed Stunt"
+	s.stunts[stunt.ID] = stunt
+
+	evidenceID := stableID("evidence", stuntID+":"+authorizationID)
+	s.evidences[stuntID] = Evidence{
+		ID:             evidenceID,
+		StuntID:        stuntID,
+		Caption:        caption,
+		MediaObjectKey: auth.MediaObjectKey,
+		CreatedAt:      s.now().UTC(),
+	}
+	return game.EvidenceCreateResult{
+		EvidenceID:     evidenceID,
+		MediaObjectKey: auth.MediaObjectKey,
+	}, nil
 }
 
 func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
