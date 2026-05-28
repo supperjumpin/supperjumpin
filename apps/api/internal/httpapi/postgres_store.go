@@ -589,140 +589,35 @@ ORDER BY created_at ASC, id ASC`, seasonID)
 }
 
 func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Stunt{}, false, err
-	}
-	defer tx.Rollback()
-
-	if _, ok, err := groupMembershipInTx(ctx, tx, player, groupID); err != nil {
-		return Stunt{}, false, err
-	} else if !ok {
-		return Stunt{}, false, nil
-	}
-	stunt := Stunt{
+	result := game.CreateIdea(ctx, s, game.CreateIdeaInput{
 		GroupID:     groupID,
 		PlayerID:    player.ID,
-		Status:      "Idea",
 		Source:      source,
 		Destination: destination,
 		Food:        food,
-		OffSeason:   true,
+	})
+	if result.Err != nil {
+		return Stunt{}, false, result.Err
 	}
-	for attempts := 0; attempts < 3; attempts++ {
-		id, err := randomToken("stunt")
-		if err != nil {
-			return Stunt{}, false, err
-		}
-		stunt.ID = id
-		result, err := tx.ExecContext(ctx, `
-INSERT INTO stunts (id, group_id, player_id, status, source, destination, food)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT DO NOTHING`, stunt.ID, stunt.GroupID, stunt.PlayerID, stunt.Status, stunt.Source, stunt.Destination, stunt.Food)
-		if err != nil {
-			return Stunt{}, false, err
-		}
-		rows, err := result.RowsAffected()
-		if err != nil {
-			return Stunt{}, false, err
-		}
-		if rows == 1 {
-			break
-		}
-		if attempts == 2 {
-			return Stunt{}, false, fmt.Errorf("create unique Idea after retries")
-		}
+	if !result.Allowed {
+		return Stunt{}, false, nil
 	}
-	if err := tx.Commit(); err != nil {
-		return Stunt{}, false, err
-	}
-	return stunt, true, nil
+	return stuntFromGame(result.Stunt), true, nil
 }
 
 func (s *PostgresStore) CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Stunt{}, false, err
+	result := game.CreatePlannedStunt(ctx, s, game.CreatePlannedStuntInput{
+		IdeaID:    ideaID,
+		PlayerID:  player.ID,
+		OffSeason: offSeason,
+	})
+	if result.Err != nil {
+		return Stunt{}, false, mapGameErr(result.Err)
 	}
-	defer tx.Rollback()
-
-	stunt, err := stuntInTx(ctx, tx, ideaID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Stunt{}, false, ErrStuntNotFound
-	}
-	if err != nil {
-		return Stunt{}, false, err
-	}
-	if stunt.Status != "Idea" {
-		return Stunt{}, false, ErrStuntNotFound
-	}
-	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
-		return Stunt{}, false, err
-	} else if !ok || stunt.PlayerID != player.ID {
+	if !result.Allowed {
 		return Stunt{}, false, nil
 	}
-	seasonID := (*string)(nil)
-	if !offSeason {
-		season, err := activeSeasonForGroupInTx(ctx, tx, stunt.GroupID)
-		if err != nil {
-			return Stunt{}, false, err
-		}
-		if season != nil {
-			seasonID = &season.ID
-		}
-	}
-	var updated Stunt
-	var updatedSeasonID sql.NullString
-	if err := tx.QueryRowContext(ctx, `
-UPDATE stunts
-SET status = 'Planned Stunt', season_id = $2
-WHERE id = $1
-  AND status = 'Idea'
-  AND player_id = $3
-  AND EXISTS (
-    SELECT 1
-    FROM group_memberships
-    WHERE group_memberships.group_id = stunts.group_id
-      AND group_memberships.player_id = $3
-  )
-RETURNING id, group_id, player_id, season_id, status, source, destination, food, final_score`, stunt.ID, seasonID, player.ID).Scan(
-		&updated.ID,
-		&updated.GroupID,
-		&updated.PlayerID,
-		&updatedSeasonID,
-		&updated.Status,
-		&updated.Source,
-		&updated.Destination,
-		&updated.Food,
-		&updated.FinalScore,
-	); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return Stunt{}, false, err
-		}
-		latest, latestErr := stuntInTx(ctx, tx, ideaID)
-		if errors.Is(latestErr, sql.ErrNoRows) {
-			return Stunt{}, false, ErrStuntNotFound
-		}
-		if latestErr != nil {
-			return Stunt{}, false, latestErr
-		}
-		if _, ok, err := groupMembershipInTx(ctx, tx, player, latest.GroupID); err != nil {
-			return Stunt{}, false, err
-		} else if !ok || latest.PlayerID != player.ID {
-			return Stunt{}, false, nil
-		}
-		return Stunt{}, false, ErrStuntNotFound
-	}
-	if updatedSeasonID.Valid {
-		updated.SeasonID = &updatedSeasonID.String
-		updated.OffSeason = false
-	} else {
-		updated.OffSeason = true
-	}
-	if err := tx.Commit(); err != nil {
-		return Stunt{}, false, err
-	}
-	return updated, true, nil
+	return stuntFromGame(result.Stunt), true, nil
 }
 
 func (s *PostgresStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
@@ -915,7 +810,7 @@ func (s *PostgresStore) Stunt(ctx context.Context, stuntID string) (game.StuntSn
 	var snap game.StuntSnapshot
 	var seasonID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status
+SELECT id, group_id, player_id, season_id, status, source, destination, food
 FROM stunts
 WHERE id = $1`, stuntID).Scan(
 		&snap.ID,
@@ -923,6 +818,9 @@ WHERE id = $1`, stuntID).Scan(
 		&snap.PlayerID,
 		&seasonID,
 		&snap.Status,
+		&snap.Source,
+		&snap.Destination,
+		&snap.Food,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.StuntSnapshot{}, false, nil
@@ -993,6 +891,109 @@ SELECT created FROM upsert`, judgmentID, stuntID, playerID, difficulty, transgre
 		Creativity:    creativity,
 		Documentation: documentation,
 	}, created, nil
+}
+
+// game.StuntPlanningRepository adapter methods for PostgresStore
+
+func (s *PostgresStore) InsertIdea(ctx context.Context, groupID, playerID, source, destination, food string) (game.StuntSnapshot, error) {
+	for attempts := 0; attempts < 3; attempts++ {
+		id, err := randomToken("stunt")
+		if err != nil {
+			return game.StuntSnapshot{}, err
+		}
+		result, err := s.db.ExecContext(ctx, `
+INSERT INTO stunts (id, group_id, player_id, status, source, destination, food)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT DO NOTHING`, id, groupID, playerID, "Idea", source, destination, food)
+		if err != nil {
+			return game.StuntSnapshot{}, err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return game.StuntSnapshot{}, err
+		}
+		if rows == 1 {
+			return game.StuntSnapshot{
+				ID:          id,
+				GroupID:     groupID,
+				PlayerID:    playerID,
+				Status:      "Idea",
+				Source:      source,
+				Destination: destination,
+				Food:        food,
+			}, nil
+		}
+		if attempts == 2 {
+			return game.StuntSnapshot{}, fmt.Errorf("create unique Idea after retries")
+		}
+	}
+	return game.StuntSnapshot{}, fmt.Errorf("create unique Idea: unreachable")
+}
+
+func (s *PostgresStore) Idea(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
+	var snap game.StuntSnapshot
+	var seasonID sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+SELECT id, group_id, player_id, season_id, status, source, destination, food
+FROM stunts
+WHERE id = $1`, stuntID).Scan(
+		&snap.ID,
+		&snap.GroupID,
+		&snap.PlayerID,
+		&seasonID,
+		&snap.Status,
+		&snap.Source,
+		&snap.Destination,
+		&snap.Food,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.StuntSnapshot{}, false, nil
+	}
+	if err != nil {
+		return game.StuntSnapshot{}, false, err
+	}
+	if seasonID.Valid {
+		snap.SeasonID = &seasonID.String
+	}
+	return snap, true, nil
+}
+
+func (s *PostgresStore) ActiveSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
+	season, err := s.activeSeasonForGroup(ctx, groupID)
+	if err != nil {
+		return game.SeasonSnapshot{}, err
+	}
+	if season == nil {
+		return game.SeasonSnapshot{}, nil
+	}
+	return game.SeasonSnapshot{ID: season.ID, Status: "Active"}, nil
+}
+
+func (s *PostgresStore) UpdateStuntToPlanned(ctx context.Context, stuntID, playerID string, seasonID *string) (game.StuntSnapshot, error) {
+	var snap game.StuntSnapshot
+	var resultSeasonID sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+UPDATE stunts
+SET status = 'Planned Stunt', season_id = $2
+WHERE id = $1
+  AND status = 'Idea'
+RETURNING id, group_id, player_id, season_id, status, source, destination, food`, stuntID, seasonID).Scan(
+		&snap.ID,
+		&snap.GroupID,
+		&snap.PlayerID,
+		&resultSeasonID,
+		&snap.Status,
+		&snap.Source,
+		&snap.Destination,
+		&snap.Food,
+	)
+	if err != nil {
+		return game.StuntSnapshot{}, err
+	}
+	if resultSeasonID.Valid {
+		snap.SeasonID = &resultSeasonID.String
+	}
+	return snap, nil
 }
 
 func (s *PostgresStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {

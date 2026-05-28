@@ -24,17 +24,21 @@ type Judgment struct {
 	Documentation int
 }
 
-// StuntSnapshot is a read-only view of a Stunt needed for judgment rules.
+// StuntSnapshot is a read-only view of a Stunt needed for game rules.
 type StuntSnapshot struct {
-	ID       string
-	GroupID  string
-	PlayerID string
-	Status   string
-	SeasonID *string
+	ID          string
+	GroupID     string
+	PlayerID    string
+	Status      string
+	SeasonID    *string
+	Source      string
+	Destination string
+	Food        string
 }
 
-// SeasonSnapshot is a read-only view of a Season needed for judgment rules.
+// SeasonSnapshot is a read-only view of a Season needed for game rules.
 type SeasonSnapshot struct {
+	ID     string
 	Status string
 }
 
