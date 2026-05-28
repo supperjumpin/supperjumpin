@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type PostgresStore struct {
@@ -875,46 +877,98 @@ WHERE id = $1 AND status = 'Planned Stunt'`, stuntID); err != nil {
 }
 
 func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
-	if !validJudgmentScores(difficulty, transgression, creativity, documentation) {
-		return Judgment{}, false, false, ErrInvalidJudgmentScore
-	}
+	// Materialise any deadline-based season transitions before the game module
+	// reads season state. This is a Postgres adapter concern: the DB may still
+	// persist "Judging Grace Period" after judging_deadline has passed until an
+	// explicit finalisation call advances the status.
 	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
 		return Judgment{}, false, false, err
 	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Judgment{}, false, false, err
+	result := game.SubmitJudgment(ctx, s, game.JudgmentInput{
+		StuntID:       stuntID,
+		JudgePlayerID: player.ID,
+		Difficulty:    difficulty,
+		Transgression: transgression,
+		Creativity:    creativity,
+		Documentation: documentation,
+	}, time.Now())
+	if result.Err != nil {
+		return Judgment{}, false, false, mapGameErr(result.Err)
 	}
-	defer tx.Rollback()
-
-	stunt, err := stuntInTx(ctx, tx, stuntID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Judgment{}, false, false, ErrStuntNotFound
-	}
-	if err != nil {
-		return Judgment{}, false, false, err
-	}
-	if !visiblePerformedStatus(stunt.Status) {
-		return Judgment{}, false, false, ErrStuntNotFound
-	}
-	if stunt.Status != "Performed Stunt" {
-		return Judgment{}, false, false, ErrJudgingWindowClosed
-	}
-	if _, ok, err := groupMembershipInTx(ctx, tx, player, stunt.GroupID); err != nil {
-		return Judgment{}, false, false, err
-	} else if !ok || stunt.PlayerID == player.ID {
+	if !result.Allowed {
 		return Judgment{}, false, false, nil
 	}
-	if open, err := judgingWindowOpenInTx(ctx, tx, stunt); err != nil {
-		return Judgment{}, false, false, err
-	} else if !open {
-		return Judgment{}, false, false, ErrJudgingWindowClosed
-	}
+	return Judgment{
+		ID:            result.Judgment.ID,
+		StuntID:       result.Judgment.StuntID,
+		PlayerID:      result.Judgment.PlayerID,
+		Difficulty:    result.Judgment.Difficulty,
+		Transgression: result.Judgment.Transgression,
+		Creativity:    result.Judgment.Creativity,
+		Documentation: result.Judgment.Documentation,
+	}, true, result.Created, nil
+}
 
-	judgmentID := stableID("judgment", stuntID+":"+player.ID)
+// game.JudgmentRepository adapter methods for PostgresStore
+
+func (s *PostgresStore) Stunt(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
+	var snap game.StuntSnapshot
+	var seasonID sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+SELECT id, group_id, player_id, season_id, status
+FROM stunts
+WHERE id = $1`, stuntID).Scan(
+		&snap.ID,
+		&snap.GroupID,
+		&snap.PlayerID,
+		&seasonID,
+		&snap.Status,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.StuntSnapshot{}, false, nil
+	}
+	if err != nil {
+		return game.StuntSnapshot{}, false, err
+	}
+	if !visiblePerformedStatus(snap.Status) {
+		return game.StuntSnapshot{}, false, nil
+	}
+	if seasonID.Valid {
+		snap.SeasonID = &seasonID.String
+	}
+	return snap, true, nil
+}
+
+func (s *PostgresStore) Season(ctx context.Context, seasonID string) (game.SeasonSnapshot, error) {
+	var status string
+	err := s.db.QueryRowContext(ctx, `SELECT status FROM seasons WHERE id = $1`, seasonID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.SeasonSnapshot{}, nil
+	}
+	if err != nil {
+		return game.SeasonSnapshot{}, err
+	}
+	return game.SeasonSnapshot{Status: status}, nil
+}
+
+func (s *PostgresStore) GroupMembership(ctx context.Context, playerID, groupID string) (game.MembershipSnapshot, bool, error) {
+	var role string
+	err := s.db.QueryRowContext(ctx, `
+SELECT role FROM group_memberships
+WHERE player_id = $1 AND group_id = $2`, playerID, groupID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.MembershipSnapshot{}, false, nil
+	}
+	if err != nil {
+		return game.MembershipSnapshot{}, false, err
+	}
+	return game.MembershipSnapshot{Role: role}, true, nil
+}
+
+func (s *PostgresStore) UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, documentation int) (game.Judgment, bool, error) {
+	judgmentID := stableID("judgment", stuntID+":"+playerID)
 	var created bool
-	if err := tx.QueryRowContext(ctx, `
+	err := s.db.QueryRowContext(ctx, `
 WITH upsert AS (
   INSERT INTO judgments (id, stunt_id, player_id, difficulty, transgression, creativity, documentation)
   VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -926,21 +980,19 @@ WITH upsert AS (
     updated_at = now()
   RETURNING (xmax = 0) AS created
 )
-SELECT created FROM upsert`, judgmentID, stuntID, player.ID, difficulty, transgression, creativity, documentation).Scan(&created); err != nil {
-		return Judgment{}, false, false, err
+SELECT created FROM upsert`, judgmentID, stuntID, playerID, difficulty, transgression, creativity, documentation).Scan(&created)
+	if err != nil {
+		return game.Judgment{}, false, err
 	}
-	if err := tx.Commit(); err != nil {
-		return Judgment{}, false, false, err
-	}
-	return Judgment{
+	return game.Judgment{
 		ID:            judgmentID,
 		StuntID:       stuntID,
-		PlayerID:      player.ID,
+		PlayerID:      playerID,
 		Difficulty:    difficulty,
 		Transgression: transgression,
 		Creativity:    creativity,
 		Documentation: documentation,
-	}, true, created, nil
+	}, created, nil
 }
 
 func (s *PostgresStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {

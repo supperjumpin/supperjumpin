@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 var ErrSeasonAlreadyOpen = errors.New("Group already has an active or closing Season")
@@ -33,6 +35,21 @@ var ErrInvalidDisputeConcern = errors.New("Dispute concern must be House Rules, 
 var ErrDisputeNotFound = errors.New("Dispute not found")
 
 var ErrInvalidDisputeResolution = errors.New("Dispute resolution must be No Action, Disqualified Stunt, or Removed Stunt")
+
+// mapGameErr translates game-module typed errors into the corresponding
+// httpapi sentinel errors so HTTP handlers can use their existing errors.Is checks.
+func mapGameErr(err error) error {
+	if errors.Is(err, game.ErrInvalidJudgmentScore) {
+		return ErrInvalidJudgmentScore
+	}
+	if errors.Is(err, game.ErrStuntNotFound) {
+		return ErrStuntNotFound
+	}
+	if errors.Is(err, game.ErrJudgingWindowClosed) {
+		return ErrJudgingWindowClosed
+	}
+	return err
+}
 
 type Account struct {
 	ID    string `json:"id"`
@@ -615,40 +632,98 @@ func (s *MemoryStore) SubmitEvidence(ctx context.Context, player Player, stuntID
 }
 
 func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
+	result := game.SubmitJudgment(ctx, s, game.JudgmentInput{
+		StuntID:       stuntID,
+		JudgePlayerID: player.ID,
+		Difficulty:    difficulty,
+		Transgression: transgression,
+		Creativity:    creativity,
+		Documentation: documentation,
+	}, s.now())
+	if result.Err != nil {
+		return Judgment{}, false, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return Judgment{}, false, false, nil
+	}
+	j := Judgment{
+		ID:            result.Judgment.ID,
+		StuntID:       result.Judgment.StuntID,
+		PlayerID:      result.Judgment.PlayerID,
+		Difficulty:    result.Judgment.Difficulty,
+		Transgression: result.Judgment.Transgression,
+		Creativity:    result.Judgment.Creativity,
+		Documentation: result.Judgment.Documentation,
+	}
+	return j, true, result.Created, nil
+}
+
+// game.JudgmentRepository adapter
+
+func (s *MemoryStore) Stunt(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !validJudgmentScores(difficulty, transgression, creativity, documentation) {
-		return Judgment{}, false, false, ErrInvalidJudgmentScore
-	}
-
 	stunt, ok := s.stunts[stuntID]
 	if !ok || !visiblePerformedStatus(stunt.Status) {
-		return Judgment{}, false, false, ErrStuntNotFound
+		return game.StuntSnapshot{}, false, nil
 	}
-	if stunt.Status != "Performed Stunt" {
-		return Judgment{}, false, false, ErrJudgingWindowClosed
-	}
-	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok || stunt.PlayerID == player.ID {
-		return Judgment{}, false, false, nil
-	}
-	if !s.judgingWindowOpen(stunt) {
-		return Judgment{}, false, false, ErrJudgingWindowClosed
-	}
+	return game.StuntSnapshot{
+		ID:       stunt.ID,
+		GroupID:  stunt.GroupID,
+		PlayerID: stunt.PlayerID,
+		Status:   stunt.Status,
+		SeasonID: stunt.SeasonID,
+	}, true, nil
+}
 
-	key := stuntID + ":" + player.ID
+func (s *MemoryStore) Season(ctx context.Context, seasonID string) (game.SeasonSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	season, ok := s.seasons[seasonID]
+	if !ok {
+		return game.SeasonSnapshot{}, nil
+	}
+	return game.SeasonSnapshot{Status: season.Status}, nil
+}
+
+func (s *MemoryStore) GroupMembership(ctx context.Context, playerID, groupID string) (game.MembershipSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	m, ok := s.memberships[groupID][playerID]
+	if !ok {
+		return game.MembershipSnapshot{}, false, nil
+	}
+	return game.MembershipSnapshot{Role: m.Role}, true, nil
+}
+
+func (s *MemoryStore) UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, documentation int) (game.Judgment, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := stuntID + ":" + playerID
 	_, existed := s.judgments[key]
-	judgment := Judgment{
+	httpJudgment := Judgment{
 		ID:            stableID("judgment", key),
 		StuntID:       stuntID,
-		PlayerID:      player.ID,
+		PlayerID:      playerID,
 		Difficulty:    difficulty,
 		Transgression: transgression,
 		Creativity:    creativity,
 		Documentation: documentation,
 	}
-	s.judgments[key] = judgment
-	return judgment, true, !existed, nil
+	s.judgments[key] = httpJudgment
+	return game.Judgment{
+		ID:            httpJudgment.ID,
+		StuntID:       httpJudgment.StuntID,
+		PlayerID:      httpJudgment.PlayerID,
+		Difficulty:    httpJudgment.Difficulty,
+		Transgression: httpJudgment.Transgression,
+		Creativity:    httpJudgment.Creativity,
+		Documentation: httpJudgment.Documentation,
+	}, !existed, nil
 }
 
 func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
@@ -890,14 +965,6 @@ func (s *MemoryStore) latestSeasonForGroup(groupID string) *Season {
 		}
 	}
 	return latest
-}
-
-func (s *MemoryStore) judgingWindowOpen(stunt Stunt) bool {
-	if stunt.SeasonID == nil {
-		return true
-	}
-	season, ok := s.seasons[*stunt.SeasonID]
-	return ok && isOpenSeasonStatus(season.Status)
 }
 
 func (s *MemoryStore) submissionWindowOpen(stunt Stunt) bool {
