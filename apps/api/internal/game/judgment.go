@@ -38,9 +38,12 @@ type StuntSnapshot struct {
 
 // SeasonSnapshot is a read-only view of a Season needed for game rules.
 type SeasonSnapshot struct {
-	ID                 string
-	Status             string
-	SubmissionDeadline time.Time
+	ID                   string
+	GroupID              string
+	CommissionerPlayerID string
+	Status               string
+	SubmissionDeadline   time.Time
+	JudgingDeadline      time.Time
 }
 
 // MembershipSnapshot is a read-only view of a Group Membership.
