@@ -877,6 +877,13 @@ WHERE id = $1 AND status = 'Planned Stunt'`, stuntID); err != nil {
 }
 
 func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
+	// Materialise any deadline-based season transitions before the game module
+	// reads season state. This is a Postgres adapter concern: the DB may still
+	// persist "Judging Grace Period" after judging_deadline has passed until an
+	// explicit finalisation call advances the status.
+	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
+		return Judgment{}, false, false, err
+	}
 	result := game.SubmitJudgment(ctx, s, game.JudgmentInput{
 		StuntID:       stuntID,
 		JudgePlayerID: player.ID,
