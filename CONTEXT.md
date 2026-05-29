@@ -5,7 +5,7 @@ Supperjumpin is a social game about inventing and performing absurd food-locatio
 ## Language
 
 **Jump**:
-A playable Supperjumpin attempt centered on taking food associated with one place and consuming or presenting it in another place. A **Jump** may be planned, performed, documented, and socially judged.
+A playable Supperjumpin attempt centered on taking food associated with one place and consuming or presenting it in another place. A **Jump** is performed, submitted with **Evidence**, and socially judged.
 _Avoid_: Stunt, challenge, mission, post
 
 **Source**:
@@ -20,16 +20,12 @@ _Avoid_: Restaurant B, target
 The item or items carried from a **Source** into a **Destination** as part of a **Jump**.
 _Avoid_: Meal, order
 
-**Idea**:
-A not-yet-committed **Jump** concept that may be discussed or refined before a **Player** decides to perform it.
-_Avoid_: Draft, prompt
-
-**Planned Jump**:
-A **Jump** a **Player** intends to perform and has made visible to a **Group** before submitting **Evidence**.
-_Avoid_: Challenge, assignment
+**Draft**:
+A private, local-only Jump concept a **Player** is composing before submitting **Evidence**. A **Draft** may include a **Caption**, **Source**, **Destination**, and **Food** without a photo. A **Draft** never appears on the feed and is not sent to the server until the **Player** submits **Evidence** to create a **Performed Jump**.
+_Avoid_: Idea, Planned Jump, saved jump
 
 **Performed Jump**:
-A **Jump** with submitted **Evidence** claiming that the performance happened.
+A **Jump** with submitted **Evidence** claiming that the performance happened. During the **Author Grace Period**, the **Player** may edit or retract it; after that, it is locked and can only be removed via a **Dispute** or escalation to a **Removed Jump**.
 _Avoid_: Completed jump
 
 **Judged Jump**:
@@ -44,8 +40,12 @@ _Avoid_: Casual jump
 A **Player** who scores another **Player's** **Performed Jump**. Any authenticated **Player** may Judge a **Jump** they did not perform; **Group** membership is not required. The performer of a **Jump** is not a **Judge** for that **Jump**.
 _Avoid_: Voter, reviewer, rater
 
+**Author Grace Period**:
+The 10-minute window after a **Performed Jump** is submitted during which the **Player** may still edit or retract it. The **Judging Window** does not open until the **Author Grace Period** expires.
+_Avoid_: Edit window, correction window
+
 **Judging Window**:
-The period when a **Performed Jump** can receive **Judgments**. On the public feed, the **Judging Window** is open-ended. Within a **Season**, the **Judging Window** closes with the **Judging Grace Period**.
+The period when a **Performed Jump** can receive **Judgments**, beginning after the **Author Grace Period** expires. On the public feed, the **Judging Window** is open-ended. Within a **Season**, the **Judging Window** closes with the **Judging Grace Period**.
 _Avoid_: Voting period, review window
 
 **Judgment**:
@@ -53,7 +53,7 @@ A **Judge's** submitted scores for a **Performed Jump**.
 _Avoid_: Vote, review, rating
 
 **Final Score**:
-The aggregate score for a **Judged Jump** after its **Judging Window** closes, used to update **Standings**.
+The aggregate score for a **Judged Jump** after its **Judging Window** closes, used to update **Standings**. A **Final Score** is only computed for **Season**-linked **Jumps** when the **Season** finalizes. Public-feed-only **Jumps** display a live running average of received **Judgments** and never produce a **Final Score**.
 _Avoid_: Total score
 
 **Season Score**:
@@ -73,7 +73,7 @@ A **Mission** completed by performing a **Jump** with **Evidence**.
 _Avoid_: Solo jump
 
 **Prompt**:
-A reusable **Jump** idea, theme, or constraint that can inspire **Ideas**, **Missions**, or **Bounties**.
+A reusable **Jump** idea, theme, or constraint that can inspire **Drafts**, **Missions**, or **Bounties**.
 _Avoid_: Template, card, challenge
 
 **Bounty**:
@@ -101,7 +101,7 @@ A **Jump** hidden from normal Group visibility because of a serious safety, priv
 _Avoid_: Deleted jump
 
 **Player**:
-A person who participates in Supperjumpin by planning, performing, viewing, or judging **Jumps**.
+A person who participates in Supperjumpin by performing, viewing, or judging **Jumps**.
 _Avoid_: User, member, athlete
 
 **Level**:
@@ -165,7 +165,7 @@ The boundaries that define what behavior can count as valid Supperjumpin play. A
 _Avoid_: Safety policy, moderation policy
 
 **Evidence**:
-Material submitted to support that a **Jump** happened as claimed, such as photos, video, location, receipts, captions, or witnesses. **Evidence** may inform social judgment or later structured scoring.
+Material submitted to support that a **Jump** happened as claimed. A minimum submission requires at least one photo and a **Caption**; video, location data, receipts, or additional photos may supplement but are not required. **Evidence** may inform social judgment or later structured scoring.
 _Avoid_: Proof, verification
 
 **Caption**:
@@ -194,12 +194,10 @@ _Avoid_: Truth, proof
 
 ## Example Dialogue
 
-**Player A**: I have an Idea: Taco Bell in the Olive Garden parking lot.
+**Player A**: I performed it — Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump in its Author Grace Period — I have 10 minutes to edit before the Judging Window opens.
 
-**Player A**: I performed it — Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump and the Judging Window is open.
+**Player B**: Once the Author Grace Period expires I'll Judge it on Difficulty, Transgression, Creativity, and Presentation. I don't need to be in a Group to Judge — any Player can. If the Evidence looks staged, I may lower Credibility or raise a Dispute. My Judgment adds to the public running average.
 
-**Player B**: I'll Judge it on Difficulty, Transgression, Creativity, and Presentation. I don't need to be in a Group to Judge — any Player can. If the Evidence looks staged, I may lower Credibility or raise a Dispute.
-
-**Player A**: Later, I joined a Group with an Active Season and submitted the same Jump to the Season. Now it also contributes to Standings.
+**Player A**: Later, I joined a Group with an Active Season and submitted the same Jump to the Season. Only Judgments submitted while it is Season-linked count toward the Season Final Score — the public Judgments it already received stay on the public running average and do not carry over.
 
 **Season Commissioner**: If the Dispute holds, I can mark it as a Disqualified Jump so it stays visible but does not affect Season Standings.
