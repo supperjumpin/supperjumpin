@@ -29,6 +29,7 @@ func (v StaticAuthVerifier) Verify(token string) (AuthIdentity, bool) {
 type ServerConfig struct {
 	Auth  AuthVerifier
 	Store Store
+	DB    Persistence
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -60,7 +61,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, err := config.Store.CreateGroup(r.Context(), profile.Player, name)
+		home, err := createGroup(r.Context(), config.DB, profile.Player, name)
 		if err != nil {
 			http.Error(w, "create Group", http.StatusInternalServerError)
 			return
@@ -74,7 +75,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		groups, err := config.Store.ListGroups(r.Context(), profile.Player)
+		groups, err := listGroups(r.Context(), config.DB, profile.Player)
 		if err != nil {
 			http.Error(w, "list Groups", http.StatusInternalServerError)
 			return
@@ -88,7 +89,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, ok, err := config.Store.GroupHome(r.Context(), profile.Player, r.PathValue("groupID"))
+		home, ok, err := groupHomeHandler(r.Context(), config.DB, profile.Player, r.PathValue("groupID"))
 		if err != nil {
 			http.Error(w, "get Group home", http.StatusInternalServerError)
 			return
@@ -106,7 +107,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		invite, ok, err := config.Store.CreateInvite(r.Context(), profile.Player, r.PathValue("groupID"))
+		invite, ok, err := createInvite(r.Context(), config.DB, profile.Player, r.PathValue("groupID"))
 		if err != nil {
 			http.Error(w, "create Invite", http.StatusInternalServerError)
 			return
@@ -124,7 +125,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, status, err := config.Store.AcceptInvite(r.Context(), profile.Player, r.PathValue("token"))
+		home, status, err := acceptInvite(r.Context(), config.DB, profile.Player, r.PathValue("token"))
 		if err != nil {
 			http.Error(w, "accept Invite", http.StatusInternalServerError)
 			return
@@ -172,7 +173,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, ok, err := config.Store.StartSeason(r.Context(), profile.Player, r.PathValue("groupID"), submissionDeadline, judgingDeadline)
+		home, ok, err := startSeason(r.Context(), config.DB, profile.Player, r.PathValue("groupID"), submissionDeadline, judgingDeadline)
 		if errors.Is(err, ErrSeasonAlreadyOpen) {
 			http.Error(w, "Group already has an active or closing Season", http.StatusConflict)
 			return
@@ -194,7 +195,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, ok, err := config.Store.CloseSeasonSubmissions(r.Context(), profile.Player, r.PathValue("seasonID"))
+		home, ok, err := closeSeasonSubmissions(r.Context(), config.DB, profile.Player, r.PathValue("seasonID"))
 		if errors.Is(err, ErrSeasonNotFound) {
 			http.Error(w, "Season not found", http.StatusNotFound)
 			return
@@ -216,7 +217,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		home, ok, err := config.Store.FinalizeSeason(r.Context(), profile.Player, r.PathValue("seasonID"))
+		home, ok, err := finalizeSeason(r.Context(), config.DB, profile.Player, r.PathValue("seasonID"))
 		if errors.Is(err, ErrSeasonNotFound) {
 			http.Error(w, "Season not found", http.StatusNotFound)
 			return
@@ -238,7 +239,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		history, ok, err := config.Store.SeasonHistory(r.Context(), profile.Player, r.PathValue("seasonID"))
+		history, ok, err := seasonHistory(r.Context(), config.DB, profile.Player, r.PathValue("seasonID"))
 		if errors.Is(err, ErrSeasonNotFound) {
 			http.Error(w, "Season not found", http.StatusNotFound)
 			return
@@ -277,7 +278,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		idea, ok, err := config.Store.CreateIdea(r.Context(), profile.Player, r.PathValue("groupID"), source, destination, food)
+		idea, ok, err := createIdea(r.Context(), config.DB, profile.Player, r.PathValue("groupID"), source, destination, food)
 		if err != nil {
 			http.Error(w, "create Idea", http.StatusInternalServerError)
 			return
@@ -304,7 +305,7 @@ func NewServer(config ServerConfig) http.Handler {
 				return
 			}
 		}
-		planned, ok, err := config.Store.CreatePlannedStunt(r.Context(), profile.Player, r.PathValue("ideaID"), request.OffSeason)
+		planned, ok, err := createPlannedStunt(r.Context(), config.DB, profile.Player, r.PathValue("ideaID"), request.OffSeason)
 		if errors.Is(err, ErrStuntNotFound) {
 			http.Error(w, "Idea not found", http.StatusNotFound)
 			return
@@ -339,7 +340,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		authorization, ok, err := config.Store.AuthorizeEvidenceUpload(r.Context(), profile.Player, r.PathValue("stuntID"), contentType)
+		authorization, ok, err := authorizeEvidenceUpload(r.Context(), config.DB, profile.Player, r.PathValue("stuntID"), contentType)
 		if errors.Is(err, ErrStuntNotFound) {
 			http.Error(w, "Planned Stunt not found", http.StatusNotFound)
 			return
@@ -376,7 +377,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		submission, ok, err := config.Store.SubmitEvidence(r.Context(), profile.Player, r.PathValue("stuntID"), uploadAuthorizationID, caption)
+		submission, ok, err := submitEvidence(r.Context(), config.DB, profile.Player, r.PathValue("stuntID"), uploadAuthorizationID, caption)
 		if errors.Is(err, ErrStuntNotFound) {
 			http.Error(w, "Planned Stunt not found", http.StatusNotFound)
 			return
@@ -421,8 +422,9 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		judgment, ok, created, err := config.Store.SubmitJudgment(
+		judgment, ok, created, err := submitJudgment(
 			r.Context(),
+			config.DB,
 			profile.Player,
 			r.PathValue("stuntID"),
 			*request.Difficulty,
@@ -478,7 +480,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		dispute, ok, err := config.Store.CreateDispute(r.Context(), profile.Player, r.PathValue("stuntID"), concern, details)
+		dispute, ok, err := createDispute(r.Context(), config.DB, profile.Player, r.PathValue("stuntID"), concern, details)
 		if errors.Is(err, ErrStuntNotFound) {
 			http.Error(w, "Visible Stunt not found", http.StatusNotFound)
 			return
@@ -519,7 +521,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		resolved, ok, err := config.Store.ResolveDispute(r.Context(), profile.Player, r.PathValue("disputeID"), resolution, resolutionReason)
+		resolved, ok, err := resolveDispute(r.Context(), config.DB, profile.Player, r.PathValue("disputeID"), resolution, resolutionReason)
 		if errors.Is(err, ErrDisputeNotFound) {
 			http.Error(w, "Dispute not found", http.StatusNotFound)
 			return

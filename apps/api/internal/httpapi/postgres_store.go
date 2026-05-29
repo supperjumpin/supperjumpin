@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"time"
 
@@ -78,40 +77,11 @@ ON CONFLICT (id) DO NOTHING`, player.ID, account.ID, player.DisplayName); err !=
 	return MeResponse{Account: account, Player: player}, nil
 }
 
-func (s *PostgresStore) CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error) {
-	var groupID string
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM groups`).Scan(&groupID); err != nil {
-		return GroupHomeResponse{}, err
-	}
-	groupID = stableID("group", player.ID+":"+name+":"+groupID)
-
-	result := game.CreateGroup(ctx, s, game.CreateGroupInput{
-		GroupID:         groupID,
-		GroupName:       name,
-		CreatorPlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, result.Err
-	}
-	return groupHome(
-		Group{ID: result.Group.ID, Name: result.Group.Name},
-		GroupMembership{GroupID: result.Membership.GroupID, PlayerID: result.Membership.PlayerID, Role: result.Membership.Role},
-		nil, []PerformedStuntView{}, []StandingEntry{},
-	), nil
+func (s *PostgresStore) Now() time.Time {
+	return time.Now()
 }
 
-func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
-	ghResult := game.GroupHome(ctx, s, game.GroupHomeInput{
-		PlayerID: player.ID,
-		GroupID:  groupID,
-	})
-	if ghResult.Err != nil {
-		return GroupHomeResponse{}, false, ghResult.Err
-	}
-	if !ghResult.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
-
+func (s *PostgresStore) GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error) {
 	newlyFinalized, err := s.ensureSeasonStatusesForGroup(ctx, groupID)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
@@ -121,303 +91,18 @@ func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID st
 			return GroupHomeResponse{}, false, err
 		}
 	}
-
-	season, err := s.currentSeasonForGroup(ctx, groupID)
-	if err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, groupID)
-	if err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-	standings, err := game.Standings(ctx, s, groupID)
-	if err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-	return groupHome(
-		Group{ID: ghResult.Group.ID, Name: ghResult.Group.Name},
-		GroupMembership{GroupID: ghResult.Membership.GroupID, PlayerID: ghResult.Membership.PlayerID, Role: ghResult.Membership.Role},
-		season, recentStunts, standingsFromGame(standings),
-	), true, nil
-}
-
-func (s *PostgresStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
-	memberships, err := game.ListGroups(ctx, s, player.ID)
-	if err != nil {
-		return ListGroupsResponse{}, err
-	}
-
-	result := make([]GroupMembershipSummary, len(memberships))
-	for i, m := range memberships {
-		result[i] = GroupMembershipSummary{
-			Group:      Group{ID: m.Group.ID, Name: m.Group.Name},
-			Membership: GroupMembership{GroupID: m.Membership.GroupID, PlayerID: m.Membership.PlayerID, Role: m.Membership.Role},
-		}
-	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Group.Name < result[j].Group.Name
-	})
-	return ListGroupsResponse{Memberships: result}, nil
-}
-
-func (s *PostgresStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
-	result := game.CreateInvite(ctx, s, game.CreateInviteInput{
-		GroupID:  groupID,
-		PlayerID: player.ID,
-		Now:      time.Now(),
-	})
-	if result.Err != nil {
-		return Invite{}, false, result.Err
-	}
-	if !result.Allowed {
-		return Invite{}, false, nil
-	}
-	return Invite{
-		ID:        result.Invite.ID,
-		GroupID:   result.Invite.GroupID,
-		Token:     result.Invite.Token,
-		CreatedBy: result.Invite.CreatedBy,
-		ExpiresAt: time.Unix(result.Invite.ExpiresAt, 0).UTC(),
-	}, true, nil
-}
-
-func (s *PostgresStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
-	result := game.AcceptInvite(ctx, s, game.AcceptInviteInput{
-		Token:    token,
-		PlayerID: player.ID,
-		Now:      time.Now(),
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, InviteInvalid, result.Err
-	}
-	if result.Status != game.InviteAccepted {
-		switch result.Status {
-		case game.InviteInvalid:
-			return GroupHomeResponse{}, InviteInvalid, nil
-		case game.InviteUsed:
-			return GroupHomeResponse{}, InviteUsed, nil
-		case game.InviteExpired:
-			return GroupHomeResponse{}, InviteExpired, nil
-		case game.InviteMember:
-			return GroupHomeResponse{}, InviteMember, nil
-		default:
-			return GroupHomeResponse{}, InviteInvalid, nil
-		}
-	}
-
-	ghResult, _, err := s.GroupHome(ctx, player, result.Group.ID)
-	if err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	return ghResult, InviteAccepted, nil
-}
-
-func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
-	result := game.StartSeason(ctx, s, game.StartSeasonInput{
-		GroupID:            groupID,
-		PlayerID:           player.ID,
-		SubmissionDeadline: submissionDeadline,
-		JudgingDeadline:    judgingDeadline,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, true, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
 	return s.groupHomeForGroup(ctx, groupID, player)
 }
 
-func (s *PostgresStore) CloseSeasonSubmissions(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error) {
-	if err := s.ensureSeasonStatusesForSeason(ctx, seasonID); err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-
-	result := game.CloseSeasonSubmissions(ctx, s, game.CloseSeasonSubmissionsInput{
-		SeasonID: seasonID,
-		PlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
-	return s.groupHomeForSeason(ctx, seasonID, player)
-}
-
-func (s *PostgresStore) FinalizeSeason(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error) {
-	if err := s.ensureSeasonStatusesForSeason(ctx, seasonID); err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-
-	result := game.FinalizeSeason(ctx, s, game.FinalizeSeasonInput{
-		SeasonID: seasonID,
-		PlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
-	return s.groupHomeForSeason(ctx, seasonID, player)
-}
-
-func (s *PostgresStore) SeasonHistory(ctx context.Context, player Player, seasonID string) (SeasonHistoryResponse, bool, error) {
-	result := game.SeasonHistory(ctx, s, game.SeasonHistoryInput{
-		SeasonID: seasonID,
-		PlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return SeasonHistoryResponse{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return SeasonHistoryResponse{}, false, nil
-	}
-	entries := make([]SeasonHistoryEntry, len(result.Entries))
-	for i, e := range result.Entries {
-		entries[i] = SeasonHistoryEntry{
-			ID:            e.ID,
-			SeasonID:      e.SeasonID,
-			Action:        e.Action,
-			ActorPlayerID: e.ActorPlayerID,
-			ActorRole:     e.ActorRole,
-			Override:      e.Override,
-			FromStatus:    e.FromStatus,
-			ToStatus:      e.ToStatus,
+func (s *PostgresStore) GroupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error) {
+	season, err := seasonInDB(ctx, s.db, seasonID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GroupHomeResponse{}, false, nil
 		}
+		return GroupHomeResponse{}, false, err
 	}
-	return SeasonHistoryResponse{Entries: entries}, true, nil
-}
-
-func (s *PostgresStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
-	result := game.CreateIdea(ctx, s, game.CreateIdeaInput{
-		GroupID:     groupID,
-		PlayerID:    player.ID,
-		Source:      source,
-		Destination: destination,
-		Food:        food,
-	})
-	if result.Err != nil {
-		return Stunt{}, false, result.Err
-	}
-	if !result.Allowed {
-		return Stunt{}, false, nil
-	}
-	return stuntFromGame(result.Stunt), true, nil
-}
-
-func (s *PostgresStore) CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error) {
-	result := game.CreatePlannedStunt(ctx, s, game.CreatePlannedStuntInput{
-		IdeaID:    ideaID,
-		PlayerID:  player.ID,
-		OffSeason: offSeason,
-	})
-	if result.Err != nil {
-		return Stunt{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Stunt{}, false, nil
-	}
-	return stuntFromGame(result.Stunt), true, nil
-}
-
-func (s *PostgresStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
-	result := game.AuthorizeEvidenceUpload(ctx, s, game.AuthorizeEvidenceUploadInput{
-		StuntID:     stuntID,
-		PlayerID:    player.ID,
-		ContentType: contentType,
-	})
-	if result.Err != nil {
-		return EvidenceUploadAuthorization{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return EvidenceUploadAuthorization{}, false, nil
-	}
-	return EvidenceUploadAuthorization{
-		ID:             result.Authorization.ID,
-		StuntID:        result.Authorization.StuntID,
-		UploadURL:      "https://storage.supperjumpin.test/uploads/" + result.Authorization.MediaObjectKey,
-		UploadMethod:   httpMethodPut,
-		UploadHeaders:  map[string]string{"Content-Type": contentType},
-		MediaObjectKey: result.Authorization.MediaObjectKey,
-		ExpiresAt:      result.Authorization.ExpiresAt,
-	}, true, nil
-}
-
-func (s *PostgresStore) SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
-	// Materialise any deadline-based season transitions before the game module
-	// reads season state — this is a Postgres adapter concern.
-	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
-		return EvidenceSubmission{}, false, err
-	}
-
-	result := game.SubmitEvidence(ctx, s, game.SubmitEvidenceInput{
-		StuntID:              stuntID,
-		PlayerID:             player.ID,
-		UploadAuthorizationID: uploadAuthorizationID,
-		Caption:              caption,
-	}, time.Now())
-	if result.Err != nil {
-		return EvidenceSubmission{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return EvidenceSubmission{}, false, nil
-	}
-	return EvidenceSubmission{
-		Stunt: Stunt{
-			ID:          result.Stunt.ID,
-			GroupID:     result.Stunt.GroupID,
-			PlayerID:    result.Stunt.PlayerID,
-			SeasonID:    result.Stunt.SeasonID,
-			Status:      result.Stunt.Status,
-			Source:      result.Stunt.Source,
-			Destination: result.Stunt.Destination,
-			Food:        result.Stunt.Food,
-			OffSeason:   result.Stunt.SeasonID == nil,
-		},
-		Evidence: Evidence{
-			ID:             result.Evidence.ID,
-			StuntID:        result.Evidence.StuntID,
-			Caption:        result.Evidence.Caption,
-			MediaObjectKey: result.Evidence.MediaObjectKey,
-			CreatedAt:      result.Evidence.CreatedAt,
-		},
-	}, true, nil
-}
-
-func (s *PostgresStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
-	// Materialise any deadline-based season transitions before the game module
-	// reads season state. This is a Postgres adapter concern: the DB may still
-	// persist "Judging Grace Period" after judging_deadline has passed until an
-	// explicit finalisation call advances the status.
-	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
-		return Judgment{}, false, false, err
-	}
-	result := game.SubmitJudgment(ctx, s, game.JudgmentInput{
-		StuntID:       stuntID,
-		JudgePlayerID: player.ID,
-		Difficulty:    difficulty,
-		Transgression: transgression,
-		Creativity:    creativity,
-		Documentation: documentation,
-	}, time.Now())
-	if result.Err != nil {
-		return Judgment{}, false, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Judgment{}, false, false, nil
-	}
-	return Judgment{
-		ID:            result.Judgment.ID,
-		StuntID:       result.Judgment.StuntID,
-		PlayerID:      result.Judgment.PlayerID,
-		Difficulty:    result.Judgment.Difficulty,
-		Transgression: result.Judgment.Transgression,
-		Creativity:    result.Judgment.Creativity,
-		Documentation: result.Judgment.Documentation,
-	}, true, result.Created, nil
+	return s.GroupHomeForGroup(ctx, season.GroupID, player)
 }
 
 // game.JudgmentRepository adapter methods for PostgresStore
@@ -949,450 +634,6 @@ func (s *PostgresStore) UpdateStuntStatusAfterDispute(ctx context.Context, stunt
 	return err
 }
 
-func (s *PostgresStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
-	if err := s.ensureSeasonStatusesForStunt(ctx, stuntID); err != nil {
-		return Dispute{}, false, err
-	}
-
-	result := game.CreateDispute(ctx, s, game.CreateDisputeInput{
-		PlayerID: player.ID,
-		StuntID:  stuntID,
-		Concern:  concern,
-		Details:  details,
-	})
-	if result.Err != nil {
-		return Dispute{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Dispute{}, false, nil
-	}
-	return disputeFromSnapshot(result.Dispute), true, nil
-}
-
-func (s *PostgresStore) ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error) {
-	result := game.ResolveDispute(ctx, s, game.ResolveDisputeInput{
-		PlayerID:         player.ID,
-		DisputeID:        disputeID,
-		Resolution:       resolution,
-		ResolutionReason: resolutionReason,
-	})
-	if result.Err != nil {
-		return DisputeResolution{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return DisputeResolution{}, false, nil
-	}
-	return DisputeResolution{
-		Stunt:   stuntFromGame(result.Stunt),
-		Dispute: disputeFromSnapshot(result.Dispute),
-	}, true, nil
-}
-
-func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
-	var season Season
-	if err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
-FROM seasons
-WHERE group_id = $1 AND status = 'Active'
-ORDER BY created_at DESC
-LIMIT 1`, groupID).Scan(
-		&season.ID,
-		&season.GroupID,
-		&season.CommissionerPlayerID,
-		&season.Status,
-		&season.SubmissionDeadline,
-		&season.JudgingDeadline,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &season, nil
-}
-
-func (s *PostgresStore) currentSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
-	var season Season
-	if err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
-FROM seasons
-WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')
-ORDER BY created_at DESC
-LIMIT 1`, groupID).Scan(
-		&season.ID,
-		&season.GroupID,
-		&season.CommissionerPlayerID,
-		&season.Status,
-		&season.SubmissionDeadline,
-		&season.JudgingDeadline,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &season, nil
-}
-
-func (s *PostgresStore) ensureSeasonStatusesForGroup(ctx context.Context, groupID string) ([]string, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	newlyFinalized, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return newlyFinalized, nil
-}
-
-func (s *PostgresStore) ensureSeasonStatusesForStunt(ctx context.Context, stuntID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	var groupID string
-	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM stunts WHERE id = $1`, stuntID).Scan(&groupID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		return err
-	}
-	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-func (s *PostgresStore) ensureSeasonStatusesForSeason(ctx context.Context, seasonID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	var groupID string
-	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM seasons WHERE id = $1`, seasonID).Scan(&groupID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		return err
-	}
-	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-func ensureSeasonStatusesForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) ([]string, error) {
-	rows, err := tx.QueryContext(ctx, `
-SELECT id, status, submission_deadline, judging_deadline
-FROM seasons
-WHERE group_id = $1`, groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	type seasonStatus struct {
-		id                 string
-		status             string
-		submissionDeadline time.Time
-		judgingDeadline    time.Time
-	}
-	seasons := []seasonStatus{}
-	for rows.Next() {
-		var season seasonStatus
-		if err := rows.Scan(&season.id, &season.status, &season.submissionDeadline, &season.judgingDeadline); err != nil {
-			return nil, err
-		}
-		seasons = append(seasons, season)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	var newlyFinalized []string
-	now := time.Now()
-	for _, season := range seasons {
-		newStatus := season.status
-		if newStatus == "Active" && now.After(season.submissionDeadline) {
-			newStatus = "Judging Grace Period"
-		}
-		if newStatus == "Judging Grace Period" && now.After(season.judgingDeadline) {
-			newStatus = "Finalized"
-		}
-		if newStatus == season.status {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE seasons SET status = $2 WHERE id = $1`, season.id, newStatus); err != nil {
-			return nil, err
-		}
-		if newStatus == "Finalized" {
-			newlyFinalized = append(newlyFinalized, season.id)
-		}
-	}
-	return newlyFinalized, nil
-}
-
-func insertSeasonHistoryEntry(ctx context.Context, tx *sql.Tx, seasonID string, action string, actorPlayerID string, actorRole string, override bool, fromStatus string, toStatus string) error {
-	id, err := randomToken("season_history")
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `
-INSERT INTO season_history (id, season_id, action, actor_player_id, actor_role, override, from_status, to_status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, id, seasonID, action, actorPlayerID, actorRole, override, fromStatus, toStatus)
-	return err
-}
-
-func groupMembershipInTx(ctx context.Context, tx *sql.Tx, player Player, groupID string) (GroupMembership, bool, error) {
-	var membership GroupMembership
-	if err := tx.QueryRowContext(ctx, `
-SELECT group_id, player_id, role
-FROM group_memberships
-WHERE group_id = $1 AND player_id = $2`, groupID, player.ID).Scan(&membership.GroupID, &membership.PlayerID, &membership.Role); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return GroupMembership{}, false, nil
-		}
-		return GroupMembership{}, false, err
-	}
-	return membership, true, nil
-}
-
-func activeSeasonForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) (*Season, error) {
-	var season Season
-	if err := tx.QueryRowContext(ctx, `
-SELECT id, group_id, commissioner_player_id, status
-FROM seasons
-WHERE group_id = $1 AND status = 'Active'
-ORDER BY created_at DESC
-LIMIT 1`, groupID).Scan(
-		&season.ID,
-		&season.GroupID,
-		&season.CommissionerPlayerID,
-		&season.Status,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &season, nil
-}
-
-func judgingWindowOpenInTx(ctx context.Context, tx *sql.Tx, stunt Stunt) (bool, error) {
-	if stunt.SeasonID == nil {
-		return true, nil
-	}
-	var status string
-	if err := tx.QueryRowContext(ctx, `SELECT status FROM seasons WHERE id = $1`, *stunt.SeasonID).Scan(&status); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, err
-	}
-	return isOpenSeasonStatus(status), nil
-}
-
-func submissionWindowOpenInTx(ctx context.Context, tx *sql.Tx, stunt Stunt) (bool, error) {
-	if stunt.SeasonID == nil {
-		return true, nil
-	}
-	var status string
-	var submissionDeadline time.Time
-	if err := tx.QueryRowContext(ctx, `SELECT status, submission_deadline FROM seasons WHERE id = $1`, *stunt.SeasonID).Scan(&status, &submissionDeadline); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, err
-	}
-	return status == "Active" && time.Now().Before(submissionDeadline), nil
-}
-
-type stuntViewQueryer interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}
-
-func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedStuntView, error) {
-	rows, err := queryer.QueryContext(ctx, `
-SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food, stunts.final_score,
-       evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
-       players.id, players.display_name
-FROM stunts
-JOIN evidences ON evidences.stunt_id = stunts.id
-JOIN players ON players.id = stunts.player_id
-WHERE stunts.group_id = $1 AND stunts.status IN ('Performed Stunt', 'Judged Stunt', 'Unjudged Stunt', 'Disqualified Stunt')
-ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	performed := []PerformedStuntView{}
-	for rows.Next() {
-		var stunt Stunt
-		var seasonID sql.NullString
-		var evidence Evidence
-		var performer Player
-		if err := rows.Scan(
-			&stunt.ID,
-			&stunt.GroupID,
-			&stunt.PlayerID,
-			&seasonID,
-			&stunt.Status,
-			&stunt.Source,
-			&stunt.Destination,
-			&stunt.Food,
-			&stunt.FinalScore,
-			&evidence.ID,
-			&evidence.Caption,
-			&evidence.MediaObjectKey,
-			&evidence.CreatedAt,
-			&performer.ID,
-			&performer.DisplayName,
-		); err != nil {
-			return nil, err
-		}
-		if seasonID.Valid {
-			stunt.SeasonID = &seasonID.String
-			stunt.OffSeason = false
-		} else {
-			stunt.OffSeason = true
-		}
-		disputes, err := disputesForStuntQuery(ctx, queryer, stunt.ID)
-		if err != nil {
-			return nil, err
-		}
-		performed = append(performed, PerformedStuntView{Stunt: stunt, Performer: performer, Evidence: evidence, Disputes: disputes})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return performed, nil
-}
-
-func disputesForStuntQuery(ctx context.Context, queryer stuntViewQueryer, stuntID string) ([]Dispute, error) {
-	rows, err := queryer.QueryContext(ctx, `
-SELECT id, stunt_id, raised_by_player_id, concern, details, status,
-       resolution, resolution_reason, resolved_by_player_id,
-       override_resolution, override_reason, override_by_player_id
-FROM disputes
-WHERE stunt_id = $1
-ORDER BY created_at ASC, id ASC`, stuntID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	disputes := []Dispute{}
-	for rows.Next() {
-		var dispute Dispute
-		var resolution sql.NullString
-		var resolutionReason sql.NullString
-		var resolvedByPlayerID sql.NullString
-		var overrideResolution sql.NullString
-		var overrideReason sql.NullString
-		var overrideByPlayerID sql.NullString
-		if err := rows.Scan(
-			&dispute.ID,
-			&dispute.StuntID,
-			&dispute.RaisedByPlayerID,
-			&dispute.Concern,
-			&dispute.Details,
-			&dispute.Status,
-			&resolution,
-			&resolutionReason,
-			&resolvedByPlayerID,
-			&overrideResolution,
-			&overrideReason,
-			&overrideByPlayerID,
-		); err != nil {
-			return nil, err
-		}
-		if resolution.Valid {
-			dispute.Resolution = &resolution.String
-		}
-		if resolutionReason.Valid {
-			dispute.ResolutionReason = &resolutionReason.String
-		}
-		if resolvedByPlayerID.Valid {
-			dispute.ResolvedByPlayerID = &resolvedByPlayerID.String
-		}
-		if overrideResolution.Valid {
-			dispute.OverrideResolution = &overrideResolution.String
-		}
-		if overrideReason.Valid {
-			dispute.OverrideReason = &overrideReason.String
-		}
-		if overrideByPlayerID.Valid {
-			dispute.OverrideByPlayerID = &overrideByPlayerID.String
-		}
-		disputes = append(disputes, dispute)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return disputes, nil
-}
-
-func disputeInDB(ctx context.Context, db *sql.DB, disputeID string) (Dispute, error) {
-	var dispute Dispute
-	var resolution sql.NullString
-	var resolutionReason sql.NullString
-	var resolvedByPlayerID sql.NullString
-	var overrideResolution sql.NullString
-	var overrideReason sql.NullString
-	var overrideByPlayerID sql.NullString
-	if err := db.QueryRowContext(ctx, `
-SELECT id, stunt_id, raised_by_player_id, concern, details, status,
-       resolution, resolution_reason, resolved_by_player_id,
-       override_resolution, override_reason, override_by_player_id
-FROM disputes
-WHERE id = $1`, disputeID).Scan(
-		&dispute.ID,
-		&dispute.StuntID,
-		&dispute.RaisedByPlayerID,
-		&dispute.Concern,
-		&dispute.Details,
-		&dispute.Status,
-		&resolution,
-		&resolutionReason,
-		&resolvedByPlayerID,
-		&overrideResolution,
-		&overrideReason,
-		&overrideByPlayerID,
-	); err != nil {
-		return Dispute{}, err
-	}
-	if resolution.Valid {
-		dispute.Resolution = &resolution.String
-	}
-	if resolutionReason.Valid {
-		dispute.ResolutionReason = &resolutionReason.String
-	}
-	if resolvedByPlayerID.Valid {
-		dispute.ResolvedByPlayerID = &resolvedByPlayerID.String
-	}
-	if overrideResolution.Valid {
-		dispute.OverrideResolution = &overrideResolution.String
-	}
-	if overrideReason.Valid {
-		dispute.OverrideReason = &overrideReason.String
-	}
-	if overrideByPlayerID.Valid {
-		dispute.OverrideByPlayerID = &overrideByPlayerID.String
-	}
-	return dispute, nil
-}
-
 // game.SeasonRepository adapter methods for PostgresStore
 
 func (s *PostgresStore) OpenSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
@@ -1585,6 +826,8 @@ ORDER BY created_at ASC, id ASC`, seasonID)
 	return entries, nil
 }
 
+// --- PostgresStore private helpers ---
+
 func (s *PostgresStore) groupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error) {
 	group, membership, ok, err := s.groupMembershipLoad(ctx, groupID, player)
 	if err != nil {
@@ -1608,24 +851,107 @@ func (s *PostgresStore) groupHomeForGroup(ctx context.Context, groupID string, p
 	return groupHome(group, membership, currentSeason, recentStunts, standingsFromGame(standings)), true, nil
 }
 
-func (s *PostgresStore) groupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error) {
-	season, err := seasonInDB(ctx, s.db, seasonID)
-	if err != nil {
+func (s *PostgresStore) activeSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
+	var season Season
+	if err := s.db.QueryRowContext(ctx, `
+SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
+FROM seasons
+WHERE group_id = $1 AND status = 'Active'
+ORDER BY created_at DESC
+LIMIT 1`, groupID).Scan(
+		&season.ID,
+		&season.GroupID,
+		&season.CommissionerPlayerID,
+		&season.Status,
+		&season.SubmissionDeadline,
+		&season.JudgingDeadline,
+	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return GroupHomeResponse{}, false, nil
+			return nil, nil
 		}
-		return GroupHomeResponse{}, false, err
+		return nil, err
 	}
-	return s.groupHomeForGroup(ctx, season.GroupID, player)
+	return &season, nil
 }
 
-func seasonInDB(ctx context.Context, db *sql.DB, seasonID string) (Season, error) {
+func (s *PostgresStore) currentSeasonForGroup(ctx context.Context, groupID string) (*Season, error) {
 	var season Season
-	err := db.QueryRowContext(ctx, `
+	if err := s.db.QueryRowContext(ctx, `
 SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
-FROM seasons WHERE id = $1`, seasonID).Scan(
-		&season.ID, &season.GroupID, &season.CommissionerPlayerID, &season.Status, &season.SubmissionDeadline, &season.JudgingDeadline)
-	return season, err
+FROM seasons
+WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')
+ORDER BY created_at DESC
+LIMIT 1`, groupID).Scan(
+		&season.ID,
+		&season.GroupID,
+		&season.CommissionerPlayerID,
+		&season.Status,
+		&season.SubmissionDeadline,
+		&season.JudgingDeadline,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &season, nil
+}
+
+func (s *PostgresStore) ensureSeasonStatusesForGroup(ctx context.Context, groupID string) ([]string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	newlyFinalized, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return newlyFinalized, nil
+}
+
+func (s *PostgresStore) ensureSeasonStatusesForStunt(ctx context.Context, stuntID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var groupID string
+	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM stunts WHERE id = $1`, stuntID).Scan(&groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *PostgresStore) ensureSeasonStatusesForSeason(ctx context.Context, seasonID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var groupID string
+	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM seasons WHERE id = $1`, seasonID).Scan(&groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *PostgresStore) groupMembershipLoad(ctx context.Context, groupID string, player Player) (Group, GroupMembership, bool, error) {
@@ -1645,6 +971,105 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 	}
 	membership.GroupID = group.ID
 	return group, membership, true, nil
+}
+
+// --- Package-level helpers for PostgresStore ---
+
+func ensureSeasonStatusesForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT id, status, submission_deadline, judging_deadline
+FROM seasons
+WHERE group_id = $1`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type seasonStatus struct {
+		id                 string
+		status             string
+		submissionDeadline time.Time
+		judgingDeadline    time.Time
+	}
+	seasons := []seasonStatus{}
+	for rows.Next() {
+		var season seasonStatus
+		if err := rows.Scan(&season.id, &season.status, &season.submissionDeadline, &season.judgingDeadline); err != nil {
+			return nil, err
+		}
+		seasons = append(seasons, season)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var newlyFinalized []string
+	now := time.Now()
+	for _, season := range seasons {
+		newStatus := season.status
+		if newStatus == "Active" && now.After(season.submissionDeadline) {
+			newStatus = "Judging Grace Period"
+		}
+		if newStatus == "Judging Grace Period" && now.After(season.judgingDeadline) {
+			newStatus = "Finalized"
+		}
+		if newStatus == season.status {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE seasons SET status = $2 WHERE id = $1`, season.id, newStatus); err != nil {
+			return nil, err
+		}
+		if newStatus == "Finalized" {
+			newlyFinalized = append(newlyFinalized, season.id)
+		}
+	}
+	return newlyFinalized, nil
+}
+
+func insertSeasonHistoryEntry(ctx context.Context, tx *sql.Tx, seasonID string, action string, actorPlayerID string, actorRole string, override bool, fromStatus string, toStatus string) error {
+	id, err := randomToken("season_history")
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO season_history (id, season_id, action, actor_player_id, actor_role, override, from_status, to_status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, id, seasonID, action, actorPlayerID, actorRole, override, fromStatus, toStatus)
+	return err
+}
+
+func groupMembershipInTx(ctx context.Context, tx *sql.Tx, player Player, groupID string) (GroupMembership, bool, error) {
+	var membership GroupMembership
+	if err := tx.QueryRowContext(ctx, `
+SELECT group_id, player_id, role
+FROM group_memberships
+WHERE group_id = $1 AND player_id = $2`, groupID, player.ID).Scan(&membership.GroupID, &membership.PlayerID, &membership.Role); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GroupMembership{}, false, nil
+		}
+		return GroupMembership{}, false, err
+	}
+	return membership, true, nil
+}
+
+func activeSeasonForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) (*Season, error) {
+	var season Season
+	if err := tx.QueryRowContext(ctx, `
+SELECT id, group_id, commissioner_player_id, status
+FROM seasons
+WHERE group_id = $1 AND status = 'Active'
+ORDER BY created_at DESC
+LIMIT 1`, groupID).Scan(
+		&season.ID,
+		&season.GroupID,
+		&season.CommissionerPlayerID,
+		&season.Status,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &season, nil
 }
 
 func isSeasonOpenConflict(err error) bool {
@@ -1674,4 +1099,190 @@ WHERE auth_identities.provider = $1 AND auth_identities.subject = $2`, provider,
 		return MeResponse{}, fmt.Errorf("incomplete profile for auth identity")
 	}
 	return profile, nil
+}
+
+// stuntViewQueryer is satisfied by *sql.DB and *sql.Tx for querying stunt views.
+type stuntViewQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedStuntView, error) {
+	rows, err := queryer.QueryContext(ctx, `
+SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food, stunts.final_score,
+       evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
+       players.id, players.display_name
+FROM stunts
+JOIN evidences ON evidences.stunt_id = stunts.id
+JOIN players ON players.id = stunts.player_id
+WHERE stunts.group_id = $1 AND stunts.status IN ('Performed Stunt', 'Judged Stunt', 'Unjudged Stunt', 'Disqualified Stunt')
+ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	performed := []PerformedStuntView{}
+	for rows.Next() {
+		var stunt Stunt
+		var seasonID sql.NullString
+		var evidence Evidence
+		var performer Player
+		if err := rows.Scan(
+			&stunt.ID,
+			&stunt.GroupID,
+			&stunt.PlayerID,
+			&seasonID,
+			&stunt.Status,
+			&stunt.Source,
+			&stunt.Destination,
+			&stunt.Food,
+			&stunt.FinalScore,
+			&evidence.ID,
+			&evidence.Caption,
+			&evidence.MediaObjectKey,
+			&evidence.CreatedAt,
+			&performer.ID,
+			&performer.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		if seasonID.Valid {
+			stunt.SeasonID = &seasonID.String
+			stunt.OffSeason = false
+		} else {
+			stunt.OffSeason = true
+		}
+		disputes, err := disputesForStuntQuery(ctx, queryer, stunt.ID)
+		if err != nil {
+			return nil, err
+		}
+		performed = append(performed, PerformedStuntView{Stunt: stunt, Performer: performer, Evidence: evidence, Disputes: disputes})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return performed, nil
+}
+
+func disputesForStuntQuery(ctx context.Context, queryer stuntViewQueryer, stuntID string) ([]Dispute, error) {
+	rows, err := queryer.QueryContext(ctx, `
+SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+       resolution, resolution_reason, resolved_by_player_id,
+       override_resolution, override_reason, override_by_player_id
+FROM disputes
+WHERE stunt_id = $1
+ORDER BY created_at ASC, id ASC`, stuntID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	disputes := []Dispute{}
+	for rows.Next() {
+		var dispute Dispute
+		var resolution sql.NullString
+		var resolutionReason sql.NullString
+		var resolvedByPlayerID sql.NullString
+		var overrideResolution sql.NullString
+		var overrideReason sql.NullString
+		var overrideByPlayerID sql.NullString
+		if err := rows.Scan(
+			&dispute.ID,
+			&dispute.StuntID,
+			&dispute.RaisedByPlayerID,
+			&dispute.Concern,
+			&dispute.Details,
+			&dispute.Status,
+			&resolution,
+			&resolutionReason,
+			&resolvedByPlayerID,
+			&overrideResolution,
+			&overrideReason,
+			&overrideByPlayerID,
+		); err != nil {
+			return nil, err
+		}
+		if resolution.Valid {
+			dispute.Resolution = &resolution.String
+		}
+		if resolutionReason.Valid {
+			dispute.ResolutionReason = &resolutionReason.String
+		}
+		if resolvedByPlayerID.Valid {
+			dispute.ResolvedByPlayerID = &resolvedByPlayerID.String
+		}
+		if overrideResolution.Valid {
+			dispute.OverrideResolution = &overrideResolution.String
+		}
+		if overrideReason.Valid {
+			dispute.OverrideReason = &overrideReason.String
+		}
+		if overrideByPlayerID.Valid {
+			dispute.OverrideByPlayerID = &overrideByPlayerID.String
+		}
+		disputes = append(disputes, dispute)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return disputes, nil
+}
+
+func disputeInDB(ctx context.Context, db *sql.DB, disputeID string) (Dispute, error) {
+	var dispute Dispute
+	var resolution sql.NullString
+	var resolutionReason sql.NullString
+	var resolvedByPlayerID sql.NullString
+	var overrideResolution sql.NullString
+	var overrideReason sql.NullString
+	var overrideByPlayerID sql.NullString
+	if err := db.QueryRowContext(ctx, `
+SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+       resolution, resolution_reason, resolved_by_player_id,
+       override_resolution, override_reason, override_by_player_id
+FROM disputes
+WHERE id = $1`, disputeID).Scan(
+		&dispute.ID,
+		&dispute.StuntID,
+		&dispute.RaisedByPlayerID,
+		&dispute.Concern,
+		&dispute.Details,
+		&dispute.Status,
+		&resolution,
+		&resolutionReason,
+		&resolvedByPlayerID,
+		&overrideResolution,
+		&overrideReason,
+		&overrideByPlayerID,
+	); err != nil {
+		return Dispute{}, err
+	}
+	if resolution.Valid {
+		dispute.Resolution = &resolution.String
+	}
+	if resolutionReason.Valid {
+		dispute.ResolutionReason = &resolutionReason.String
+	}
+	if resolvedByPlayerID.Valid {
+		dispute.ResolvedByPlayerID = &resolvedByPlayerID.String
+	}
+	if overrideResolution.Valid {
+		dispute.OverrideResolution = &overrideResolution.String
+	}
+	if overrideReason.Valid {
+		dispute.OverrideReason = &overrideReason.String
+	}
+	if overrideByPlayerID.Valid {
+		dispute.OverrideByPlayerID = &overrideByPlayerID.String
+	}
+	return dispute, nil
+}
+
+func seasonInDB(ctx context.Context, db *sql.DB, seasonID string) (Season, error) {
+	var season Season
+	err := db.QueryRowContext(ctx, `
+SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
+FROM seasons WHERE id = $1`, seasonID).Scan(
+		&season.ID, &season.GroupID, &season.CommissionerPlayerID, &season.Status, &season.SubmissionDeadline, &season.JudgingDeadline)
+	return season, err
 }
