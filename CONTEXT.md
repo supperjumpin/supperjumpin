@@ -32,9 +32,6 @@ _Avoid_: Completed jump
 A **Performed Jump** that has received at least one **Judgment**.
 _Avoid_: Rated jump, scored jump
 
-**Off-Season Jump**:
-A **Jump** that belongs to a **Group** but does not contribute to **Season** **Standings**.
-_Avoid_: Casual jump
 
 **Judge**:
 A **Player** who scores another **Player's** **Performed Jump**. Any authenticated **Player** may Judge a **Jump** they did not perform; **Group** membership is not required. The performer of a **Jump** is not a **Judge** for that **Jump**.
@@ -53,7 +50,7 @@ A **Judge's** submitted scores for a **Performed Jump**.
 _Avoid_: Vote, review, rating
 
 **Final Score**:
-The aggregate score for a **Judged Jump** after its **Judging Window** closes, used to update **Standings**. A **Final Score** is only computed for **Season**-linked **Jumps** when the **Season** finalizes. Public-feed-only **Jumps** display a live running average of received **Judgments** and never produce a **Final Score**.
+The aggregate score for a **Judged Jump** after its competition period closes, used to update **Standings**. A **Jump** may produce an **Open Final Score** (at monthly **Open** soft-close), a **Season Final Score** (when a **Season** finalizes), or both independently. Public-feed **Judgments** not associated with any competition period contribute only to the live running average and never produce a **Final Score**.
 _Avoid_: Total score
 
 **Season Score**:
@@ -128,8 +125,12 @@ _Avoid_: Owner, moderator
 A way for a **Player** to bring another person into a **Group**.
 _Avoid_: Invitation link, referral
 
+**Open**:
+The platform-run monthly competition, open to all **Players** globally. The **Open** runs on a fixed calendar cadence, requires no **Season Commissioner**, and soft-closes at month-end — **Final Scores** are computed from whatever **Judgments** exist at that moment. A **Jump** may earn an **Open Final Score** independently of any **Season Final Score** it also earns.
+_Avoid_: Global Season, public season
+
 **Season**:
-A bounded competition period within a **Group** where **Judged Jumps** contribute to standings and awards. A **Group** has at most one active or closing **Season** at a time.
+A bounded competition period within a **Group** where **Judged Jumps** contribute to **Standings** and **Awards**. A **Group** has at most one active or closing **Season** at a time. Distinct from the **Open**, which is platform-run and requires no **Group** or **Season Commissioner**.
 _Avoid_: Campaign, tournament
 
 **Season Commissioner**:
@@ -153,7 +154,7 @@ A **Season** whose **Standings** are locked after the **Judging Grace Period** e
 _Avoid_: Ended season, closed season, archived season
 
 **Standings**:
-A ranked view of **Players** within a **Group** for a **Season**.
+A ranked view of **Players** by **Final Score** for a given competition period — either within a **Group** for a **Season**, or platform-wide for an **Open**.
 _Avoid_: Leaderboard
 
 **Award**:
