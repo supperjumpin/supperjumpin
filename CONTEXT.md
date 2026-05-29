@@ -184,12 +184,12 @@ _Avoid_: Rule-breaking, illegality
 A scoring factor for how novel, thematic, poetic, or absurdly elegant a **Jump** is.
 _Avoid_: Originality
 
-**Documentation**:
+**Presentation**:
 A scoring factor for how compellingly the **Evidence** captures the **Jump** as a performance.
-_Avoid_: Media quality
+_Avoid_: Documentation, media quality
 
 **Credibility**:
-How well **Evidence** supports that a **Jump** happened as claimed. **Credibility** is distinct from **Documentation**: a **Jump** may be compellingly documented without being fully believable.
+How well **Evidence** supports that a **Jump** happened as claimed. **Credibility** is distinct from **Presentation**: a **Jump** may be compellingly presented without being fully believable.
 _Avoid_: Truth, proof
 
 ## Example Dialogue
@@ -198,7 +198,7 @@ _Avoid_: Truth, proof
 
 **Player A**: I performed it — Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump and the Judging Window is open.
 
-**Player B**: I'll Judge it on Difficulty, Transgression, Creativity, and Documentation. I don't need to be in a Group to Judge — any Player can. If the Evidence looks staged, I may lower Credibility or raise a Dispute.
+**Player B**: I'll Judge it on Difficulty, Transgression, Creativity, and Presentation. I don't need to be in a Group to Judge — any Player can. If the Evidence looks staged, I may lower Credibility or raise a Dispute.
 
 **Player A**: Later, I joined a Group with an Active Season and submitted the same Jump to the Season. Now it also contributes to Standings.
 
