@@ -79,33 +79,39 @@ ON CONFLICT (id) DO NOTHING`, player.ID, account.ID, player.DisplayName); err !=
 }
 
 func (s *PostgresStore) CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
+	var groupID string
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM groups`).Scan(&groupID); err != nil {
 		return GroupHomeResponse{}, err
 	}
-	defer tx.Rollback()
+	groupID = stableID("group", player.ID+":"+name+":"+groupID)
 
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM groups`).Scan(&count); err != nil {
-		return GroupHomeResponse{}, err
+	result := game.CreateGroup(ctx, s, game.CreateGroupInput{
+		GroupID:         groupID,
+		GroupName:       name,
+		CreatorPlayerID: player.ID,
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, result.Err
 	}
-	group := Group{ID: stableID("group", player.ID+":"+name+":"+strconv.Itoa(count+1)), Name: name}
-	membership := GroupMembership{GroupID: group.ID, PlayerID: player.ID, Role: "Group Admin"}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO groups (id, name) VALUES ($1, $2)`, group.ID, group.Name); err != nil {
-		return GroupHomeResponse{}, err
-	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO group_memberships (group_id, player_id, role)
-VALUES ($1, $2, $3)`, membership.GroupID, membership.PlayerID, membership.Role); err != nil {
-		return GroupHomeResponse{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return GroupHomeResponse{}, err
-	}
-	return groupHome(group, membership, nil, []PerformedStuntView{}, []StandingEntry{}), nil
+	return groupHome(
+		Group{ID: result.Group.ID, Name: result.Group.Name},
+		GroupMembership{GroupID: result.Membership.GroupID, PlayerID: result.Membership.PlayerID, Role: result.Membership.Role},
+		nil, []PerformedStuntView{}, []StandingEntry{},
+	), nil
 }
 
 func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
+	ghResult := game.GroupHome(ctx, s, game.GroupHomeInput{
+		PlayerID: player.ID,
+		GroupID:  groupID,
+	})
+	if ghResult.Err != nil {
+		return GroupHomeResponse{}, false, ghResult.Err
+	}
+	if !ghResult.Allowed {
+		return GroupHomeResponse{}, false, nil
+	}
+
 	newlyFinalized, err := s.ensureSeasonStatusesForGroup(ctx, groupID)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
@@ -115,221 +121,95 @@ func (s *PostgresStore) GroupHome(ctx context.Context, player Player, groupID st
 			return GroupHomeResponse{}, false, err
 		}
 	}
-	var group Group
-	var membership GroupMembership
-	if err := s.db.QueryRowContext(ctx, `
-SELECT groups.id, groups.name, group_memberships.player_id, group_memberships.role
-FROM group_memberships
-JOIN groups ON groups.id = group_memberships.group_id
-WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, groupID, player.ID).Scan(
-		&group.ID,
-		&group.Name,
-		&membership.PlayerID,
-		&membership.Role,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return GroupHomeResponse{}, false, nil
-		}
-		return GroupHomeResponse{}, false, err
-	}
-	membership.GroupID = group.ID
-	season, err := s.currentSeasonForGroup(ctx, group.ID)
+
+	season, err := s.currentSeasonForGroup(ctx, groupID)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, group.ID)
+	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, groupID)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	standings, err := game.Standings(ctx, s, group.ID)
+	standings, err := game.Standings(ctx, s, groupID)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
-	return groupHome(group, membership, season, recentStunts, standingsFromGame(standings)), true, nil
+	return groupHome(
+		Group{ID: ghResult.Group.ID, Name: ghResult.Group.Name},
+		GroupMembership{GroupID: ghResult.Membership.GroupID, PlayerID: ghResult.Membership.PlayerID, Role: ghResult.Membership.Role},
+		season, recentStunts, standingsFromGame(standings),
+	), true, nil
 }
 
 func (s *PostgresStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT groups.id, groups.name, group_memberships.player_id, group_memberships.role
-FROM group_memberships
-JOIN groups ON groups.id = group_memberships.group_id
-WHERE group_memberships.player_id = $1
-ORDER BY groups.name`, player.ID)
+	memberships, err := game.ListGroups(ctx, s, player.ID)
 	if err != nil {
 		return ListGroupsResponse{}, err
 	}
-	defer rows.Close()
 
-	memberships := []GroupMembershipSummary{}
-	for rows.Next() {
-		var group Group
-		var membership GroupMembership
-		if err := rows.Scan(&group.ID, &group.Name, &membership.PlayerID, &membership.Role); err != nil {
-			return ListGroupsResponse{}, err
+	result := make([]GroupMembershipSummary, len(memberships))
+	for i, m := range memberships {
+		result[i] = GroupMembershipSummary{
+			Group:      Group{ID: m.Group.ID, Name: m.Group.Name},
+			Membership: GroupMembership{GroupID: m.Membership.GroupID, PlayerID: m.Membership.PlayerID, Role: m.Membership.Role},
 		}
-		membership.GroupID = group.ID
-		memberships = append(memberships, GroupMembershipSummary{Group: group, Membership: membership})
 	}
-	if err := rows.Err(); err != nil {
-		return ListGroupsResponse{}, err
-	}
-	sort.Slice(memberships, func(i, j int) bool {
-		return memberships[i].Group.Name < memberships[j].Group.Name
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Group.Name < result[j].Group.Name
 	})
-	return ListGroupsResponse{Memberships: memberships}, nil
+	return ListGroupsResponse{Memberships: result}, nil
 }
 
 func (s *PostgresStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Invite{}, false, err
+	result := game.CreateInvite(ctx, s, game.CreateInviteInput{
+		GroupID:  groupID,
+		PlayerID: player.ID,
+		Now:      time.Now(),
+	})
+	if result.Err != nil {
+		return Invite{}, false, result.Err
 	}
-	defer tx.Rollback()
-
-	var existing string
-	if err := tx.QueryRowContext(ctx, `
-SELECT player_id
-FROM group_memberships
-WHERE group_id = $1 AND player_id = $2`, groupID, player.ID).Scan(&existing); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Invite{}, false, nil
-		}
-		return Invite{}, false, err
+	if !result.Allowed {
+		return Invite{}, false, nil
 	}
-
-	var invite Invite
-	for attempts := 0; attempts < 3; attempts++ {
-		id, err := randomToken("invite")
-		if err != nil {
-			return Invite{}, false, err
-		}
-		token, err := randomToken("invite_token")
-		if err != nil {
-			return Invite{}, false, err
-		}
-		invite = Invite{
-			ID:        id,
-			GroupID:   groupID,
-			Token:     token,
-			CreatedBy: player.ID,
-			ExpiresAt: time.Now().Add(7 * 24 * time.Hour).UTC(),
-		}
-		result, err := tx.ExecContext(ctx, `
-INSERT INTO invites (id, group_id, token, created_by_player_id, expires_at)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT DO NOTHING`, invite.ID, invite.GroupID, invite.Token, invite.CreatedBy, invite.ExpiresAt)
-		if err != nil {
-			return Invite{}, false, err
-		}
-		rows, err := result.RowsAffected()
-		if err != nil {
-			return Invite{}, false, err
-		}
-		if rows == 1 {
-			break
-		}
-		if attempts == 2 {
-			return Invite{}, false, fmt.Errorf("create unique Invite after retries")
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return Invite{}, false, err
-	}
-	return invite, true, nil
+	return Invite{
+		ID:        result.Invite.ID,
+		GroupID:   result.Invite.GroupID,
+		Token:     result.Invite.Token,
+		CreatedBy: result.Invite.CreatedBy,
+		ExpiresAt: time.Unix(result.Invite.ExpiresAt, 0).UTC(),
+	}, true, nil
 }
 
 func (s *PostgresStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
+	result := game.AcceptInvite(ctx, s, game.AcceptInviteInput{
+		Token:    token,
+		PlayerID: player.ID,
+		Now:      time.Now(),
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, InviteInvalid, result.Err
 	}
-	defer tx.Rollback()
-
-	var invite Invite
-	var usedBy sql.NullString
-	if err := tx.QueryRowContext(ctx, `
-SELECT id, group_id, token, created_by_player_id, used_by_player_id, expires_at
-FROM invites
-WHERE token = $1`, token).Scan(&invite.ID, &invite.GroupID, &invite.Token, &invite.CreatedBy, &usedBy, &invite.ExpiresAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+	if result.Status != game.InviteAccepted {
+		switch result.Status {
+		case game.InviteInvalid:
+			return GroupHomeResponse{}, InviteInvalid, nil
+		case game.InviteUsed:
+			return GroupHomeResponse{}, InviteUsed, nil
+		case game.InviteExpired:
+			return GroupHomeResponse{}, InviteExpired, nil
+		case game.InviteMember:
+			return GroupHomeResponse{}, InviteMember, nil
+		default:
 			return GroupHomeResponse{}, InviteInvalid, nil
 		}
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	if usedBy.Valid {
-		return GroupHomeResponse{}, InviteUsed, nil
-	}
-	if time.Now().After(invite.ExpiresAt) {
-		return GroupHomeResponse{}, InviteExpired, nil
-	}
-	var existingRole string
-	if err := tx.QueryRowContext(ctx, `
-SELECT role
-FROM group_memberships
-WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&existingRole); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return GroupHomeResponse{}, InviteInvalid, err
-	} else if err == nil {
-		return GroupHomeResponse{}, InviteMember, nil
 	}
 
-	var group Group
-	if err := tx.QueryRowContext(ctx, `SELECT id, name FROM groups WHERE id = $1`, invite.GroupID).Scan(&group.ID, &group.Name); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return GroupHomeResponse{}, InviteInvalid, nil
-		}
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	if err := tx.QueryRowContext(ctx, `
-UPDATE invites
-SET used_by_player_id = $1
-WHERE token = $2 AND used_by_player_id IS NULL AND expires_at > now()
-RETURNING id`, player.ID, token).Scan(&invite.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return GroupHomeResponse{}, InviteInvalid, err
-		}
-		if status, err := s.inviteStatus(ctx, tx, token); err != nil || status != InviteInvalid {
-			return GroupHomeResponse{}, status, err
-		}
-		return GroupHomeResponse{}, InviteInvalid, nil
-	}
-	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO group_memberships (group_id, player_id, role)
-VALUES ($1, $2, $3)
-ON CONFLICT (group_id, player_id) DO NOTHING`, membership.GroupID, membership.PlayerID, membership.Role); err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	if err := tx.QueryRowContext(ctx, `
-SELECT role
-FROM group_memberships
-WHERE group_id = $1 AND player_id = $2`, invite.GroupID, player.ID).Scan(&membership.Role); err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	if err := tx.Commit(); err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	newlyFinalized, err := s.ensureSeasonStatusesForGroup(ctx, group.ID)
+	ghResult, _, err := s.GroupHome(ctx, player, result.Group.ID)
 	if err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-	for _, id := range newlyFinalized {
-		if err := game.AutoFinalizeSeason(ctx, s, id); err != nil {
-			return GroupHomeResponse{}, InviteInvalid, err
-		}
-	}
-	season, err := s.currentSeasonForGroup(ctx, group.ID)
-	if err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	recentStunts, err := recentPerformedStuntsForGroupQuery(ctx, s.db, invite.GroupID)
-	if err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	standings, err := game.Standings(ctx, s, group.ID)
-	if err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	return groupHome(group, membership, season, recentStunts, standingsFromGame(standings)), InviteAccepted, nil
+	return ghResult, InviteAccepted, nil
 }
 
 func (s *PostgresStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
@@ -600,6 +480,125 @@ WHERE player_id = $1 AND group_id = $2`, playerID, groupID).Scan(&role)
 		return game.MembershipSnapshot{}, false, err
 	}
 	return game.MembershipSnapshot{Role: role}, true, nil
+}
+
+// game.GroupRepository adapter methods for PostgresStore
+
+func (s *PostgresStore) InsertGroup(ctx context.Context, groupID, name string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO groups (id, name) VALUES ($1, $2)`, groupID, name)
+	return err
+}
+
+func (s *PostgresStore) InsertMembership(ctx context.Context, groupID, playerID, role string) error {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO group_memberships (group_id, player_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (group_id, player_id) DO UPDATE SET role = EXCLUDED.role`, groupID, playerID, role)
+	return err
+}
+
+func (s *PostgresStore) Group(ctx context.Context, groupID string) (game.GroupSnapshot, bool, error) {
+	var snap game.GroupSnapshot
+	err := s.db.QueryRowContext(ctx, `SELECT id, name FROM groups WHERE id = $1`, groupID).Scan(&snap.ID, &snap.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.GroupSnapshot{}, false, nil
+	}
+	if err != nil {
+		return game.GroupSnapshot{}, false, err
+	}
+	return snap, true, nil
+}
+
+func (s *PostgresStore) Membership(ctx context.Context, playerID, groupID string) (game.GroupMembershipSnapshot, bool, error) {
+	var snap game.GroupMembershipSnapshot
+	err := s.db.QueryRowContext(ctx, `
+SELECT group_id, player_id, role FROM group_memberships
+WHERE player_id = $1 AND group_id = $2`, playerID, groupID).Scan(&snap.GroupID, &snap.PlayerID, &snap.Role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.GroupMembershipSnapshot{}, false, nil
+	}
+	if err != nil {
+		return game.GroupMembershipSnapshot{}, false, err
+	}
+	return snap, true, nil
+}
+
+func (s *PostgresStore) MembershipsForPlayer(ctx context.Context, playerID string) ([]game.MembershipWithGroupSnapshot, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT groups.id, groups.name, group_memberships.group_id, group_memberships.player_id, group_memberships.role
+FROM group_memberships
+JOIN groups ON groups.id = group_memberships.group_id
+WHERE group_memberships.player_id = $1`, playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []game.MembershipWithGroupSnapshot
+	for rows.Next() {
+		var m game.MembershipWithGroupSnapshot
+		if err := rows.Scan(&m.Group.ID, &m.Group.Name, &m.Membership.GroupID, &m.Membership.PlayerID, &m.Membership.Role); err != nil {
+			return nil, err
+		}
+		result = append(result, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) InsertInvite(ctx context.Context, groupID, createdByPlayerID string, expiresAt int64) (game.InviteSnapshot, error) {
+	id, err := randomToken("invite")
+	if err != nil {
+		return game.InviteSnapshot{}, err
+	}
+	token, err := randomToken("invite_token")
+	if err != nil {
+		return game.InviteSnapshot{}, err
+	}
+	expiresAtTime := time.Unix(expiresAt, 0).UTC()
+	_, err = s.db.ExecContext(ctx, `
+INSERT INTO invites (id, group_id, token, created_by_player_id, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT DO NOTHING`, id, groupID, token, createdByPlayerID, expiresAtTime)
+	if err != nil {
+		return game.InviteSnapshot{}, err
+	}
+	return game.InviteSnapshot{
+		ID:        id,
+		GroupID:   groupID,
+		Token:     token,
+		CreatedBy: createdByPlayerID,
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
+func (s *PostgresStore) InviteByToken(ctx context.Context, token string) (game.InviteSnapshot, bool, error) {
+	var snap game.InviteSnapshot
+	var usedBy sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+SELECT id, group_id, token, created_by_player_id, used_by_player_id, EXTRACT(EPOCH FROM expires_at)::bigint
+FROM invites
+WHERE token = $1`, token).Scan(&snap.ID, &snap.GroupID, &snap.Token, &snap.CreatedBy, &usedBy, &snap.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.InviteSnapshot{}, false, nil
+	}
+	if err != nil {
+		return game.InviteSnapshot{}, false, err
+	}
+	if usedBy.Valid {
+		snap.UsedBy = &usedBy.String
+	}
+	return snap, true, nil
+}
+
+func (s *PostgresStore) MarkInviteUsed(ctx context.Context, token, playerID string) error {
+	_, err := s.db.ExecContext(ctx, `
+UPDATE invites
+SET used_by_player_id = $1
+WHERE token = $2 AND used_by_player_id IS NULL`, playerID, token)
+	return err
 }
 
 func (s *PostgresStore) UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, documentation int) (game.Judgment, bool, error) {
@@ -1392,27 +1391,6 @@ WHERE id = $1`, disputeID).Scan(
 		dispute.OverrideByPlayerID = &overrideByPlayerID.String
 	}
 	return dispute, nil
-}
-
-func (s *PostgresStore) inviteStatus(ctx context.Context, tx *sql.Tx, token string) (InviteAcceptStatus, error) {
-	var usedBy sql.NullString
-	var expiresAt time.Time
-	if err := tx.QueryRowContext(ctx, `
-SELECT used_by_player_id, expires_at
-FROM invites
-WHERE token = $1`, token).Scan(&usedBy, &expiresAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return InviteInvalid, nil
-		}
-		return InviteInvalid, err
-	}
-	if usedBy.Valid {
-		return InviteUsed, nil
-	}
-	if time.Now().After(expiresAt) {
-		return InviteExpired, nil
-	}
-	return InviteInvalid, nil
 }
 
 // game.SeasonRepository adapter methods for PostgresStore

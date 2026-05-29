@@ -344,32 +344,38 @@ func (s *MemoryStore) BootstrapIdentity(ctx context.Context, identity AuthIdenti
 
 func (s *MemoryStore) CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.groupNumber++
-	group := Group{ID: stableID("group", player.ID+":"+name+":"+strconv.Itoa(s.groupNumber)), Name: name}
-	membership := GroupMembership{GroupID: group.ID, PlayerID: player.ID, Role: "Group Admin"}
-	s.groups[group.ID] = group
-	if s.memberships[group.ID] == nil {
-		s.memberships[group.ID] = map[string]GroupMembership{}
+	groupID := stableID("group", player.ID+":"+name+":"+strconv.Itoa(s.groupNumber))
+	s.mu.Unlock()
+
+	result := game.CreateGroup(ctx, s, game.CreateGroupInput{
+		GroupID:         groupID,
+		GroupName:       name,
+		CreatorPlayerID: player.ID,
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, result.Err
 	}
-	s.memberships[group.ID][player.ID] = membership
-	return groupHome(group, membership, nil, []PerformedStuntView{}, []StandingEntry{}), nil
+	return groupHome(
+		Group{ID: result.Group.ID, Name: result.Group.Name},
+		GroupMembership{GroupID: result.Membership.GroupID, PlayerID: result.Membership.PlayerID, Role: result.Membership.Role},
+		nil, []PerformedStuntView{}, []StandingEntry{},
+	), nil
 }
 
 func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
-	s.mu.Lock()
+	ghResult := game.GroupHome(ctx, s, game.GroupHomeInput{
+		PlayerID: player.ID,
+		GroupID:  groupID,
+	})
+	if ghResult.Err != nil {
+		return GroupHomeResponse{}, false, ghResult.Err
+	}
+	if !ghResult.Allowed {
+		return GroupHomeResponse{}, false, nil
+	}
 
-	group, ok := s.groups[groupID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
-	membership, ok := s.memberships[groupID][player.ID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
+	s.mu.Lock()
 	newlyFinalized := s.ensureSeasonStatusesForGroup(groupID)
 	season := s.currentSeasonForGroup(groupID)
 	var seasonCopy Season
@@ -395,103 +401,82 @@ func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID stri
 	if season != nil {
 		seasonPtr = &seasonCopy
 	}
-	return groupHome(group, membership, seasonPtr, recentStunts, standingsFromGame(standings)), true, nil
+	return groupHome(
+		Group{ID: ghResult.Group.ID, Name: ghResult.Group.Name},
+		GroupMembership{GroupID: ghResult.Membership.GroupID, PlayerID: ghResult.Membership.PlayerID, Role: ghResult.Membership.Role},
+		seasonPtr, recentStunts, standingsFromGame(standings),
+	), true, nil
 }
 
 func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	memberships := []GroupMembershipSummary{}
-	for groupID, groupMemberships := range s.memberships {
-		membership, ok := groupMemberships[player.ID]
-		if !ok {
-			continue
-		}
-		memberships = append(memberships, GroupMembershipSummary{Group: s.groups[groupID], Membership: membership})
+	memberships, err := game.ListGroups(ctx, s, player.ID)
+	if err != nil {
+		return ListGroupsResponse{}, err
 	}
-	sort.Slice(memberships, func(i, j int) bool {
-		return memberships[i].Group.Name < memberships[j].Group.Name
+
+	result := make([]GroupMembershipSummary, len(memberships))
+	for i, m := range memberships {
+		result[i] = GroupMembershipSummary{
+			Group:      Group{ID: m.Group.ID, Name: m.Group.Name},
+			Membership: GroupMembership{GroupID: m.Membership.GroupID, PlayerID: m.Membership.PlayerID, Role: m.Membership.Role},
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Group.Name < result[j].Group.Name
 	})
-	return ListGroupsResponse{Memberships: memberships}, nil
+	return ListGroupsResponse{Memberships: result}, nil
 }
 
 func (s *MemoryStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.memberships[groupID][player.ID]; !ok {
+	result := game.CreateInvite(ctx, s, game.CreateInviteInput{
+		GroupID:  groupID,
+		PlayerID: player.ID,
+		Now:      s.now(),
+	})
+	if result.Err != nil {
+		return Invite{}, false, result.Err
+	}
+	if !result.Allowed {
 		return Invite{}, false, nil
 	}
-
-	s.inviteNumber++
-	token, err := randomToken("invite_token")
-	if err != nil {
-		return Invite{}, false, err
-	}
-	invite := Invite{
-		ID:        stableID("invite", groupID+":"+strconv.Itoa(s.inviteNumber)),
-		GroupID:   groupID,
-		Token:     token,
-		CreatedBy: player.ID,
-		ExpiresAt: s.now().Add(7 * 24 * time.Hour).UTC(),
-	}
-	s.invites[invite.Token] = memoryInvite{Invite: invite}
-	return invite, true, nil
+	return Invite{
+		ID:        result.Invite.ID,
+		GroupID:   result.Invite.GroupID,
+		Token:     result.Invite.Token,
+		CreatedBy: result.Invite.CreatedBy,
+		ExpiresAt: time.Unix(result.Invite.ExpiresAt, 0).UTC(),
+	}, true, nil
 }
 
 func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
-	s.mu.Lock()
-
-	invite, ok := s.invites[token]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, InviteInvalid, nil
+	result := game.AcceptInvite(ctx, s, game.AcceptInviteInput{
+		Token:    token,
+		PlayerID: player.ID,
+		Now:      s.now(),
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, InviteInvalid, result.Err
 	}
-	if invite.UsedBy != "" {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, InviteUsed, nil
-	}
-	if s.now().After(invite.ExpiresAt) {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, InviteExpired, nil
-	}
-	group, ok := s.groups[invite.GroupID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, InviteInvalid, nil
-	}
-	membership := GroupMembership{GroupID: invite.GroupID, PlayerID: player.ID, Role: "Player"}
-	if _, ok := s.memberships[invite.GroupID][player.ID]; ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, InviteMember, nil
-	}
-	s.memberships[invite.GroupID][player.ID] = membership
-	invite.UsedBy = player.ID
-	s.invites[token] = invite
-	newlyFinalized := s.ensureSeasonStatusesForGroup(invite.GroupID)
-	season := s.currentSeasonForGroup(invite.GroupID)
-	var seasonCopy Season
-	if season != nil {
-		seasonCopy = *season
-	}
-	recentStunts := s.recentPerformedStuntsForGroup(invite.GroupID)
-	s.mu.Unlock()
-
-	for _, id := range newlyFinalized {
-		game.AutoFinalizeSeason(ctx, s, id)
+	if result.Status != game.InviteAccepted {
+		switch result.Status {
+		case game.InviteInvalid:
+			return GroupHomeResponse{}, InviteInvalid, nil
+		case game.InviteUsed:
+			return GroupHomeResponse{}, InviteUsed, nil
+		case game.InviteExpired:
+			return GroupHomeResponse{}, InviteExpired, nil
+		case game.InviteMember:
+			return GroupHomeResponse{}, InviteMember, nil
+		default:
+			return GroupHomeResponse{}, InviteInvalid, nil
+		}
 	}
 
-	standings, err := game.Standings(ctx, s, invite.GroupID)
+	ghResult, _, err := s.GroupHome(ctx, player, result.Group.ID)
 	if err != nil {
 		return GroupHomeResponse{}, InviteInvalid, err
 	}
-
-	var seasonPtr *Season
-	if season != nil {
-		seasonPtr = &seasonCopy
-	}
-	return groupHome(group, membership, seasonPtr, recentStunts, standingsFromGame(standings)), InviteAccepted, nil
+	return ghResult, InviteAccepted, nil
 }
 
 func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
@@ -726,6 +711,129 @@ func (s *MemoryStore) GroupMembership(ctx context.Context, playerID, groupID str
 		return game.MembershipSnapshot{}, false, nil
 	}
 	return game.MembershipSnapshot{Role: m.Role}, true, nil
+}
+
+// game.GroupRepository adapter methods for MemoryStore
+
+func (s *MemoryStore) InsertGroup(ctx context.Context, groupID, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.groups[groupID] = Group{ID: groupID, Name: name}
+	if s.memberships[groupID] == nil {
+		s.memberships[groupID] = map[string]GroupMembership{}
+	}
+	return nil
+}
+
+func (s *MemoryStore) InsertMembership(_ context.Context, groupID, playerID, role string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.memberships[groupID] == nil {
+		s.memberships[groupID] = map[string]GroupMembership{}
+	}
+	s.memberships[groupID][playerID] = GroupMembership{GroupID: groupID, PlayerID: playerID, Role: role}
+	return nil
+}
+
+func (s *MemoryStore) Group(ctx context.Context, groupID string) (game.GroupSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	g, ok := s.groups[groupID]
+	if !ok {
+		return game.GroupSnapshot{}, false, nil
+	}
+	return game.GroupSnapshot{ID: g.ID, Name: g.Name}, true, nil
+}
+
+func (s *MemoryStore) Membership(ctx context.Context, playerID, groupID string) (game.GroupMembershipSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	m, ok := s.memberships[groupID][playerID]
+	if !ok {
+		return game.GroupMembershipSnapshot{}, false, nil
+	}
+	return game.GroupMembershipSnapshot{GroupID: m.GroupID, PlayerID: m.PlayerID, Role: m.Role}, true, nil
+}
+
+func (s *MemoryStore) MembershipsForPlayer(ctx context.Context, playerID string) ([]game.MembershipWithGroupSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var result []game.MembershipWithGroupSnapshot
+	for groupID, groupMemberships := range s.memberships {
+		m, ok := groupMemberships[playerID]
+		if !ok {
+			continue
+		}
+		g := s.groups[groupID]
+		result = append(result, game.MembershipWithGroupSnapshot{
+			Group:      game.GroupSnapshot{ID: g.ID, Name: g.Name},
+			Membership: game.GroupMembershipSnapshot{GroupID: m.GroupID, PlayerID: m.PlayerID, Role: m.Role},
+		})
+	}
+	return result, nil
+}
+
+func (s *MemoryStore) InsertInvite(ctx context.Context, groupID, createdByPlayerID string, expiresAt int64) (game.InviteSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.inviteNumber++
+	token, err := randomToken("invite_token")
+	if err != nil {
+		return game.InviteSnapshot{}, err
+	}
+	invite := Invite{
+		ID:        stableID("invite", groupID+":"+strconv.Itoa(s.inviteNumber)),
+		GroupID:   groupID,
+		Token:     token,
+		CreatedBy: createdByPlayerID,
+		ExpiresAt: time.Unix(expiresAt, 0).UTC(),
+	}
+	s.invites[invite.Token] = memoryInvite{Invite: invite}
+	return game.InviteSnapshot{
+		ID:        invite.ID,
+		GroupID:   invite.GroupID,
+		Token:     invite.Token,
+		CreatedBy: invite.CreatedBy,
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
+func (s *MemoryStore) InviteByToken(ctx context.Context, token string) (game.InviteSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	invite, ok := s.invites[token]
+	if !ok {
+		return game.InviteSnapshot{}, false, nil
+	}
+	var usedBy *string
+	if invite.UsedBy != "" {
+		usedBy = &invite.UsedBy
+	}
+	return game.InviteSnapshot{
+		ID:        invite.ID,
+		GroupID:   invite.GroupID,
+		Token:     invite.Token,
+		CreatedBy: invite.CreatedBy,
+		ExpiresAt: invite.ExpiresAt.Unix(),
+		UsedBy:    usedBy,
+	}, true, nil
+}
+
+func (s *MemoryStore) MarkInviteUsed(ctx context.Context, token, playerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	invite := s.invites[token]
+	invite.UsedBy = playerID
+	s.invites[token] = invite
+	return nil
 }
 
 func (s *MemoryStore) StuntByID(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
