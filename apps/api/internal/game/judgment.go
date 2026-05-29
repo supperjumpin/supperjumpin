@@ -34,6 +34,7 @@ type StuntSnapshot struct {
 	Source      string
 	Destination string
 	Food        string
+	FinalScore  *int
 }
 
 // SeasonSnapshot is a read-only view of a Season needed for game rules.
@@ -78,10 +79,10 @@ type JudgmentInput struct {
 
 // JudgmentResult is the outcome of a judgment submission.
 type JudgmentResult struct {
-	Judgment      Judgment
-	Allowed       bool
-	Created       bool
-	Err           error
+	Judgment Judgment
+	Allowed  bool
+	Created  bool
+	Err      error
 }
 
 // SubmitJudgment evaluates judgment rules.

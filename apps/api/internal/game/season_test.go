@@ -8,13 +8,17 @@ import (
 )
 
 type mockSeasonRepo struct {
-	groupMembershipFn  func(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
-	openSeasonForGroupFn func(ctx context.Context, groupID string) (SeasonSnapshot, error)
-	insertSeasonFn     func(ctx context.Context, groupID, commissionerPlayerID string, submissionDeadline, judgingDeadline time.Time) (SeasonSnapshot, error)
-	seasonFn           func(ctx context.Context, seasonID string) (SeasonSnapshot, error)
-	updateSeasonStatusFn func(ctx context.Context, seasonID, action, actorPlayerID, actorRole string, override bool, fromStatus, toStatus string) error
-	finalizeSeasonStuntsFn func(ctx context.Context, seasonID string) error
-	seasonHistoryEntriesFn func(ctx context.Context, seasonID string) ([]SeasonHistoryEntry, error)
+	groupMembershipFn         func(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
+	openSeasonForGroupFn      func(ctx context.Context, groupID string) (SeasonSnapshot, error)
+	insertSeasonFn            func(ctx context.Context, groupID, commissionerPlayerID string, submissionDeadline, judgingDeadline time.Time) (SeasonSnapshot, error)
+	seasonFn                  func(ctx context.Context, seasonID string) (SeasonSnapshot, error)
+	updateSeasonStatusFn      func(ctx context.Context, seasonID, action, actorPlayerID, actorRole string, override bool, fromStatus, toStatus string) error
+	seasonHistoryEntriesFn    func(ctx context.Context, seasonID string) ([]SeasonHistoryEntry, error)
+	stuntsForSeasonFn         func(ctx context.Context, seasonID string) ([]StuntSnapshot, error)
+	judgmentsForStuntFn       func(ctx context.Context, stuntID string) ([]Judgment, error)
+	updateStuntFinalizationFn func(ctx context.Context, stuntID string, status string, finalScore *int) error
+	latestSeasonForGroupFn    func(ctx context.Context, groupID string) (SeasonSnapshot, error)
+	groupPlayersFn            func(ctx context.Context, groupID string) ([]PlayerSnapshot, error)
 }
 
 func (m *mockSeasonRepo) GroupMembership(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
@@ -37,8 +41,24 @@ func (m *mockSeasonRepo) UpdateSeasonStatus(ctx context.Context, seasonID, actio
 	return m.updateSeasonStatusFn(ctx, seasonID, action, actorPlayerID, actorRole, override, fromStatus, toStatus)
 }
 
-func (m *mockSeasonRepo) FinalizeSeasonStunts(ctx context.Context, seasonID string) error {
-	return m.finalizeSeasonStuntsFn(ctx, seasonID)
+func (m *mockSeasonRepo) StuntsForSeason(ctx context.Context, seasonID string) ([]StuntSnapshot, error) {
+	return m.stuntsForSeasonFn(ctx, seasonID)
+}
+
+func (m *mockSeasonRepo) JudgmentsForStunt(ctx context.Context, stuntID string) ([]Judgment, error) {
+	return m.judgmentsForStuntFn(ctx, stuntID)
+}
+
+func (m *mockSeasonRepo) UpdateStuntFinalization(ctx context.Context, stuntID string, status string, finalScore *int) error {
+	return m.updateStuntFinalizationFn(ctx, stuntID, status, finalScore)
+}
+
+func (m *mockSeasonRepo) LatestSeasonForGroup(ctx context.Context, groupID string) (SeasonSnapshot, error) {
+	return m.latestSeasonForGroupFn(ctx, groupID)
+}
+
+func (m *mockSeasonRepo) GroupPlayers(ctx context.Context, groupID string) ([]PlayerSnapshot, error) {
+	return m.groupPlayersFn(ctx, groupID)
 }
 
 func (m *mockSeasonRepo) SeasonHistoryEntries(ctx context.Context, seasonID string) ([]SeasonHistoryEntry, error) {
@@ -296,7 +316,7 @@ func TestCloseSeasonSubmissions_ReturnsErrorForUnknownSeason(t *testing.T) {
 
 func TestFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
 	var updatedSeasonID string
-	var finalizedStuntsCalled bool
+	var stuntsQueried bool
 
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
@@ -314,8 +334,14 @@ func TestFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
 			updatedSeasonID = seasonID
 			return nil
 		},
-		finalizeSeasonStuntsFn: func(_ context.Context, seasonID string) error {
-			finalizedStuntsCalled = true
+		stuntsForSeasonFn: func(_ context.Context, seasonID string) ([]StuntSnapshot, error) {
+			stuntsQueried = true
+			return nil, nil
+		},
+		judgmentsForStuntFn: func(_ context.Context, stuntID string) ([]Judgment, error) {
+			return nil, nil
+		},
+		updateStuntFinalizationFn: func(_ context.Context, stuntID string, status string, finalScore *int) error {
 			return nil
 		},
 	}
@@ -337,8 +363,8 @@ func TestFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
 	if updatedSeasonID != "season_1" {
 		t.Fatalf("expected season_1, got %q", updatedSeasonID)
 	}
-	if !finalizedStuntsCalled {
-		t.Fatalf("expected FinalizeSeasonStunts to be called")
+	if !stuntsQueried {
+		t.Fatalf("expected stunts to be queried for finalization")
 	}
 }
 
@@ -358,7 +384,13 @@ func TestFinalizeSeason_CommissionerCanFinalizeFromAnyStatus(t *testing.T) {
 		updateSeasonStatusFn: func(_ context.Context, seasonID, action, actorPlayerID, actorRole string, override bool, fromStatus, toStatus string) error {
 			return nil
 		},
-		finalizeSeasonStuntsFn: func(_ context.Context, seasonID string) error {
+		stuntsForSeasonFn: func(_ context.Context, seasonID string) ([]StuntSnapshot, error) {
+			return nil, nil
+		},
+		judgmentsForStuntFn: func(_ context.Context, stuntID string) ([]Judgment, error) {
+			return nil, nil
+		},
+		updateStuntFinalizationFn: func(_ context.Context, stuntID string, status string, finalScore *int) error {
 			return nil
 		},
 	}
@@ -398,7 +430,13 @@ func TestFinalizeSeason_GroupAdminCanFinalizeWithOverride(t *testing.T) {
 			updatedOverride = override
 			return nil
 		},
-		finalizeSeasonStuntsFn: func(_ context.Context, seasonID string) error {
+		stuntsForSeasonFn: func(_ context.Context, seasonID string) ([]StuntSnapshot, error) {
+			return nil, nil
+		},
+		judgmentsForStuntFn: func(_ context.Context, stuntID string) ([]Judgment, error) {
+			return nil, nil
+		},
+		updateStuntFinalizationFn: func(_ context.Context, stuntID string, status string, finalScore *int) error {
 			return nil
 		},
 	}
