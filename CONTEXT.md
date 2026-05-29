@@ -33,7 +33,7 @@ A **Jump** with submitted **Evidence** claiming that the performance happened.
 _Avoid_: Completed jump
 
 **Judged Jump**:
-A **Performed Jump** that has received scores from its **Group**.
+A **Performed Jump** that has received at least one **Judgment**.
 _Avoid_: Rated jump, scored jump
 
 **Off-Season Jump**:
@@ -41,11 +41,11 @@ A **Jump** that belongs to a **Group** but does not contribute to **Season** **S
 _Avoid_: Casual jump
 
 **Judge**:
-A **Player** who scores another **Player's** **Performed Jump** within a **Group**. The performer of a **Jump** is not a **Judge** for that **Jump**.
+A **Player** who scores another **Player's** **Performed Jump**. Any authenticated **Player** may Judge a **Jump** they did not perform; **Group** membership is not required. The performer of a **Jump** is not a **Judge** for that **Jump**.
 _Avoid_: Voter, reviewer, rater
 
 **Judging Window**:
-The period when a **Performed Jump** can receive **Judgments** from eligible **Judges**.
+The period when a **Performed Jump** can receive **Judgments**. On the public feed, the **Judging Window** is open-ended. Within a **Season**, the **Judging Window** closes with the **Judging Grace Period**.
 _Avoid_: Voting period, review window
 
 **Judgment**:
@@ -196,12 +196,10 @@ _Avoid_: Truth, proof
 
 **Player A**: I have an Idea: Taco Bell in the Olive Garden parking lot.
 
-**Player B**: That sounds like an Off-Season Jump unless we start a Season first.
+**Player A**: I performed it — Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump and the Judging Window is open.
 
-**Player A**: I'll start a Season, so I become the Season Commissioner. Then I'll make it a Planned Jump with Taco Bell as the Source, Olive Garden as the Destination, and a Crunchwrap as the Food.
+**Player B**: I'll Judge it on Difficulty, Transgression, Creativity, and Documentation. I don't need to be in a Group to Judge — any Player can. If the Evidence looks staged, I may lower Credibility or raise a Dispute.
 
-**Player C**: Submit photo Evidence and a Caption when you perform it. Once it is a Performed Jump, the Judging Window starts.
+**Player A**: Later, I joined a Group with an Active Season and submitted the same Jump to the Season. Now it also contributes to Standings.
 
-**Player B**: I'll Judge it on Difficulty, Transgression, Creativity, and Documentation. If the Evidence looks staged, I may lower Credibility or raise a Dispute.
-
-**Season Commissioner**: If the Dispute holds, I can mark it as a Disqualified Jump so it stays visible but does not affect Standings.
+**Season Commissioner**: If the Dispute holds, I can mark it as a Disqualified Jump so it stays visible but does not affect Season Standings.
