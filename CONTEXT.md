@@ -4,76 +4,76 @@ Supperjumpin is a social game about inventing and performing absurd food-locatio
 
 ## Language
 
-**Stunt**:
-A playable Supperjumpin attempt centered on taking food associated with one place and consuming or presenting it in another place. A **Stunt** may be planned, performed, documented, and socially judged.
-_Avoid_: Jump, challenge, mission, post
+**Jump**:
+A playable Supperjumpin attempt centered on taking food associated with one place and consuming or presenting it in another place. A **Jump** may be planned, performed, documented, and socially judged.
+_Avoid_: Stunt, challenge, mission, post
 
 **Source**:
-The place, brand, cuisine, event, or context the food in a **Stunt** is associated with.
+The place, brand, cuisine, event, or context the food in a **Jump** is associated with.
 _Avoid_: Restaurant A, origin
 
 **Destination**:
-The place, brand, venue, or context where the food in a **Stunt** is consumed, displayed, or documented.
+The place, brand, venue, or context where the food in a **Jump** is consumed, displayed, or documented.
 _Avoid_: Restaurant B, target
 
 **Food**:
-The item or items carried from a **Source** into a **Destination** as part of a **Stunt**.
+The item or items carried from a **Source** into a **Destination** as part of a **Jump**.
 _Avoid_: Meal, order
 
 **Idea**:
-A not-yet-committed **Stunt** concept that may be discussed or refined before a **Player** decides to perform it.
+A not-yet-committed **Jump** concept that may be discussed or refined before a **Player** decides to perform it.
 _Avoid_: Draft, prompt
 
-**Planned Stunt**:
-A **Stunt** a **Player** intends to perform and has made visible to a **Group** before submitting **Evidence**.
+**Planned Jump**:
+A **Jump** a **Player** intends to perform and has made visible to a **Group** before submitting **Evidence**.
 _Avoid_: Challenge, assignment
 
-**Performed Stunt**:
-A **Stunt** with submitted **Evidence** claiming that the performance happened.
-_Avoid_: Completed stunt
+**Performed Jump**:
+A **Jump** with submitted **Evidence** claiming that the performance happened.
+_Avoid_: Completed jump
 
-**Judged Stunt**:
-A **Performed Stunt** that has received scores from its **Group**.
-_Avoid_: Rated stunt, scored stunt
+**Judged Jump**:
+A **Performed Jump** that has received scores from its **Group**.
+_Avoid_: Rated jump, scored jump
 
-**Off-Season Stunt**:
-A **Stunt** that belongs to a **Group** but does not contribute to **Season** **Standings**.
-_Avoid_: Casual stunt
+**Off-Season Jump**:
+A **Jump** that belongs to a **Group** but does not contribute to **Season** **Standings**.
+_Avoid_: Casual jump
 
 **Judge**:
-A **Player** who scores another **Player's** **Performed Stunt** within a **Group**. The performer of a **Stunt** is not a **Judge** for that **Stunt**.
+A **Player** who scores another **Player's** **Performed Jump** within a **Group**. The performer of a **Jump** is not a **Judge** for that **Jump**.
 _Avoid_: Voter, reviewer, rater
 
 **Judging Window**:
-The period when a **Performed Stunt** can receive **Judgments** from eligible **Judges**.
+The period when a **Performed Jump** can receive **Judgments** from eligible **Judges**.
 _Avoid_: Voting period, review window
 
 **Judgment**:
-A **Judge's** submitted scores for a **Performed Stunt**.
+A **Judge's** submitted scores for a **Performed Jump**.
 _Avoid_: Vote, review, rating
 
 **Final Score**:
-The aggregate score for a **Judged Stunt** after its **Judging Window** closes, used to update **Standings**.
+The aggregate score for a **Judged Jump** after its **Judging Window** closes, used to update **Standings**.
 _Avoid_: Total score
 
 **Season Score**:
-The accumulated score a **Player** earns in a **Season** from non-disqualified **Judged Stunts**.
+The accumulated score a **Player** earns in a **Season** from non-disqualified **Judged Jumps**.
 _Avoid_: Points, rating
 
 **Mission**:
-A non-competitive prompt or objective a **Player** can complete for progression or rewards outside **Season Score**. **Missions** may teach the game, encourage participation, or suggest themed **Stunts** without affecting **Standings**.
+A non-competitive prompt or objective a **Player** can complete for progression or rewards outside **Season Score**. **Missions** may teach the game, encourage participation, or suggest themed **Jumps** without affecting **Standings**.
 _Avoid_: Quest, achievement, task
 
 **Action Mission**:
-A **Mission** completed through app behavior rather than performing a **Stunt**.
+A **Mission** completed through app behavior rather than performing a **Jump**.
 _Avoid_: Task
 
-**Stunt Mission**:
-A **Mission** completed by performing a **Stunt** with **Evidence**.
-_Avoid_: Solo stunt
+**Jump Mission**:
+A **Mission** completed by performing a **Jump** with **Evidence**.
+_Avoid_: Solo jump
 
 **Prompt**:
-A reusable **Stunt** idea, theme, or constraint that can inspire **Ideas**, **Missions**, or **Bounties**.
+A reusable **Jump** idea, theme, or constraint that can inspire **Ideas**, **Missions**, or **Bounties**.
 _Avoid_: Template, card, challenge
 
 **Bounty**:
@@ -84,24 +84,24 @@ _Avoid_: Prize challenge
 A **Bounty** funded or promoted by an external sponsor, such as a restaurant or brand. **Sponsored Bounties** do not affect **Season Score** by default.
 _Avoid_: Ad, promotion
 
-**Unjudged Stunt**:
-A **Performed Stunt** whose **Judging Window** closed without any submitted **Judgments**, so it does not affect **Standings**.
-_Avoid_: Unrated stunt
+**Unjudged Jump**:
+A **Performed Jump** whose **Judging Window** closed without any submitted **Judgments**, so it does not affect **Standings**.
+_Avoid_: Unrated jump
 
 **Dispute**:
-A **Player-raised** challenge that a **Performed Stunt** may not satisfy **House Rules**, **Credibility**, or claimed **Source**, **Destination**, or **Food**.
+A **Player-raised** challenge that a **Performed Jump** may not satisfy **House Rules**, **Credibility**, or claimed **Source**, **Destination**, or **Food**.
 _Avoid_: Report, flag, appeal
 
-**Disqualified Stunt**:
-A **Performed Stunt** removed from **Standings** by a **Season Commissioner** or **Group Admin** because it failed **House Rules** or another competition requirement.
-_Avoid_: Deleted stunt, rejected stunt
+**Disqualified Jump**:
+A **Performed Jump** removed from **Standings** by a **Season Commissioner** or **Group Admin** because it failed **House Rules** or another competition requirement.
+_Avoid_: Deleted jump, rejected jump
 
-**Removed Stunt**:
-A **Stunt** hidden from normal Group visibility because of a serious safety, privacy, legal, or platform violation. **Removed Stunts** are distinct from **Disqualified Stunts**, which may remain visible while not affecting **Standings**.
-_Avoid_: Deleted stunt
+**Removed Jump**:
+A **Jump** hidden from normal Group visibility because of a serious safety, privacy, legal, or platform violation. **Removed Jumps** are distinct from **Disqualified Jumps**, which may remain visible while not affecting **Standings**.
+_Avoid_: Deleted jump
 
 **Player**:
-A person who participates in Supperjumpin by planning, performing, viewing, or judging **Stunts**.
+A person who participates in Supperjumpin by planning, performing, viewing, or judging **Jumps**.
 _Avoid_: User, member, athlete
 
 **Level**:
@@ -113,7 +113,7 @@ The login identity that owns a **Player**. **Account** identity is separate from
 _Avoid_: User
 
 **Group**:
-A bounded set of **Players** who share, judge, and compare **Stunts** with each other. Supperjumpin play is primarily scoped to **Groups**, not a global feed.
+An optional bounded set of **Players** who compete together within a **Season**. **Jumps** exist on a public feed independently of **Groups**; a **Group** is the context for **Seasons**, **Standings**, and **Awards**.
 _Avoid_: League, community, club
 
 **Group Membership**:
@@ -129,7 +129,7 @@ A way for a **Player** to bring another person into a **Group**.
 _Avoid_: Invitation link, referral
 
 **Season**:
-A bounded competition period within a **Group** where **Judged Stunts** contribute to standings and awards. A **Group** has at most one active or closing **Season** at a time.
+A bounded competition period within a **Group** where **Judged Jumps** contribute to standings and awards. A **Group** has at most one active or closing **Season** at a time.
 _Avoid_: Campaign, tournament
 
 **Season Commissioner**:
@@ -137,15 +137,15 @@ The **Player** who starts a **Season** and holds season-scoped authority similar
 _Avoid_: Season owner, league manager, commissioner
 
 **Active Season**:
-The current **Season** in a **Group** where **Players** may submit **Stunts** for competition.
+The current **Season** in a **Group** where **Players** may submit **Jumps** for competition.
 _Avoid_: Current season
 
 **Submission Window**:
-The phase of an **Active Season** when **Players** may submit **Stunts** for competition.
+The phase of an **Active Season** when **Players** may submit **Jumps** for competition.
 _Avoid_: Season window
 
 **Judging Grace Period**:
-The phase after a **Season's** **Submission Window** closes when no new competition **Stunts** may be submitted, but existing **Performed Stunts** may still receive **Judgments**.
+The phase after a **Season's** **Submission Window** closes when no new competition **Jumps** may be submitted, but existing **Performed Jumps** may still receive **Judgments**.
 _Avoid_: Overtime, judging window extension
 
 **Finalized Season**:
@@ -161,47 +161,47 @@ An end-of-**Season** recognition for a notable pattern or achievement, which may
 _Avoid_: Badge, achievement
 
 **House Rules**:
-The boundaries that define what behavior can count as valid Supperjumpin play. A **Stunt** may be awkward, absurd, or transgressive, but must not require harassment, harmful deception, trespass, unsafe behavior, illegal acts, filming identifiable non-consenting bystanders, or disrupting a business.
+The boundaries that define what behavior can count as valid Supperjumpin play. A **Jump** may be awkward, absurd, or transgressive, but must not require harassment, harmful deception, trespass, unsafe behavior, illegal acts, filming identifiable non-consenting bystanders, or disrupting a business.
 _Avoid_: Safety policy, moderation policy
 
 **Evidence**:
-Material submitted to support that a **Stunt** happened as claimed, such as photos, video, location, receipts, captions, or witnesses. **Evidence** may inform social judgment or later structured scoring.
+Material submitted to support that a **Jump** happened as claimed, such as photos, video, location, receipts, captions, or witnesses. **Evidence** may inform social judgment or later structured scoring.
 _Avoid_: Proof, verification
 
 **Caption**:
-A **Player's** written context for **Evidence**, explaining what happened and why the **Stunt** should count.
+A **Player's** written context for **Evidence**, explaining what happened and why the **Jump** should count.
 _Avoid_: Description, note
 
 **Difficulty**:
-A scoring factor for how logistically hard or socially awkward a **Stunt** is to perform.
+A scoring factor for how logistically hard or socially awkward a **Jump** is to perform.
 _Avoid_: Hardness
 
 **Transgression**:
-A scoring factor for how strongly a **Stunt** violates an expected food or place boundary without becoming harassment, trespass, or harm.
+A scoring factor for how strongly a **Jump** violates an expected food or place boundary without becoming harassment, trespass, or harm.
 _Avoid_: Rule-breaking, illegality
 
 **Creativity**:
-A scoring factor for how novel, thematic, poetic, or absurdly elegant a **Stunt** is.
+A scoring factor for how novel, thematic, poetic, or absurdly elegant a **Jump** is.
 _Avoid_: Originality
 
 **Documentation**:
-A scoring factor for how compellingly the **Evidence** captures the **Stunt** as a performance.
+A scoring factor for how compellingly the **Evidence** captures the **Jump** as a performance.
 _Avoid_: Media quality
 
 **Credibility**:
-How well **Evidence** supports that a **Stunt** happened as claimed. **Credibility** is distinct from **Documentation**: a **Stunt** may be compellingly documented without being fully believable.
+How well **Evidence** supports that a **Jump** happened as claimed. **Credibility** is distinct from **Documentation**: a **Jump** may be compellingly documented without being fully believable.
 _Avoid_: Truth, proof
 
 ## Example Dialogue
 
 **Player A**: I have an Idea: Taco Bell in the Olive Garden parking lot.
 
-**Player B**: That sounds like an Off-Season Stunt unless we start a Season first.
+**Player B**: That sounds like an Off-Season Jump unless we start a Season first.
 
-**Player A**: I'll start a Season, so I become the Season Commissioner. Then I'll make it a Planned Stunt with Taco Bell as the Source, Olive Garden as the Destination, and a Crunchwrap as the Food.
+**Player A**: I'll start a Season, so I become the Season Commissioner. Then I'll make it a Planned Jump with Taco Bell as the Source, Olive Garden as the Destination, and a Crunchwrap as the Food.
 
-**Player C**: Submit photo Evidence and a Caption when you perform it. Once it is a Performed Stunt, the Judging Window starts.
+**Player C**: Submit photo Evidence and a Caption when you perform it. Once it is a Performed Jump, the Judging Window starts.
 
 **Player B**: I'll Judge it on Difficulty, Transgression, Creativity, and Documentation. If the Evidence looks staged, I may lower Credibility or raise a Dispute.
 
-**Season Commissioner**: If the Dispute holds, I can mark it as a Disqualified Stunt so it stays visible but does not affect Standings.
+**Season Commissioner**: If the Dispute holds, I can mark it as a Disqualified Jump so it stays visible but does not affect Standings.
