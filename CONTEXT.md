@@ -84,9 +84,9 @@ _Avoid_: Prize challenge
 A **Bounty** funded or promoted by an external sponsor, such as a restaurant or brand. **Sponsored Bounties** do not affect **Season Score** by default.
 _Avoid_: Ad, promotion
 
-**Unjudged Jump**:
+**Unwitnessed Jump**:
 A **Performed Jump** whose **Judging Window** closed without any submitted **Judgments**, so it does not affect **Standings**.
-_Avoid_: Unrated jump
+_Avoid_: Unjudged jump, unrated jump
 
 **Dispute**:
 A **Player-raised** challenge that a **Performed Jump** may not satisfy **House Rules**, **Credibility**, or claimed **Source**, **Destination**, or **Food**.
@@ -157,8 +157,12 @@ A ranked view of **Players** within a **Group** for a **Season**.
 _Avoid_: Leaderboard
 
 **Award**:
-An end-of-**Season** recognition for a notable pattern or achievement, which may be based on total score or a specific scoring factor.
+An end-of-**Season** recognition for a notable pattern or achievement, which may be based on total score, a specific scoring factor, or a pattern of play that the scoring model cannot capture.
 _Avoid_: Badge, achievement
+
+**Unwitnessed Performance**:
+An **Award** given at **Season** close to a **Player** whose **Season**-linked **Jump** closed as an **Unwitnessed Jump**. Recognizes commitment without an audience. Does not affect **Season Score** or **Standings**.
+_Avoid_: Consolation prize
 
 **House Rules**:
 The boundaries that define what behavior can count as valid Supperjumpin play. A **Jump** may be awkward, absurd, or transgressive, but must not require harassment, harmful deception, trespass, unsafe behavior, illegal acts, filming identifiable non-consenting bystanders, or disrupting a business.
@@ -172,9 +176,9 @@ _Avoid_: Proof, verification
 A **Player's** written context for **Evidence**, explaining what happened and why the **Jump** should count.
 _Avoid_: Description, note
 
-**Difficulty**:
-A scoring factor for how logistically hard or socially awkward a **Jump** is to perform.
-_Avoid_: Hardness
+**Commitment**:
+A scoring factor for how completely the performer sold the bit with a straight face — deadpan execution, institutional seriousness applied to an absurd act.
+_Avoid_: Dedication, effort
 
 **Transgression**:
 A scoring factor for how strongly a **Jump** violates an expected food or place boundary without becoming harassment, trespass, or harm.
