@@ -237,25 +237,357 @@ const (
 	InviteMember   InviteAcceptStatus = "member"
 )
 
+// Store handles identity persistence.
 type Store interface {
 	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
-	CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error)
-	GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error)
-	ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error)
-	CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error)
-	AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error)
-	StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error)
-	CloseSeasonSubmissions(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error)
-	FinalizeSeason(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error)
-	SeasonHistory(ctx context.Context, player Player, seasonID string) (SeasonHistoryResponse, bool, error)
-	CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error)
-	CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error)
-	AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error)
-	SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error)
-	SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error)
-	CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error)
-	ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error)
 }
+
+// Persistence combines game repository interfaces with transport-layer DTO
+// assembly queries. Both MemoryStore and PostgresStore implement this interface.
+type Persistence interface {
+	game.GroupRepository
+	game.StuntPlanningRepository
+	game.EvidenceRepository
+	game.JudgmentRepository
+	game.SeasonRepository
+	game.DisputeRepository
+
+	GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error)
+	GroupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error)
+	Now() time.Time
+}
+
+// --- Transport-layer DTO helpers (game-command → DTO conversion) ---
+
+func createGroup(ctx context.Context, db Persistence, player Player, name string) (GroupHomeResponse, error) {
+	groupID := stableID("group", player.ID+":"+name+":"+strconv.FormatInt(time.Now().UnixNano(), 10))
+
+	result := game.CreateGroup(ctx, db, game.CreateGroupInput{
+		GroupID:         groupID,
+		GroupName:       name,
+		CreatorPlayerID: player.ID,
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, result.Err
+	}
+	return groupHome(
+		Group{ID: result.Group.ID, Name: result.Group.Name},
+		GroupMembership{GroupID: result.Membership.GroupID, PlayerID: result.Membership.PlayerID, Role: result.Membership.Role},
+		nil, []PerformedStuntView{}, []StandingEntry{},
+	), nil
+}
+
+func groupHomeHandler(ctx context.Context, db Persistence, player Player, groupID string) (GroupHomeResponse, bool, error) {
+	ghResult := game.GroupHome(ctx, db, game.GroupHomeInput{
+		PlayerID: player.ID,
+		GroupID:  groupID,
+	})
+	if ghResult.Err != nil {
+		return GroupHomeResponse{}, false, ghResult.Err
+	}
+	if !ghResult.Allowed {
+		return GroupHomeResponse{}, false, nil
+	}
+
+	return db.GroupHomeForGroup(ctx, groupID, player)
+}
+
+func listGroups(ctx context.Context, db Persistence, player Player) (ListGroupsResponse, error) {
+	memberships, err := game.ListGroups(ctx, db, player.ID)
+	if err != nil {
+		return ListGroupsResponse{}, err
+	}
+
+	result := make([]GroupMembershipSummary, len(memberships))
+	for i, m := range memberships {
+		result[i] = GroupMembershipSummary{
+			Group:      Group{ID: m.Group.ID, Name: m.Group.Name},
+			Membership: GroupMembership{GroupID: m.Membership.GroupID, PlayerID: m.Membership.PlayerID, Role: m.Membership.Role},
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Group.Name < result[j].Group.Name
+	})
+	return ListGroupsResponse{Memberships: result}, nil
+}
+
+func createInvite(ctx context.Context, db Persistence, player Player, groupID string) (Invite, bool, error) {
+	result := game.CreateInvite(ctx, db, game.CreateInviteInput{
+		GroupID:  groupID,
+		PlayerID: player.ID,
+		Now:      db.Now(),
+	})
+	if result.Err != nil {
+		return Invite{}, false, result.Err
+	}
+	if !result.Allowed {
+		return Invite{}, false, nil
+	}
+	return Invite{
+		ID:        result.Invite.ID,
+		GroupID:   result.Invite.GroupID,
+		Token:     result.Invite.Token,
+		CreatedBy: result.Invite.CreatedBy,
+		ExpiresAt: time.Unix(result.Invite.ExpiresAt, 0).UTC(),
+	}, true, nil
+}
+
+func acceptInvite(ctx context.Context, db Persistence, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
+	result := game.AcceptInvite(ctx, db, game.AcceptInviteInput{
+		Token:    token,
+		PlayerID: player.ID,
+		Now:      db.Now(),
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, InviteInvalid, result.Err
+	}
+	if result.Status != game.InviteAccepted {
+		switch result.Status {
+		case game.InviteInvalid:
+			return GroupHomeResponse{}, InviteInvalid, nil
+		case game.InviteUsed:
+			return GroupHomeResponse{}, InviteUsed, nil
+		case game.InviteExpired:
+			return GroupHomeResponse{}, InviteExpired, nil
+		case game.InviteMember:
+			return GroupHomeResponse{}, InviteMember, nil
+		default:
+			return GroupHomeResponse{}, InviteInvalid, nil
+		}
+	}
+
+	ghResult, _, err := db.GroupHomeForGroup(ctx, result.Group.ID, player)
+	if err != nil {
+		return GroupHomeResponse{}, InviteInvalid, err
+	}
+	return ghResult, InviteAccepted, nil
+}
+
+func startSeason(ctx context.Context, db Persistence, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
+	result := game.StartSeason(ctx, db, game.StartSeasonInput{
+		GroupID:            groupID,
+		PlayerID:           player.ID,
+		SubmissionDeadline: submissionDeadline,
+		JudgingDeadline:    judgingDeadline,
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, true, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return GroupHomeResponse{}, false, nil
+	}
+	return db.GroupHomeForGroup(ctx, groupID, player)
+}
+
+func closeSeasonSubmissions(ctx context.Context, db Persistence, player Player, seasonID string) (GroupHomeResponse, bool, error) {
+	result := game.CloseSeasonSubmissions(ctx, db, game.CloseSeasonSubmissionsInput{
+		SeasonID: seasonID,
+		PlayerID: player.ID,
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return GroupHomeResponse{}, false, nil
+	}
+	return db.GroupHomeForSeason(ctx, seasonID, player)
+}
+
+func finalizeSeason(ctx context.Context, db Persistence, player Player, seasonID string) (GroupHomeResponse, bool, error) {
+	result := game.FinalizeSeason(ctx, db, game.FinalizeSeasonInput{
+		SeasonID: seasonID,
+		PlayerID: player.ID,
+	})
+	if result.Err != nil {
+		return GroupHomeResponse{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return GroupHomeResponse{}, false, nil
+	}
+	return db.GroupHomeForSeason(ctx, seasonID, player)
+}
+
+func seasonHistory(ctx context.Context, db Persistence, player Player, seasonID string) (SeasonHistoryResponse, bool, error) {
+	result := game.SeasonHistory(ctx, db, game.SeasonHistoryInput{
+		SeasonID: seasonID,
+		PlayerID: player.ID,
+	})
+	if result.Err != nil {
+		return SeasonHistoryResponse{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return SeasonHistoryResponse{}, false, nil
+	}
+	entries := make([]SeasonHistoryEntry, len(result.Entries))
+	for i, e := range result.Entries {
+		entries[i] = SeasonHistoryEntry{
+			ID:            e.ID,
+			SeasonID:      e.SeasonID,
+			Action:        e.Action,
+			ActorPlayerID: e.ActorPlayerID,
+			ActorRole:     e.ActorRole,
+			Override:      e.Override,
+			FromStatus:    e.FromStatus,
+			ToStatus:      e.ToStatus,
+		}
+	}
+	return SeasonHistoryResponse{Entries: entries}, true, nil
+}
+
+func createIdea(ctx context.Context, db Persistence, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
+	result := game.CreateIdea(ctx, db, game.CreateIdeaInput{
+		GroupID:     groupID,
+		PlayerID:    player.ID,
+		Source:      source,
+		Destination: destination,
+		Food:        food,
+	})
+	if result.Err != nil {
+		return Stunt{}, false, result.Err
+	}
+	if !result.Allowed {
+		return Stunt{}, false, nil
+	}
+	return stuntFromGame(result.Stunt), true, nil
+}
+
+func createPlannedStunt(ctx context.Context, db Persistence, player Player, ideaID string, offSeason bool) (Stunt, bool, error) {
+	result := game.CreatePlannedStunt(ctx, db, game.CreatePlannedStuntInput{
+		IdeaID:    ideaID,
+		PlayerID:  player.ID,
+		OffSeason: offSeason,
+	})
+	if result.Err != nil {
+		return Stunt{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return Stunt{}, false, nil
+	}
+	return stuntFromGame(result.Stunt), true, nil
+}
+
+func authorizeEvidenceUpload(ctx context.Context, db Persistence, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
+	result := game.AuthorizeEvidenceUpload(ctx, db, game.AuthorizeEvidenceUploadInput{
+		StuntID:     stuntID,
+		PlayerID:    player.ID,
+		ContentType: contentType,
+	})
+	if result.Err != nil {
+		return EvidenceUploadAuthorization{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return EvidenceUploadAuthorization{}, false, nil
+	}
+	return EvidenceUploadAuthorization{
+		ID:             result.Authorization.ID,
+		StuntID:        result.Authorization.StuntID,
+		UploadURL:      "https://storage.supperjumpin.test/uploads/" + result.Authorization.MediaObjectKey,
+		UploadMethod:   httpMethodPut,
+		UploadHeaders:  map[string]string{"Content-Type": contentType},
+		MediaObjectKey: result.Authorization.MediaObjectKey,
+		ExpiresAt:      result.Authorization.ExpiresAt,
+	}, true, nil
+}
+
+func submitEvidence(ctx context.Context, db Persistence, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
+	result := game.SubmitEvidence(ctx, db, game.SubmitEvidenceInput{
+		StuntID:               stuntID,
+		PlayerID:              player.ID,
+		UploadAuthorizationID: uploadAuthorizationID,
+		Caption:               caption,
+	}, db.Now())
+	if result.Err != nil {
+		return EvidenceSubmission{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return EvidenceSubmission{}, false, nil
+	}
+	return EvidenceSubmission{
+		Stunt: Stunt{
+			ID:          result.Stunt.ID,
+			GroupID:     result.Stunt.GroupID,
+			PlayerID:    result.Stunt.PlayerID,
+			SeasonID:    result.Stunt.SeasonID,
+			Status:      result.Stunt.Status,
+			Source:      result.Stunt.Source,
+			Destination: result.Stunt.Destination,
+			Food:        result.Stunt.Food,
+			OffSeason:   result.Stunt.SeasonID == nil,
+		},
+		Evidence: Evidence{
+			ID:             result.Evidence.ID,
+			StuntID:        result.Evidence.StuntID,
+			Caption:        result.Evidence.Caption,
+			MediaObjectKey: result.Evidence.MediaObjectKey,
+			CreatedAt:      result.Evidence.CreatedAt,
+		},
+	}, true, nil
+}
+
+func submitJudgment(ctx context.Context, db Persistence, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
+	result := game.SubmitJudgment(ctx, db, game.JudgmentInput{
+		StuntID:       stuntID,
+		JudgePlayerID: player.ID,
+		Difficulty:    difficulty,
+		Transgression: transgression,
+		Creativity:    creativity,
+		Documentation: documentation,
+	}, db.Now())
+	if result.Err != nil {
+		return Judgment{}, false, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return Judgment{}, false, false, nil
+	}
+	return Judgment{
+		ID:            result.Judgment.ID,
+		StuntID:       result.Judgment.StuntID,
+		PlayerID:      result.Judgment.PlayerID,
+		Difficulty:    result.Judgment.Difficulty,
+		Transgression: result.Judgment.Transgression,
+		Creativity:    result.Judgment.Creativity,
+		Documentation: result.Judgment.Documentation,
+	}, true, result.Created, nil
+}
+
+func createDispute(ctx context.Context, db Persistence, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
+	result := game.CreateDispute(ctx, db, game.CreateDisputeInput{
+		PlayerID: player.ID,
+		StuntID:  stuntID,
+		Concern:  concern,
+		Details:  details,
+	})
+	if result.Err != nil {
+		return Dispute{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return Dispute{}, false, nil
+	}
+	dispute := disputeFromSnapshot(result.Dispute)
+	dispute.RaisedByPlayerID = player.ID
+	return dispute, true, nil
+}
+
+func resolveDispute(ctx context.Context, db Persistence, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error) {
+	result := game.ResolveDispute(ctx, db, game.ResolveDisputeInput{
+		PlayerID:         player.ID,
+		DisputeID:        disputeID,
+		Resolution:       resolution,
+		ResolutionReason: resolutionReason,
+	})
+	if result.Err != nil {
+		return DisputeResolution{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return DisputeResolution{}, false, nil
+	}
+	return DisputeResolution{
+		Stunt:   stuntFromGame(result.Stunt),
+		Dispute: disputeFromSnapshot(result.Dispute),
+	}, true, nil
+}
+
+// --- MemoryStore ---
 
 type MemoryStore struct {
 	mu                sync.Mutex
@@ -309,6 +641,12 @@ func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 	}
 }
 
+func (s *MemoryStore) Now() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.now()
+}
+
 func (s *MemoryStore) SetClock(now func() time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -342,53 +680,28 @@ func (s *MemoryStore) BootstrapIdentity(ctx context.Context, identity AuthIdenti
 	return profile, nil
 }
 
-func (s *MemoryStore) CreateGroup(ctx context.Context, player Player, name string) (GroupHomeResponse, error) {
+func (s *MemoryStore) GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error) {
 	s.mu.Lock()
-	s.groupNumber++
-	groupID := stableID("group", player.ID+":"+name+":"+strconv.Itoa(s.groupNumber))
-	s.mu.Unlock()
 
-	result := game.CreateGroup(ctx, s, game.CreateGroupInput{
-		GroupID:         groupID,
-		GroupName:       name,
-		CreatorPlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, result.Err
-	}
-	return groupHome(
-		Group{ID: result.Group.ID, Name: result.Group.Name},
-		GroupMembership{GroupID: result.Membership.GroupID, PlayerID: result.Membership.PlayerID, Role: result.Membership.Role},
-		nil, []PerformedStuntView{}, []StandingEntry{},
-	), nil
-}
-
-func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID string) (GroupHomeResponse, bool, error) {
-	ghResult := game.GroupHome(ctx, s, game.GroupHomeInput{
-		PlayerID: player.ID,
-		GroupID:  groupID,
-	})
-	if ghResult.Err != nil {
-		return GroupHomeResponse{}, false, ghResult.Err
-	}
-	if !ghResult.Allowed {
+	group, ok := s.groups[groupID]
+	if !ok {
+		s.mu.Unlock()
 		return GroupHomeResponse{}, false, nil
 	}
-
-	s.mu.Lock()
+	membership, ok := s.memberships[groupID][player.ID]
+	if !ok {
+		s.mu.Unlock()
+		return GroupHomeResponse{}, false, nil
+	}
 	newlyFinalized := s.ensureSeasonStatusesForGroup(groupID)
 	season := s.currentSeasonForGroup(groupID)
-	var seasonCopy Season
-	if season != nil {
-		seasonCopy = *season
-	}
 	s.mu.Unlock()
 
 	for _, id := range newlyFinalized {
-		game.AutoFinalizeSeason(ctx, s, id)
+		game.AutoFinalizeSeason(context.Background(), s, id)
 	}
 
-	standings, err := game.Standings(ctx, s, groupID)
+	standings, err := game.Standings(context.Background(), s, groupID)
 	if err != nil {
 		return GroupHomeResponse{}, false, err
 	}
@@ -396,275 +709,43 @@ func (s *MemoryStore) GroupHome(ctx context.Context, player Player, groupID stri
 	s.mu.Lock()
 	recentStunts := s.recentPerformedStuntsForGroup(groupID)
 	s.mu.Unlock()
-
-	var seasonPtr *Season
-	if season != nil {
-		seasonPtr = &seasonCopy
-	}
-	return groupHome(
-		Group{ID: ghResult.Group.ID, Name: ghResult.Group.Name},
-		GroupMembership{GroupID: ghResult.Membership.GroupID, PlayerID: ghResult.Membership.PlayerID, Role: ghResult.Membership.Role},
-		seasonPtr, recentStunts, standingsFromGame(standings),
-	), true, nil
+	return groupHome(group, membership, season, recentStunts, standingsFromGame(standings)), true, nil
 }
 
-func (s *MemoryStore) ListGroups(ctx context.Context, player Player) (ListGroupsResponse, error) {
-	memberships, err := game.ListGroups(ctx, s, player.ID)
+func (s *MemoryStore) GroupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error) {
+	s.mu.Lock()
+
+	season, ok := s.seasons[seasonID]
+	if !ok {
+		s.mu.Unlock()
+		return GroupHomeResponse{}, false, nil
+	}
+	group, ok := s.groups[season.GroupID]
+	if !ok {
+		s.mu.Unlock()
+		return GroupHomeResponse{}, false, nil
+	}
+	membership, ok := s.memberships[season.GroupID][player.ID]
+	if !ok {
+		s.mu.Unlock()
+		return GroupHomeResponse{}, false, nil
+	}
+	newlyFinalized := s.ensureSeasonStatusesForGroup(season.GroupID)
+	s.mu.Unlock()
+
+	for _, id := range newlyFinalized {
+		game.AutoFinalizeSeason(context.Background(), s, id)
+	}
+
+	standings, err := game.Standings(context.Background(), s, season.GroupID)
 	if err != nil {
-		return ListGroupsResponse{}, err
+		return GroupHomeResponse{}, false, err
 	}
 
-	result := make([]GroupMembershipSummary, len(memberships))
-	for i, m := range memberships {
-		result[i] = GroupMembershipSummary{
-			Group:      Group{ID: m.Group.ID, Name: m.Group.Name},
-			Membership: GroupMembership{GroupID: m.Membership.GroupID, PlayerID: m.Membership.PlayerID, Role: m.Membership.Role},
-		}
-	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Group.Name < result[j].Group.Name
-	})
-	return ListGroupsResponse{Memberships: result}, nil
-}
-
-func (s *MemoryStore) CreateInvite(ctx context.Context, player Player, groupID string) (Invite, bool, error) {
-	result := game.CreateInvite(ctx, s, game.CreateInviteInput{
-		GroupID:  groupID,
-		PlayerID: player.ID,
-		Now:      s.now(),
-	})
-	if result.Err != nil {
-		return Invite{}, false, result.Err
-	}
-	if !result.Allowed {
-		return Invite{}, false, nil
-	}
-	return Invite{
-		ID:        result.Invite.ID,
-		GroupID:   result.Invite.GroupID,
-		Token:     result.Invite.Token,
-		CreatedBy: result.Invite.CreatedBy,
-		ExpiresAt: time.Unix(result.Invite.ExpiresAt, 0).UTC(),
-	}, true, nil
-}
-
-func (s *MemoryStore) AcceptInvite(ctx context.Context, player Player, token string) (GroupHomeResponse, InviteAcceptStatus, error) {
-	result := game.AcceptInvite(ctx, s, game.AcceptInviteInput{
-		Token:    token,
-		PlayerID: player.ID,
-		Now:      s.now(),
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, InviteInvalid, result.Err
-	}
-	if result.Status != game.InviteAccepted {
-		switch result.Status {
-		case game.InviteInvalid:
-			return GroupHomeResponse{}, InviteInvalid, nil
-		case game.InviteUsed:
-			return GroupHomeResponse{}, InviteUsed, nil
-		case game.InviteExpired:
-			return GroupHomeResponse{}, InviteExpired, nil
-		case game.InviteMember:
-			return GroupHomeResponse{}, InviteMember, nil
-		default:
-			return GroupHomeResponse{}, InviteInvalid, nil
-		}
-	}
-
-	ghResult, _, err := s.GroupHome(ctx, player, result.Group.ID)
-	if err != nil {
-		return GroupHomeResponse{}, InviteInvalid, err
-	}
-	return ghResult, InviteAccepted, nil
-}
-
-func (s *MemoryStore) StartSeason(ctx context.Context, player Player, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) (GroupHomeResponse, bool, error) {
-	result := game.StartSeason(ctx, s, game.StartSeasonInput{
-		GroupID:            groupID,
-		PlayerID:           player.ID,
-		SubmissionDeadline: submissionDeadline,
-		JudgingDeadline:    judgingDeadline,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, true, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
-	return s.groupHomeForGroup(groupID, player)
-}
-
-func (s *MemoryStore) CloseSeasonSubmissions(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error) {
-	result := game.CloseSeasonSubmissions(ctx, s, game.CloseSeasonSubmissionsInput{
-		SeasonID: seasonID,
-		PlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
-	return s.groupHomeForSeason(seasonID, player)
-}
-
-func (s *MemoryStore) FinalizeSeason(ctx context.Context, player Player, seasonID string) (GroupHomeResponse, bool, error) {
-	result := game.FinalizeSeason(ctx, s, game.FinalizeSeasonInput{
-		SeasonID: seasonID,
-		PlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return GroupHomeResponse{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return GroupHomeResponse{}, false, nil
-	}
-	return s.groupHomeForSeason(seasonID, player)
-}
-
-func (s *MemoryStore) SeasonHistory(ctx context.Context, player Player, seasonID string) (SeasonHistoryResponse, bool, error) {
-	result := game.SeasonHistory(ctx, s, game.SeasonHistoryInput{
-		SeasonID: seasonID,
-		PlayerID: player.ID,
-	})
-	if result.Err != nil {
-		return SeasonHistoryResponse{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return SeasonHistoryResponse{}, false, nil
-	}
-	entries := make([]SeasonHistoryEntry, len(result.Entries))
-	for i, e := range result.Entries {
-		entries[i] = SeasonHistoryEntry{
-			ID:            e.ID,
-			SeasonID:      e.SeasonID,
-			Action:        e.Action,
-			ActorPlayerID: e.ActorPlayerID,
-			ActorRole:     e.ActorRole,
-			Override:      e.Override,
-			FromStatus:    e.FromStatus,
-			ToStatus:      e.ToStatus,
-		}
-	}
-	return SeasonHistoryResponse{Entries: entries}, true, nil
-}
-
-func (s *MemoryStore) CreateIdea(ctx context.Context, player Player, groupID string, source string, destination string, food string) (Stunt, bool, error) {
-	result := game.CreateIdea(ctx, s, game.CreateIdeaInput{
-		GroupID:     groupID,
-		PlayerID:    player.ID,
-		Source:      source,
-		Destination: destination,
-		Food:        food,
-	})
-	if result.Err != nil {
-		return Stunt{}, false, result.Err
-	}
-	if !result.Allowed {
-		return Stunt{}, false, nil
-	}
-	return stuntFromGame(result.Stunt), true, nil
-}
-
-func (s *MemoryStore) CreatePlannedStunt(ctx context.Context, player Player, ideaID string, offSeason bool) (Stunt, bool, error) {
-	result := game.CreatePlannedStunt(ctx, s, game.CreatePlannedStuntInput{
-		IdeaID:    ideaID,
-		PlayerID:  player.ID,
-		OffSeason: offSeason,
-	})
-	if result.Err != nil {
-		return Stunt{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Stunt{}, false, nil
-	}
-	return stuntFromGame(result.Stunt), true, nil
-}
-
-func (s *MemoryStore) AuthorizeEvidenceUpload(ctx context.Context, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
-	result := game.AuthorizeEvidenceUpload(ctx, s, game.AuthorizeEvidenceUploadInput{
-		StuntID:     stuntID,
-		PlayerID:    player.ID,
-		ContentType: contentType,
-	})
-	if result.Err != nil {
-		return EvidenceUploadAuthorization{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return EvidenceUploadAuthorization{}, false, nil
-	}
-	return EvidenceUploadAuthorization{
-		ID:             result.Authorization.ID,
-		StuntID:        result.Authorization.StuntID,
-		UploadURL:      "https://storage.supperjumpin.test/uploads/" + result.Authorization.MediaObjectKey,
-		UploadMethod:   httpMethodPut,
-		UploadHeaders:  map[string]string{"Content-Type": contentType},
-		MediaObjectKey: result.Authorization.MediaObjectKey,
-		ExpiresAt:      result.Authorization.ExpiresAt,
-	}, true, nil
-}
-
-func (s *MemoryStore) SubmitEvidence(ctx context.Context, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
-	result := game.SubmitEvidence(ctx, s, game.SubmitEvidenceInput{
-		StuntID:               stuntID,
-		PlayerID:              player.ID,
-		UploadAuthorizationID: uploadAuthorizationID,
-		Caption:               caption,
-	}, s.now())
-	if result.Err != nil {
-		return EvidenceSubmission{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return EvidenceSubmission{}, false, nil
-	}
-	return EvidenceSubmission{
-		Stunt: Stunt{
-			ID:          result.Stunt.ID,
-			GroupID:     result.Stunt.GroupID,
-			PlayerID:    result.Stunt.PlayerID,
-			SeasonID:    result.Stunt.SeasonID,
-			Status:      result.Stunt.Status,
-			Source:      result.Stunt.Source,
-			Destination: result.Stunt.Destination,
-			Food:        result.Stunt.Food,
-			OffSeason:   result.Stunt.SeasonID == nil,
-		},
-		Evidence: Evidence{
-			ID:             result.Evidence.ID,
-			StuntID:        result.Evidence.StuntID,
-			Caption:        result.Evidence.Caption,
-			MediaObjectKey: result.Evidence.MediaObjectKey,
-			CreatedAt:      result.Evidence.CreatedAt,
-		},
-	}, true, nil
-}
-
-func (s *MemoryStore) SubmitJudgment(ctx context.Context, player Player, stuntID string, difficulty int, transgression int, creativity int, documentation int) (Judgment, bool, bool, error) {
-	result := game.SubmitJudgment(ctx, s, game.JudgmentInput{
-		StuntID:       stuntID,
-		JudgePlayerID: player.ID,
-		Difficulty:    difficulty,
-		Transgression: transgression,
-		Creativity:    creativity,
-		Documentation: documentation,
-	}, s.now())
-	if result.Err != nil {
-		return Judgment{}, false, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Judgment{}, false, false, nil
-	}
-	j := Judgment{
-		ID:            result.Judgment.ID,
-		StuntID:       result.Judgment.StuntID,
-		PlayerID:      result.Judgment.PlayerID,
-		Difficulty:    result.Judgment.Difficulty,
-		Transgression: result.Judgment.Transgression,
-		Creativity:    result.Judgment.Creativity,
-		Documentation: result.Judgment.Documentation,
-	}
-	return j, true, result.Created, nil
+	s.mu.Lock()
+	recentStunts := s.recentPerformedStuntsForGroup(season.GroupID)
+	s.mu.Unlock()
+	return groupHome(group, membership, s.currentSeasonForGroup(season.GroupID), recentStunts, standingsFromGame(standings)), true, nil
 }
 
 // game.JudgmentRepository adapter
@@ -1226,42 +1307,7 @@ func (s *MemoryStore) UpdateStuntStatusAfterDispute(ctx context.Context, stuntID
 	return nil
 }
 
-func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
-	result := game.CreateDispute(ctx, s, game.CreateDisputeInput{
-		PlayerID: player.ID,
-		StuntID:  stuntID,
-		Concern:  concern,
-		Details:  details,
-	})
-	if result.Err != nil {
-		return Dispute{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Dispute{}, false, nil
-	}
-	dispute := disputeFromSnapshot(result.Dispute)
-	dispute.RaisedByPlayerID = player.ID
-	return dispute, true, nil
-}
-
-func (s *MemoryStore) ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error) {
-	result := game.ResolveDispute(ctx, s, game.ResolveDisputeInput{
-		PlayerID:         player.ID,
-		DisputeID:        disputeID,
-		Resolution:       resolution,
-		ResolutionReason: resolutionReason,
-	})
-	if result.Err != nil {
-		return DisputeResolution{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return DisputeResolution{}, false, nil
-	}
-	return DisputeResolution{
-		Stunt:   stuntFromGame(result.Stunt),
-		Dispute: disputeFromSnapshot(result.Dispute),
-	}, true, nil
-}
+// --- MemoryStore private helpers ---
 
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
 	s.ensureSeasonStatusesForGroup(groupID)
@@ -1359,14 +1405,6 @@ func (s *MemoryStore) latestSeasonForGroup(groupID string) *Season {
 	return latest
 }
 
-func (s *MemoryStore) submissionWindowOpen(stunt Stunt) bool {
-	if stunt.SeasonID == nil {
-		return true
-	}
-	season, ok := s.seasons[*stunt.SeasonID]
-	return ok && season.Status == "Active" && s.now().Before(season.SubmissionDeadline)
-}
-
 func (s *MemoryStore) ensureSeasonStatus(season *Season) {
 	if season.Status == "Active" && s.now().After(season.SubmissionDeadline) {
 		season.Status = "Judging Grace Period"
@@ -1391,17 +1429,10 @@ func (s *MemoryStore) recordSeasonHistory(seasonID string, action string, actorP
 	})
 }
 
+// --- Package-level helpers ---
+
 func isOpenSeasonStatus(status string) bool {
 	return status == "Active" || status == "Judging Grace Period"
-}
-
-func validJudgmentScores(scores ...int) bool {
-	for _, score := range scores {
-		if score < 0 || score > 10 {
-			return false
-		}
-	}
-	return true
 }
 
 func randomToken(kind string) (string, error) {
@@ -1436,105 +1467,37 @@ func groupHome(group Group, membership GroupMembership, activeSeason *Season, re
 	}
 }
 
-func (s *MemoryStore) groupHomeForGroup(groupID string, player Player) (GroupHomeResponse, bool, error) {
-	s.mu.Lock()
-
-	group, ok := s.groups[groupID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
-	membership, ok := s.memberships[groupID][player.ID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
-	newlyFinalized := s.ensureSeasonStatusesForGroup(groupID)
-	season := s.currentSeasonForGroup(groupID)
-	s.mu.Unlock()
-
-	for _, id := range newlyFinalized {
-		game.AutoFinalizeSeason(context.Background(), s, id)
-	}
-
-	standings, err := game.Standings(context.Background(), s, groupID)
-	if err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-
-	s.mu.Lock()
-	recentStunts := s.recentPerformedStuntsForGroup(groupID)
-	s.mu.Unlock()
-	return groupHome(group, membership, season, recentStunts, standingsFromGame(standings)), true, nil
-}
-
-func (s *MemoryStore) groupHomeForSeason(seasonID string, player Player) (GroupHomeResponse, bool, error) {
-	s.mu.Lock()
-
-	season, ok := s.seasons[seasonID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
-	group, ok := s.groups[season.GroupID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
-	membership, ok := s.memberships[season.GroupID][player.ID]
-	if !ok {
-		s.mu.Unlock()
-		return GroupHomeResponse{}, false, nil
-	}
-	newlyFinalized := s.ensureSeasonStatusesForGroup(season.GroupID)
-	s.mu.Unlock()
-
-	for _, id := range newlyFinalized {
-		game.AutoFinalizeSeason(context.Background(), s, id)
-	}
-
-	standings, err := game.Standings(context.Background(), s, season.GroupID)
-	if err != nil {
-		return GroupHomeResponse{}, false, err
-	}
-
-	s.mu.Lock()
-	recentStunts := s.recentPerformedStuntsForGroup(season.GroupID)
-	s.mu.Unlock()
-	return groupHome(group, membership, s.currentSeasonForGroup(season.GroupID), recentStunts, standingsFromGame(standings)), true, nil
-}
-
 func disputeToSnapshot(d Dispute) game.DisputeSnapshot {
 	return game.DisputeSnapshot{
-		ID:               d.ID,
-		StuntID:          d.StuntID,
-		RaisedByPlayerID: d.RaisedByPlayerID,
-		Concern:          d.Concern,
-		Details:          d.Details,
-		Status:           d.Status,
-		Resolution:       d.Resolution,
-		ResolutionReason: d.ResolutionReason,
-		ResolvedByPlayerID: d.ResolvedByPlayerID,
-		OverrideResolution: d.OverrideResolution,
-		OverrideReason:     d.OverrideReason,
-		OverrideByPlayerID: d.OverrideByPlayerID,
+		ID:                   d.ID,
+		StuntID:              d.StuntID,
+		RaisedByPlayerID:     d.RaisedByPlayerID,
+		Concern:              d.Concern,
+		Details:              d.Details,
+		Status:               d.Status,
+		Resolution:           d.Resolution,
+		ResolutionReason:     d.ResolutionReason,
+		ResolvedByPlayerID:   d.ResolvedByPlayerID,
+		OverrideResolution:   d.OverrideResolution,
+		OverrideReason:       d.OverrideReason,
+		OverrideByPlayerID:   d.OverrideByPlayerID,
 	}
 }
 
 func disputeFromSnapshot(snap game.DisputeSnapshot) Dispute {
 	return Dispute{
-		ID:               snap.ID,
-		StuntID:          snap.StuntID,
-		RaisedByPlayerID: snap.RaisedByPlayerID,
-		Concern:          snap.Concern,
-		Details:          snap.Details,
-		Status:           snap.Status,
-		Resolution:       snap.Resolution,
-		ResolutionReason: snap.ResolutionReason,
-		ResolvedByPlayerID: snap.ResolvedByPlayerID,
-		OverrideResolution: snap.OverrideResolution,
-		OverrideReason:     snap.OverrideReason,
-		OverrideByPlayerID: snap.OverrideByPlayerID,
+		ID:                   snap.ID,
+		StuntID:              snap.StuntID,
+		RaisedByPlayerID:     snap.RaisedByPlayerID,
+		Concern:              snap.Concern,
+		Details:              snap.Details,
+		Status:               snap.Status,
+		Resolution:           snap.Resolution,
+		ResolutionReason:     snap.ResolutionReason,
+		ResolvedByPlayerID:   snap.ResolvedByPlayerID,
+		OverrideResolution:   snap.OverrideResolution,
+		OverrideReason:       snap.OverrideReason,
+		OverrideByPlayerID:   snap.OverrideByPlayerID,
 	}
 }
 

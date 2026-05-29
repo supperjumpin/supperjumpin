@@ -1635,17 +1635,22 @@ func TestPostgresConcurrentPlannedStuntCreationOnlyTransitionsIdeaOnce(t *testin
 }
 
 func newGroupsTestServer() http.Handler {
-	return newGroupsTestServerWithStore(httpapi.NewMemoryStore())
+	return newGroupsTestServerWithPersistence(httpapi.NewMemoryStore())
 }
 
 func newGroupsTestServerWithStore(store httpapi.Store) http.Handler {
+	return newGroupsTestServerWithPersistence(store.(httpapi.Persistence))
+}
+
+func newGroupsTestServerWithPersistence(db httpapi.Persistence) http.Handler {
 	return httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
 			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
 			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
 			"carol-token": {Provider: "supabase", Subject: "carol-auth", Email: "carol@example.com"},
 		},
-		Store: store,
+		Store: db.(httpapi.Store),
+		DB:    db,
 	})
 }
 
