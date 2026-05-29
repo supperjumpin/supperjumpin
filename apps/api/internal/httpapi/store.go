@@ -60,6 +60,15 @@ func mapGameErr(err error) error {
 	if errors.Is(err, game.ErrSeasonNotFound) {
 		return ErrSeasonNotFound
 	}
+	if errors.Is(err, game.ErrInvalidDisputeConcern) {
+		return ErrInvalidDisputeConcern
+	}
+	if errors.Is(err, game.ErrInvalidDisputeResolution) {
+		return ErrInvalidDisputeResolution
+	}
+	if errors.Is(err, game.ErrDisputeNotFound) {
+		return ErrDisputeNotFound
+	}
 	return err
 }
 
@@ -719,6 +728,17 @@ func (s *MemoryStore) GroupMembership(ctx context.Context, playerID, groupID str
 	return game.MembershipSnapshot{Role: m.Role}, true, nil
 }
 
+func (s *MemoryStore) StuntByID(ctx context.Context, stuntID string) (game.StuntSnapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt, ok := s.stunts[stuntID]
+	if !ok {
+		return game.StuntSnapshot{}, false, nil
+	}
+	return stuntToSnapshot(stunt), true, nil
+}
+
 func (s *MemoryStore) UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, documentation int) (game.Judgment, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1031,88 +1051,108 @@ func (s *MemoryStore) SeasonHistoryEntries(ctx context.Context, seasonID string)
 	return result, nil
 }
 
-func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
+// game.DisputeRepository adapter methods for MemoryStore
+
+func (s *MemoryStore) InsertDispute(ctx context.Context, stuntID, raisedByPlayerID, concern, details string) (game.DisputeSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !validDisputeConcern(concern) {
-		return Dispute{}, false, ErrInvalidDisputeConcern
-	}
-
-	stunt, ok := s.stunts[stuntID]
-	if !ok || !disputableStuntStatus(stunt.Status) {
-		return Dispute{}, false, ErrStuntNotFound
-	}
-	if _, ok := s.memberships[stunt.GroupID][player.ID]; !ok {
-		return Dispute{}, false, nil
-	}
-
-	id := stableID("dispute", stuntID+":"+player.ID+":"+strconv.Itoa(len(s.disputes)+1))
+	id := stableID("dispute", stuntID+":"+raisedByPlayerID+":"+strconv.Itoa(len(s.disputes)+1))
 	dispute := Dispute{
 		ID:               id,
 		StuntID:          stuntID,
-		RaisedByPlayerID: player.ID,
+		RaisedByPlayerID: raisedByPlayerID,
 		Concern:          concern,
 		Details:          details,
 		Status:           "Open",
 	}
 	s.disputes[dispute.ID] = dispute
+	return disputeToSnapshot(dispute), nil
+}
+
+func (s *MemoryStore) Dispute(ctx context.Context, disputeID string) (game.DisputeSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dispute, ok := s.disputes[disputeID]
+	if !ok {
+		return game.DisputeSnapshot{}, nil
+	}
+	return disputeToSnapshot(dispute), nil
+}
+
+func (s *MemoryStore) UpdateDisputeResolution(ctx context.Context, disputeID, resolution, resolutionReason, resolvedByPlayerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dispute := s.disputes[disputeID]
+	dispute.Status = "Resolved"
+	dispute.Resolution = &resolution
+	dispute.ResolutionReason = &resolutionReason
+	dispute.ResolvedByPlayerID = &resolvedByPlayerID
+	s.disputes[disputeID] = dispute
+	return nil
+}
+
+func (s *MemoryStore) UpdateDisputeOverride(ctx context.Context, disputeID, overrideResolution, overrideReason, overrideByPlayerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dispute := s.disputes[disputeID]
+	dispute.Status = "Overridden"
+	dispute.OverrideResolution = &overrideResolution
+	dispute.OverrideReason = &overrideReason
+	dispute.OverrideByPlayerID = &overrideByPlayerID
+	s.disputes[disputeID] = dispute
+	return nil
+}
+
+func (s *MemoryStore) UpdateStuntStatusAfterDispute(ctx context.Context, stuntID, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stunt := s.stunts[stuntID]
+	stunt.Status = status
+	stunt.FinalScore = nil
+	s.stunts[stunt.ID] = stunt
+	return nil
+}
+
+func (s *MemoryStore) CreateDispute(ctx context.Context, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
+	result := game.CreateDispute(ctx, s, game.CreateDisputeInput{
+		PlayerID: player.ID,
+		StuntID:  stuntID,
+		Concern:  concern,
+		Details:  details,
+	})
+	if result.Err != nil {
+		return Dispute{}, false, mapGameErr(result.Err)
+	}
+	if !result.Allowed {
+		return Dispute{}, false, nil
+	}
+	dispute := disputeFromSnapshot(result.Dispute)
+	dispute.RaisedByPlayerID = player.ID
 	return dispute, true, nil
 }
 
 func (s *MemoryStore) ResolveDispute(ctx context.Context, player Player, disputeID string, resolution string, resolutionReason string) (DisputeResolution, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if !validDisputeResolution(resolution) {
-		return DisputeResolution{}, false, ErrInvalidDisputeResolution
+	result := game.ResolveDispute(ctx, s, game.ResolveDisputeInput{
+		PlayerID:         player.ID,
+		DisputeID:        disputeID,
+		Resolution:       resolution,
+		ResolutionReason: resolutionReason,
+	})
+	if result.Err != nil {
+		return DisputeResolution{}, false, mapGameErr(result.Err)
 	}
-
-	dispute, ok := s.disputes[disputeID]
-	if !ok {
-		return DisputeResolution{}, false, ErrDisputeNotFound
-	}
-	stunt, ok := s.stunts[dispute.StuntID]
-	if !ok {
-		return DisputeResolution{}, false, ErrStuntNotFound
-	}
-	membership, ok := s.memberships[stunt.GroupID][player.ID]
-	if !ok {
+	if !result.Allowed {
 		return DisputeResolution{}, false, nil
 	}
-
-	if dispute.Status == "Open" {
-		if stunt.SeasonID == nil {
-			if membership.Role != "Group Admin" || resolution == "Disqualified Stunt" {
-				return DisputeResolution{}, false, nil
-			}
-		} else {
-			if resolution == "Removed Stunt" {
-				return DisputeResolution{}, false, nil
-			}
-			season, ok := s.seasons[*stunt.SeasonID]
-			if !ok || season.CommissionerPlayerID != player.ID {
-				return DisputeResolution{}, false, nil
-			}
-		}
-		dispute.Status = "Resolved"
-		dispute.Resolution = stringPointer(resolution)
-		dispute.ResolutionReason = stringPointer(resolutionReason)
-		dispute.ResolvedByPlayerID = stringPointer(player.ID)
-	} else {
-		if membership.Role != "Group Admin" || resolution == "No Action" {
-			return DisputeResolution{}, false, nil
-		}
-		dispute.Status = "Overridden"
-		dispute.OverrideResolution = stringPointer(resolution)
-		dispute.OverrideReason = stringPointer(resolutionReason)
-		dispute.OverrideByPlayerID = stringPointer(player.ID)
-	}
-
-	stunt = applyDisputeResolutionToStunt(stunt, effectiveDisputeResolution(dispute))
-	s.disputes[dispute.ID] = dispute
-	s.stunts[stunt.ID] = stunt
-	return DisputeResolution{Stunt: stunt, Dispute: dispute}, true, nil
+	return DisputeResolution{
+		Stunt:   stuntFromGame(result.Stunt),
+		Dispute: disputeFromSnapshot(result.Dispute),
+	}, true, nil
 }
 
 func (s *MemoryStore) openSeasonForGroup(groupID string) *Season {
@@ -1256,24 +1296,6 @@ func validJudgmentScores(scores ...int) bool {
 	return true
 }
 
-func validDisputeConcern(concern string) bool {
-	switch concern {
-	case "House Rules", "Credibility", "Source", "Destination", "Food", "duplicate", "other":
-		return true
-	default:
-		return false
-	}
-}
-
-func validDisputeResolution(resolution string) bool {
-	switch resolution {
-	case "No Action", "Disqualified Stunt", "Removed Stunt":
-		return true
-	default:
-		return false
-	}
-}
-
 func randomToken(kind string) (string, error) {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
@@ -1374,34 +1396,42 @@ func (s *MemoryStore) groupHomeForSeason(seasonID string, player Player) (GroupH
 	return groupHome(group, membership, s.currentSeasonForGroup(season.GroupID), recentStunts, standingsFromGame(standings)), true, nil
 }
 
+func disputeToSnapshot(d Dispute) game.DisputeSnapshot {
+	return game.DisputeSnapshot{
+		ID:               d.ID,
+		StuntID:          d.StuntID,
+		RaisedByPlayerID: d.RaisedByPlayerID,
+		Concern:          d.Concern,
+		Details:          d.Details,
+		Status:           d.Status,
+		Resolution:       d.Resolution,
+		ResolutionReason: d.ResolutionReason,
+		ResolvedByPlayerID: d.ResolvedByPlayerID,
+		OverrideResolution: d.OverrideResolution,
+		OverrideReason:     d.OverrideReason,
+		OverrideByPlayerID: d.OverrideByPlayerID,
+	}
+}
+
+func disputeFromSnapshot(snap game.DisputeSnapshot) Dispute {
+	return Dispute{
+		ID:               snap.ID,
+		StuntID:          snap.StuntID,
+		RaisedByPlayerID: snap.RaisedByPlayerID,
+		Concern:          snap.Concern,
+		Details:          snap.Details,
+		Status:           snap.Status,
+		Resolution:       snap.Resolution,
+		ResolutionReason: snap.ResolutionReason,
+		ResolvedByPlayerID: snap.ResolvedByPlayerID,
+		OverrideResolution: snap.OverrideResolution,
+		OverrideReason:     snap.OverrideReason,
+		OverrideByPlayerID: snap.OverrideByPlayerID,
+	}
+}
+
 func visiblePerformedStatus(status string) bool {
 	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt" || status == "Disqualified Stunt"
-}
-
-func disputableStuntStatus(status string) bool {
-	return visiblePerformedStatus(status) || status == "Disqualified Stunt"
-}
-
-func effectiveDisputeResolution(dispute Dispute) string {
-	if dispute.OverrideResolution != nil {
-		return *dispute.OverrideResolution
-	}
-	if dispute.Resolution != nil {
-		return *dispute.Resolution
-	}
-	return "No Action"
-}
-
-func applyDisputeResolutionToStunt(stunt Stunt, resolution string) Stunt {
-	switch resolution {
-	case "Disqualified Stunt":
-		stunt.Status = "Disqualified Stunt"
-		stunt.FinalScore = nil
-	case "Removed Stunt":
-		stunt.Status = "Removed Stunt"
-		stunt.FinalScore = nil
-	}
-	return stunt
 }
 
 func stringPointer(value string) *string {
