@@ -5,7 +5,7 @@ Supperjumpin is a social game about inventing and performing absurd food-locatio
 ## Language
 
 **Jump**:
-A playable Supperjumpin attempt centered on taking food associated with one place and consuming or presenting it in another place. A **Jump** is performed, submitted with **Evidence**, and socially judged.
+A playable Supperjumpin attempt centered on taking food associated with one place and consuming or presenting it in another place. A **Jump** starts as a client-only **Draft**, becomes a **Performed Jump** only when **Evidence** is submitted, passes through the **Author Grace Period**, and is then socially judged.
 _Avoid_: Stunt, challenge, mission, post
 
 **Source**:
@@ -34,7 +34,7 @@ _Avoid_: Rated jump, scored jump
 
 
 **Judge**:
-A **Player** who scores another **Player's** **Performed Jump**. Any authenticated **Player** may Judge a **Jump** they did not perform; **Group** membership is not required. The performer of a **Jump** is not a **Judge** for that **Jump**.
+A **Player** or **Guest Judge** who scores a **Performed Jump** they did not perform. Any **Player** or **Guest Judge** may Judge a **Jump** they did not perform; **Group** membership is not required. The performer of a **Jump** is not a **Judge** for that **Jump**.
 _Avoid_: Voter, reviewer, rater
 
 **Author Grace Period**:
@@ -46,11 +46,11 @@ The period when a **Performed Jump** can receive **Judgments**, beginning after 
 _Avoid_: Voting period, review window
 
 **Judgment**:
-A **Judge's** submitted scores for a **Performed Jump**.
+A **Judge's** submitted scores for a **Performed Jump**. Each **Judgment** records provenance, either `public`, `open`, or `season`, so public-feed, **Open**, and **Season** scoring can remain separate where required per ADR-0021.
 _Avoid_: Vote, review, rating
 
 **Final Score**:
-The aggregate score for a **Judged Jump** after its competition period closes, used to update **Standings**. A **Jump** may produce an **Open Final Score** (at monthly **Open** soft-close), a **Season Final Score** (when a **Season** finalizes), or both independently. Public-feed **Judgments** not associated with any competition period contribute only to the live running average and never produce a **Final Score**.
+The aggregate score for a **Judged Jump** after its competition period closes, used to update **Standings**. Supperjumpin tracks three score types: a live running average, which updates with each **Judgment** and appears on the feed and detail view; an **Open Final Score**, computed at monthly **Open** soft-close and stored as `open_final_score`; and a **Season Final Score**, a v2 score computed from **Season**-provenance **Judgments** and stored as `season_final_score`. Public-feed **Judgments** not associated with any competition period contribute only to the live running average and never produce a **Final Score**.
 _Avoid_: Total score
 
 **Season Score**:
@@ -66,7 +66,7 @@ A **Mission** completed through app behavior rather than performing a **Jump**.
 _Avoid_: Task
 
 **Guest Judge**:
-A visitor who submits a **Judgment** without creating an **Account**. **Guest Judgments** are stored by device/session and contribute to the public running average. A **Guest Judge** may create an **Account** at any time to claim their history and become a **Player**. In v1, all Judging is available to **Guest Judges**; a soft auth cap may be introduced in v2 based on data.
+A visitor who submits a **Judgment** without creating an **Account**. **Guest Judgments** are tracked through `guest_sessions`, contribute to the public running average, and are subject to a soft cap, default 5 **Judgments**, before the server returns `ErrGuestCapReached` and encourages **Account** creation. A **Guest Judge** may create an **Account** at any time to claim their history and become a **Player**; existing **Judgments** are migrated by setting `player_id` and nulling `guest_session_id`.
 _Avoid_: Anonymous voter, unregistered judge
 
 **Prompt**:
@@ -82,7 +82,7 @@ A **Bounty** funded or promoted by an external sponsor, such as a restaurant or 
 _Avoid_: Ad, promotion
 
 **Unwitnessed Jump**:
-A **Performed Jump** whose **Judging Window** closed without any submitted **Judgments**, so it does not affect **Standings**.
+A v2 **Season** concept for a **Performed Jump** whose **Season** **Judging Grace Period** closes without any **Season** **Judgments**, so it does not affect **Standings**. On the public feed, the **Judging Window** is open-ended and never closes; a **Jump** with zero **Judgments** remains a **Performed Jump** indefinitely.
 _Avoid_: Unjudged jump, unrated jump
 
 **Dispute**:
@@ -94,7 +94,7 @@ A **Performed Jump** removed from **Standings** because it failed **House Rules*
 _Avoid_: Deleted jump, rejected jump
 
 **Removed Jump**:
-A **Jump** hidden from all visibility because of a serious safety, privacy, legal, or platform violation. In v1, a Removed Jump is fully suppressed from the public feed, direct links, and share previews. The performer is notified privately by the team. **Removed Jumps** are distinct from **Disqualified Jumps**, which may remain visible while not affecting **Standings**.
+A **Jump** hidden from all visibility because of a serious safety, privacy, legal, or platform violation. In v1, a Removed Jump is fully suppressed from the public feed, direct links, and share previews. **Evidence** is preserved in storage for potential appeal review but excluded from all read queries. Deep links return a tombstone page with no **Evidence**, no performer info, and a "Browse Feed" CTA. The performer is notified privately by the team. **Removed Jumps** are distinct from **Disqualified Jumps**, which may remain visible while not affecting **Standings**.
 _Avoid_: Deleted jump
 
 **Player**:
@@ -134,7 +134,7 @@ The primary measure of product health for a given phase. For v1, the North Star 
 _Avoid_: Key metric, KPI, success metric
 
 **Open**:
-The platform-run monthly competition, open to all **Players** globally. The **Open** runs on a fixed calendar cadence, requires no **Season Commissioner**, and soft-closes at month-end — **Final Scores** are computed from whatever **Judgments** exist at that moment. A **Jump** may earn an **Open Final Score** independently of any **Season Final Score** it also earns.
+The platform-run monthly competition, open to all **Players** globally. The **Open** is backed by `opens` and `open_standings`, runs on a fixed calendar cadence, requires no **Season Commissioner**, and soft-closes at month-end. There is no **Submission Window** or **Judging Grace Period**; **Final Scores** are computed from whatever **Judgments** exist at soft-close. A **Jump** may earn an **Open Final Score** independently of any **Season Final Score** it also earns.
 _Avoid_: Global Season, public season
 
 **Season**:
@@ -207,10 +207,10 @@ _Avoid_: Truth, proof
 
 ## Example Dialogue
 
-**Player A**: I performed it — Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump in its Author Grace Period — I have 10 minutes to edit before the Judging Window opens.
+**Player A**: I performed it: Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump in its Author Grace Period, so I have 10 minutes to edit before the Judging Window opens.
 
-**Player B**: Once the Author Grace Period expires I'll Judge it on Difficulty, Transgression, Creativity, and Presentation. I don't need to be in a Group to Judge — any Player can. If the Evidence looks staged, I may lower Credibility or raise a Dispute. My Judgment adds to the public running average.
+**Player B**: Once the Author Grace Period expires I'll Judge it on Commitment, Transgression, Creativity, and Presentation. I don't need an Account or a Group to Judge; as a Guest Judge, my Judgment adds to the public running average.
 
-**Player A**: Later, I joined a Group with an Active Season and submitted the same Jump to the Season. Only Judgments submitted while it is Season-linked count toward the Season Final Score — the public Judgments it already received stay on the public running average and do not carry over.
+**Player A**: If enough people Judge it before the monthly Open soft-close, it can earn an Open Final Score. Until then, the feed and detail page show the live running average as Judgments come in.
 
-**Team**: If a Jump violates House Rules, we may remove it entirely (Removed Jump) or, in v2 when Groups launch, mark it as Disqualified so it stays visible but does not affect Season Standings.
+**Team**: If a Jump violates House Rules in v1, we may remove it entirely as a Removed Jump. Disqualified Jump is a v2 Season concept, not part of the v1 public feed.
