@@ -65,9 +65,9 @@ _Avoid_: Quest, achievement, task
 A **Mission** completed through app behavior rather than performing a **Jump**.
 _Avoid_: Task
 
-**Jump Mission**:
-A **Mission** completed by performing a **Jump** with **Evidence**.
-_Avoid_: Solo jump
+**Guest Judge**:
+A visitor who submits a **Judgment** without creating an **Account**. **Guest Judgments** are stored by device/session and contribute to the public running average. A **Guest Judge** may create an **Account** at any time to claim their history and become a **Player**. In v1, all Judging is available to **Guest Judges**; a soft auth cap may be introduced in v2 based on data.
+_Avoid_: Anonymous voter, unregistered judge
 
 **Prompt**:
 A reusable **Jump** idea, theme, or constraint that can inspire **Drafts**, **Missions**, or **Bounties**.
@@ -110,7 +110,7 @@ The login identity that owns a **Player**. **Account** identity is separate from
 _Avoid_: User
 
 **Group**:
-An optional bounded set of **Players** who compete together within a **Season**. **Jumps** exist on a public feed independently of **Groups**; a **Group** is the context for **Seasons**, **Standings**, and **Awards**.
+An optional bounded set of **Players** who share, view, and judge each other's **Jumps**. In v1, a **Group** is a lightweight social circle (e.g., a group chat) with no formal administration, **Season** requirements, or competitive infrastructure. In v2, **Groups** gain **Seasons**, **Standings**, **Awards**, and the **Season Commissioner** role. **Jumps** exist on a public feed independently of **Groups** in v1.
 _Avoid_: League, community, club
 
 **Group Membership**:
@@ -118,19 +118,35 @@ The relationship between a **Player** and a **Group**, including that **Player's
 _Avoid_: Membership, subscription
 
 **Group Admin**:
-A **Player** with durable authority over a **Group**, including emergency override authority over an **Active Season**.
+A **Player** with durable authority over a **Group**, including emergency override authority over an **Active Season**. A v2 feature; v1 **Groups** have no formal administration.
 _Avoid_: Owner, moderator
 
 **Invite**:
-A way for a **Player** to bring another person into a **Group**.
+A way for a **Player** to bring another person into a **Group**. In v1, this is an informal share of a **Jump** link to a group chat. In v2, **Invites** become a formal **Group Membership** mechanism with join codes or admin approval.
 _Avoid_: Invitation link, referral
+
+**Share**:
+The act of distributing a **Jump** link from the app to an external channel (group chat, social media, etc.). A **Share** surfaces a deep link with a preview card containing the **Evidence** photo, a truncated **Caption**, the running average score, and the **Source**/**Destination**/**Food** summary. The recipient opens the **Jump** detail view directly, where they may **Judge** without creating an **Account**.
+_Avoid_: Post, broadcast, distribute
+
+**North Star Metric**:
+The primary measure of product health for a given phase. For v1, the North Star is **"Judgments per Jump within 7 days of posting"** — it captures whether the core promise ("take food somewhere it doesn't belong, document it, get judged") is being fulfilled. Supporting health metrics include: **Guest-to-Player conversion rate** (% of **Guest Judges** who create an **Account**), **Share-to-Judge rate** (% of shared links that result in a **Judgment**), and **Jump-to-Open Final Score rate** (% of **Performed Jumps** that earn a score in the monthly **Open**).
+_Avoid_: Key metric, KPI, success metric
+
+**Share**:
+The act of distributing a **Jump** link from the app to an external channel (group chat, social media, etc.). A **Share** surfaces a deep link with a preview card containing the **Evidence** photo, a truncated **Caption**, the running average score, and the **Source**/**Destination**/**Food** summary. The recipient opens the **Jump** detail view directly, where they may **Judge** without creating an **Account**.
+_Avoid_: Post, broadcast, distribute
+
+**North Star Metric**:
+The primary measure of product health for a given phase. For v1, the North Star is **"Judgments per Jump within 7 days of posting"** — it captures whether the core promise ("take food somewhere it doesn't belong, document it, get judged") is being fulfilled. Supporting health metrics include: **Guest-to-Player conversion rate** (% of **Guest Judges** who create an **Account**), **Share-to-Judge rate** (% of shared links that result in a **Judgment**), and **Jump-to-Open Final Score rate** (% of **Performed Jumps** that earn a score in the monthly **Open**).
+_Avoid_: Key metric, KPI, success metric
 
 **Open**:
 The platform-run monthly competition, open to all **Players** globally. The **Open** runs on a fixed calendar cadence, requires no **Season Commissioner**, and soft-closes at month-end — **Final Scores** are computed from whatever **Judgments** exist at that moment. A **Jump** may earn an **Open Final Score** independently of any **Season Final Score** it also earns.
 _Avoid_: Global Season, public season
 
 **Season**:
-A bounded competition period within a **Group** where **Judged Jumps** contribute to **Standings** and **Awards**. A **Group** has at most one active or closing **Season** at a time. Distinct from the **Open**, which is platform-run and requires no **Group** or **Season Commissioner**.
+A bounded competition period within a **Group** where **Judged Jumps** contribute to **Standings** and **Awards**. A **Group** has at most one active or closing **Season** at a time. Distinct from the **Open**, which is platform-run and requires no **Group** or **Season Commissioner**. **Seasons** are a v2 feature; the **Open** is the v1 competitive context.
 _Avoid_: Campaign, tournament
 
 **Season Commissioner**:

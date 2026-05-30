@@ -31,3 +31,11 @@ worktrees/
 
 # Local work-issue orchestration state
 .work-issue/
+
+# OpenCode / OMO directories
+.omo/
+.opencode/
+
+# OpenCode / OMO directories
+.omo/
+.opencode/
