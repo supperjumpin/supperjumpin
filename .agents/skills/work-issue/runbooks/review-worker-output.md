@@ -29,6 +29,8 @@ git -C worktrees/<run-id>/issue-<number> status
 git -C worktrees/<run-id>/issue-<number> diff origin/<default-branch>...HEAD
 ```
 
+Retry each command once if git reports a lock file. See `dispatch-workers.md` for the git lock retry pattern.
+
 Review against:
 
 - issue acceptance criteria

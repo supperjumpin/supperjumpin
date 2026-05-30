@@ -84,6 +84,7 @@ Use templates from `templates/` for worker prompts, worker reports, ready queues
 - Do not open PRs unless `permissions.coordinator_may_open_prs` is true.
 - Do not merge PRs unless `permissions.coordinator_may_merge` is true and the operator explicitly delegated merge authority.
 - Do not commit `.work-issue-worker-report.md`.
+- Do not run git commands while background tasks may also be touching git (see `dispatch-workers.md` Git lock protection).
 - Stop if configuration, dispatch instructions, GitHub state, or architecture/product requirements are contradictory or unsafe.
 
 ## Naming
