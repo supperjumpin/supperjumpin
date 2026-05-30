@@ -36,7 +36,6 @@ The roadmap is organized into four horizons:
 - Groups
 - Report/Remove flow
 - Push notifications
-- Deep links from share cards
 
 **Success metric:**
 
@@ -74,6 +73,7 @@ If a Jump cannot attract a single Judgment within a week, the core promise is un
 - Any Player with at least one Performed Jump and at least one Judgment in the calendar month competes
 - Open Standings and Awards (monthly reset)
 - Separate from any future Group/Season Standings
+- **Treated as a signal surface, not a retention engine.** Every cycle must produce at least one product decision. Instrument aggressively: track Standing check rates, Judgment velocity by week-of-month, posting cadence, and score-to-re-engagement correlation.
 
 ### Safety
 
@@ -88,7 +88,11 @@ If a Jump cannot attract a single Judgment within a week, the core promise is un
 - Share link with preview card (Evidence photo, truncated Caption, running average, Source/Destination/Food summary)
 - Deep link opens Jump detail view directly
 - Guest Judges may Judge without Account creation
-- No invite flow, no referral mechanics, no viral nudges beyond the share artifact
+- **"Tap to Judge" CTA on share cards** — lowers friction for external viewers to submit their first Judgment
+- **Guest attribution** — Jump Authors see who Judged them (by display name or "Guest"), creating social awareness
+- **"Nudge back" prompt** — after a Guest Judge submits a Judgment, surface a lightweight prompt to create an Account to "see your impact" and unlock full Judging history
+- **Soft Guest cap** — Guest Judges may submit 5–10 Judgments before hitting a soft auth wall; the wall explains what they unlock by creating an Account (Judging history, Open eligibility, Standings access)
+- **Weekly Prompt** — curated, taste-based Prompt published every week to reduce blank-page syndrome and spur creation
 
 ### Explicitly out of scope for MVP (deferred to v2 or later)
 
@@ -119,9 +123,10 @@ If a Jump cannot attract a single Judgment within a week, the core promise is un
 > **Judgments per Jump within 7 days of posting ≥ 2.0**
 
 Supporting health metrics:
-- **Guest-to-Player conversion rate** ≥ 15%
+- **Guest-to-Player conversion rate** ≥ 12%
 - **Share-to-Judge rate** ≥ 10%
 - **Jump-to-Open Final Score rate** ≥ 50%
+- **Prompt response rate** ≥ 30% of active Players create a Jump within 48h of a Prompt
 
 **Decision gate:** Run MVP with 100–500 Players across 2 monthly Open cycles. If the North Star metric is not met, do not proceed to Post-MVP experiments. Diagnose and fix the core loop first.
 
@@ -137,7 +142,6 @@ These are sequenced *after* the core loop is validated. Each experiment is indep
 |---|---|---|---|
 | Share card with score breakdown | Shareable artifact with four-factor scores drives more external distribution | Share-to-Judge rate | ≥ 15% |
 | "Rate this Jump" public link | Non-Players can react without signing up; lowers friction to first Judgment | Guest-to-Player conversion from public link | ≥ 20% |
-| Prompt-of-the-week push | Weekly curated Prompt reduces blank-page syndrome and spurs creation | Jumps created within 48h of Prompt | ≥ 30% of active Players |
 | Season countdown viral nudge | "Submission Window closes in 3 days" urgency drives performance spike | Jumps created in final 72h of Open | ≥ 40% of monthly total |
 
 ### 2. Retention Experiments
@@ -207,7 +211,7 @@ First Playable Loop
     → MVP (v1)
       → Validate: Judgments per Jump ≥ 2.0
         → Post-MVP Experiments (parallel)
-          → Growth: share cards, public links, Prompts, urgency nudges
+          → Growth: share cards, public links, urgency nudges
           → Retention: push notifications, Group bots, referral gamification
           → Safety: auto-hide, submission nudges, rate limiting
           → Competition: Group Seasons, Commissioner, Awards
@@ -223,7 +227,7 @@ First Playable Loop
 | Stage | Primary Metric | Target | Supporting Metrics |
 |---|---|---|---|
 | First Playable | Judgments per Jump (7 days) | ≥ 1.0 | — |
-| MVP | Judgments per Jump (7 days) | ≥ 2.0 | Guest-to-Player ≥ 15%, Share-to-Judge ≥ 10%, Jump-to-Open ≥ 50% |
+| MVP | Judgments per Jump (7 days) | ≥ 2.0 | Guest-to-Player ≥ 12%, Share-to-Judge ≥ 10%, Jump-to-Open ≥ 50%, Prompt response ≥ 30% |
 | Growth Experiments | Share-to-Judge rate | ≥ 15% | Guest conversion ≥ 20%, Prompt response ≥ 30% |
 | Retention Experiments | D7 return rate | ≥ 40% | Reactivation ≥ 15%, Group re-activation ≥ 25% |
 | Safety Experiments | Time-to-hide | < 1 hour | Report rate ≤ 5% |
@@ -242,3 +246,5 @@ These questions are raised by the roadmap but cannot be resolved without data fr
 1. **What is the minimum viable Group size?** The roadmap assumes Groups are v2, but if the First Playable shows that Players only Judge friends, the Group timeline may need to accelerate.
 2. **What is the actual viral coefficient (K)?** The roadmap assumes direct share is the primary growth vector. If K < 0.3, the product may need paid acquisition or a different loop.
 3. **What is the Judging labor ceiling?** If Players perform more Jumps than the community can Judge, the loop breaks. The roadmap assumes 2+ Judgments per Jump is achievable; if not, the Judging interface or incentive model must change.
+4. **Does "Judge Back" + weekly Prompt replace BeReal's reciprocity gate?** The MVP relies on social awareness (Guest attribution) and content rhythm (Prompts) to drive conversion. If Guest-to-Player conversion stays below 12%, a stronger reciprocity mechanic may be needed.
+5. **Can The Open produce actionable signal at small scale?** The roadmap treats The Open as a learning surface. If monthly data is too sparse to inform product decisions, the cadence may need to shift to weekly checkpoints.

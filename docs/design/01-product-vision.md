@@ -42,11 +42,11 @@ A person who does absurd food bits for a small, specific audience — the group 
 
 1. **Unauthenticated visitor opens app** — lands directly on a public feed of seeded Jumps; no login gate.
 2. **Browses 2–3 Jumps** — sees Source, Destination, Food, Caption, Evidence; learns the game from examples.
-3. **Hits a soft auth gate when they try to Judge** — one-tap social login; no email verification on first tap.
-4. **Judges 1–2 Jumps** — tap-to-select verdicts on all four factors (Commitment, Transgression, Creativity, Presentation), each on a 1–4 forced-choice scale with named tier labels, then confirms the ruling on a filing-receipt screen.
-5. **Invited to post their own** — CTA surfaces after the first Judgment, not on app open.
+3. **Judges a Jump** — submits verdicts as a Guest Judge without creating an Account, or signs in with one-tap social login to track their history. In v1, Judging requires no Account; auth gates posting and competition entry.
+4. **Judges 1–2 jumps** — tap-to-select verdicts on all four factors (Commitment, Transgression, Creativity, Presentation), each on a 1–4 forced-choice scale with named tier labels, then confirms the ruling on a filing-receipt screen.
+5. **Invited to post their own** — after Judging, a CTA surfaces to create their first Jump. Posting requires an Account.
 
-Auth gates contribution, not consumption. The first ask is to Judge (low cost), not to post (high cost).
+Auth gates posting, competition entry, and Account features, not consumption or Judging. In v1, Guest Judges may Judge without creating an Account. A soft auth cap may be introduced in v2 based on data. The first ask is to Judge (low cost), not to post (high cost).
 
 ## Group-First vs. Public Visibility
 
