@@ -10,10 +10,22 @@ Before creating worktrees:
 - confirm there are no uncommitted tracked changes in the coordinator checkout
 - allow ignored/untracked orchestration artifacts such as `.work-issue/` and `worktrees/`
 - confirm `gh` can read the repo and target issue
+- confirm no background tasks are actively using git (see Git lock protection below)
 - run `git fetch origin`
 - detect the repo default branch
 - confirm `worktrees/<run-id>/` does not already exist
 - confirm `.work-issue/runs/<run-id>/` does not already exist
+
+## Git lock protection
+
+Background agents running in parallel may create transient git lock files (`.git/index.lock`, `.git/refs/heads/*.lock`). If a git command fails with a lock error:
+
+1. Wait 2-3 seconds and retry the command once
+2. If still locked, check for running git processes: `ps aux | grep git`
+3. If no git processes are running, remove stale lock files: `find .git -name "*.lock" -type f -delete 2>/dev/null`
+4. Retry the operation
+
+Apply this retry pattern to all git commands in this runbook (`git fetch origin`, `git worktree add`, `git push`).
 
 Use the repo default branch only. V1 does not support base branch override.
 
