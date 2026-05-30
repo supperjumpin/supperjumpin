@@ -1,17 +1,16 @@
 # Project Memory
 
 ## 🟢 Current Focus
-- **Objective**: Finalize growth loop architecture decisions and reconcile MVP roadmap with domain model (ADR-0019 through ADR-0024).
-- **Active Issue**: Growth loop decisions — reconciling First Playable → MVP transition, auth model, and retention mechanics.
-- **Status**: Seven expert agents have analyzed Judge→Performer gap, The Open viability, share-as-growth-vector, Guest conversion, and retention mechanics. Findings are being synthesized.
+- **Objective**: Design package complete (issues #50–#67). Ready for implementation backlog (#68) and first tracer bullet.
+- **Active Issue**: None — all design docs shipped, CONTEXT.md and ADRs reconciled with accepted decisions (#67).
+- **Status**: CONTEXT.md + ADRs updated to match v1 scope. New ADRs 0025–0027 formalize Guest Judge sessions, Open data model, and hexagonal architecture.
 - **Agent ID**: Sisyphus
-- **Last Updated**: 2026-05-30T14:45:00Z
+- **Last Updated**: 2026-05-30T20:00:00Z
 
 ## ⏳ Activity Timeline (Current Session)
+- 2026-05-30T20:00:00Z [Sisyphus]: Completed #67 — updated CONTEXT.md and ADRs for accepted decision changes. New ADRs 0025–0027. All five acceptance criteria met.
 - 2026-05-30T14:45:00Z [Sisyphus]: Seven expert agents completed growth loop analysis. Consolidated findings now available for review. Key tensions: Judge→Performer transition, monthly Open cadence, share viral mechanics, Guest conversion path, BeReal reciprocity gate gap.
 - 2026-05-30T14:00:00Z [Sisyphus]: Drafted MVP Roadmap and Sequencing Plan (#65) -> docs/design/04-mvp-roadmap.md with 4 horizons, explicit cuts table, metrics per stage, and decision gates.
-- 2026-05-30T14:00:00Z [Sisyphus]: Resolved Product Vision auth contradiction — Guest Judges judge freely in v1, auth wall is at posting. Updated docs/design/01-product-vision.md.
-- 2026-05-30T14:00:00Z [Sisyphus]: Resolved Product Vision auth contradiction — Guest Judges judge freely in v1, auth wall is at posting. Updated docs/design/01-product-vision.md.
 - 2026-05-30T14:00:00Z [Sisyphus]: Resolved Product Vision auth contradiction — Guest Judges judge freely in v1, auth wall is at posting. Updated docs/design/01-product-vision.md.
 
 ## ⚠️ Active Hurdles
