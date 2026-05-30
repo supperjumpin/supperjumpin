@@ -8,6 +8,7 @@
 - **Last Updated**: 2026-05-26T03:15:00Z
 
 ## ⏳ Activity Timeline (Current Session)
+- 2026-05-30T14:00:00Z [Sisyphus]: Drafted MVP Roadmap and Sequencing Plan (#65) -> docs/design/04-mvp-roadmap.md with 4 horizons, explicit cuts table, metrics per stage, and decision gates.
 - 2026-05-26T02:50:00Z [hermes-agent]: Implemented hard-failure API client sync verification (#48) -> Replaced fake generator with `openapi-typescript` and added CI check to fail on stale types.
 - 2026-05-25T02:15:00Z [prn_dev]: Implemented seasonal boundaries (#21) -> Submission window enforcement, auto-transition logic, deadline-based API.
 - 2026-05-25T00:55:00Z [prn_dev]: Added accessibility labels to all score adjustment buttons -> Screen reader compatible.
