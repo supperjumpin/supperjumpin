@@ -133,14 +133,6 @@ _Avoid_: Post, broadcast, distribute
 The primary measure of product health for a given phase. For v1, the North Star is **"Judgments per Jump within 7 days of posting"** — it captures whether the core promise ("take food somewhere it doesn't belong, document it, get judged") is being fulfilled. Supporting health metrics include: **Guest-to-Player conversion rate** (% of **Guest Judges** who create an **Account**), **Share-to-Judge rate** (% of shared links that result in a **Judgment**), and **Jump-to-Open Final Score rate** (% of **Performed Jumps** that earn a score in the monthly **Open**).
 _Avoid_: Key metric, KPI, success metric
 
-**Share**:
-The act of distributing a **Jump** link from the app to an external channel (group chat, social media, etc.). A **Share** surfaces a deep link with a preview card containing the **Evidence** photo, a truncated **Caption**, the running average score, and the **Source**/**Destination**/**Food** summary. The recipient opens the **Jump** detail view directly, where they may **Judge** without creating an **Account**.
-_Avoid_: Post, broadcast, distribute
-
-**North Star Metric**:
-The primary measure of product health for a given phase. For v1, the North Star is **"Judgments per Jump within 7 days of posting"** — it captures whether the core promise ("take food somewhere it doesn't belong, document it, get judged") is being fulfilled. Supporting health metrics include: **Guest-to-Player conversion rate** (% of **Guest Judges** who create an **Account**), **Share-to-Judge rate** (% of shared links that result in a **Judgment**), and **Jump-to-Open Final Score rate** (% of **Performed Jumps** that earn a score in the monthly **Open**).
-_Avoid_: Key metric, KPI, success metric
-
 **Open**:
 The platform-run monthly competition, open to all **Players** globally. The **Open** runs on a fixed calendar cadence, requires no **Season Commissioner**, and soft-closes at month-end — **Final Scores** are computed from whatever **Judgments** exist at that moment. A **Jump** may earn an **Open Final Score** independently of any **Season Final Score** it also earns.
 _Avoid_: Global Season, public season
