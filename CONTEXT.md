@@ -86,15 +86,15 @@ A **Performed Jump** whose **Judging Window** closed without any submitted **Jud
 _Avoid_: Unjudged jump, unrated jump
 
 **Dispute**:
-A **Player-raised** challenge that a **Performed Jump** may not satisfy **House Rules**, **Credibility**, or claimed **Source**, **Destination**, or **Food**.
+A **Player-raised** challenge that a **Performed Jump** may not satisfy **House Rules**, **Credibility**, or claimed **Source**, **Destination**, or **Food**. In v1, Disputes are filed via a simple Report form with 3–4 high-level categories (derived from House Rules) plus an optional text field; adjudication is manual by the team. Formal Dispute tooling is v2.
 _Avoid_: Report, flag, appeal
 
 **Disqualified Jump**:
-A **Performed Jump** removed from **Standings** by a **Season Commissioner** or **Group Admin** because it failed **House Rules** or another competition requirement.
+A **Performed Jump** removed from **Standings** because it failed **House Rules** or another competition requirement. A v2 concept; the governance model for adjudicating Disqualified Jumps will be designed when Groups are specified. At MVP, the team may manually exclude a Jump from the **Open** **Standings** without a formal Disqualified status.
 _Avoid_: Deleted jump, rejected jump
 
 **Removed Jump**:
-A **Jump** hidden from normal Group visibility because of a serious safety, privacy, legal, or platform violation. **Removed Jumps** are distinct from **Disqualified Jumps**, which may remain visible while not affecting **Standings**.
+A **Jump** hidden from all visibility because of a serious safety, privacy, legal, or platform violation. In v1, a Removed Jump is fully suppressed from the public feed, direct links, and share previews. The performer is notified privately by the team. **Removed Jumps** are distinct from **Disqualified Jumps**, which may remain visible while not affecting **Standings**.
 _Avoid_: Deleted jump
 
 **Player**:
@@ -182,7 +182,7 @@ An **Award** given at **Season** close to a **Player** whose **Season**-linked *
 _Avoid_: Consolation prize
 
 **House Rules**:
-The boundaries that define what behavior can count as valid Supperjumpin play. A **Jump** may be awkward, absurd, or transgressive, but must not require harassment, harmful deception, trespass, unsafe behavior, illegal acts, filming identifiable non-consenting bystanders, or disrupting a business.
+The boundaries that define what behavior can count as valid Supperjumpin play. A **Jump** may be awkward, absurd, or transgressive, but must not require harassment, deception that causes material harm to a specific person, trespass, behavior that creates imminent risk of physical injury, illegal acts, property damage, animal cruelty, content that contains hate speech or graphic violence, or intentionally preventing a business from operating. The team may remove any **Jump** that violates the spirit of playful, harmless absurdity, even if it does not violate a specific rule.
 _Avoid_: Safety policy, moderation policy
 
 **Evidence**:
@@ -221,4 +221,4 @@ _Avoid_: Truth, proof
 
 **Player A**: Later, I joined a Group with an Active Season and submitted the same Jump to the Season. Only Judgments submitted while it is Season-linked count toward the Season Final Score — the public Judgments it already received stay on the public running average and do not carry over.
 
-**Season Commissioner**: If the Dispute holds, I can mark it as a Disqualified Jump so it stays visible but does not affect Season Standings.
+**Team**: If a Jump violates House Rules, we may remove it entirely (Removed Jump) or, in v2 when Groups launch, mark it as Disqualified so it stays visible but does not affect Season Standings.
