@@ -15,7 +15,8 @@ This directory holds the full design document set for the Supperjumpin redesign.
 | [Product/UX Design](./02-product-ux-design.md) | Done | Core loop; feed model; onboarding path; screen inventory | Data schema, API shape | Product Vision |
 | [Backend/Data Architecture](./03-backend-data-architecture.md) | Done | Data model changes from Group-first to public-first; API contract changes; what survives vs. gets reworked | UX flows, screen design | Product/UX Design |
 | [MVP Roadmap](./04-mvp-roadmap.md) | Done | Which features ship in MVP vs. later; ordering | Implementation details | Backend/Data Architecture |
-| [Implementation Backlog](./05-implementation-backlog.md) | Not started | Nothing — translates roadmap into independently-grabbable issues | Feature scope | MVP Roadmap |
+| [Technical Design](./05-technical-design.md) | Done | Jump lifecycle state machine; eligibility rules; scoring mechanics; test specifications; implementation sequencing | Feature scope, UX flows, data schema | MVP Roadmap, Product/UX Design, Backend/Data Architecture |
+| [Implementation Backlog](./06-implementation-backlog.md) | Not started | Nothing — translates technical design into independently-grabbable issues | Feature scope | Technical Design |
 
 ADRs are written inline as decisions crystallize in each upstream document, not as a single terminal step.
 
@@ -26,7 +27,8 @@ Product Vision
   → Product/UX Design
       → Backend/Data Architecture
           → MVP Roadmap
-              → Implementation Backlog
+              → Technical Design
+                  → Implementation Backlog
 ```
 
 ## Major Decision Areas
