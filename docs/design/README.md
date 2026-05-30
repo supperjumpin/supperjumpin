@@ -13,7 +13,7 @@ This directory holds the full design document set for the Supperjumpin redesign.
 |---|---|---|---|---|
 | [Product Vision](./01-product-vision.md) | Done | Primary audience; what success looks like at launch | UX flows, data model | Nothing |
 | [Product/UX Design](./02-product-ux-design.md) | Done | Core loop; feed model; onboarding path; screen inventory | Data schema, API shape | Product Vision |
-| [Backend/Data Architecture](./03-backend-data-architecture.md) | Not started | Data model changes from Group-first to public-first; API contract changes; what survives vs. gets reworked | UX flows, screen design | Product/UX Design |
+| [Backend/Data Architecture](./03-backend-data-architecture.md) | Done | Data model changes from Group-first to public-first; API contract changes; what survives vs. gets reworked | UX flows, screen design | Product/UX Design |
 | [MVP Roadmap](./04-mvp-roadmap.md) | Done | Which features ship in MVP vs. later; ordering | Implementation details | Backend/Data Architecture |
 | [Implementation Backlog](./05-implementation-backlog.md) | Not started | Nothing — translates roadmap into independently-grabbable issues | Feature scope | MVP Roadmap |
 
