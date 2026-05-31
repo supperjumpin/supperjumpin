@@ -17,7 +17,7 @@ type StuntPlanningRepository interface {
 	// ActiveSeasonForGroup returns the active season for a group, if any.
 	// SeasonSnapshot.ID is empty when no active season exists.
 	ActiveSeasonForGroup(ctx context.Context, groupID string) (SeasonSnapshot, error)
-	// UpdateStuntToPlanned atomically updates an Idea to Planned Stunt status
+	// UpdateStuntToPlanned atomically updates an Idea to Planned Jump status
 	// and associates it with the given season (nil for off-season).
 	UpdateStuntToPlanned(ctx context.Context, stuntID, playerID string, seasonID *string) (StuntSnapshot, error)
 }
@@ -76,7 +76,7 @@ func CreateIdea(ctx context.Context, repo StuntPlanningRepository, input CreateI
 
 // CreatePlannedStunt evaluates stunt planning rules and persists the result.
 //
-// Returns ErrStuntNotFound when the idea does not exist or is not in "Idea" status.
+// Returns ErrJumpNotFound when the idea does not exist or is not in "Idea" status.
 // Returns Allowed = false when the player is not a group member or does not own the idea.
 func CreatePlannedStunt(ctx context.Context, repo StuntPlanningRepository, input CreatePlannedStuntInput) CreatePlannedStuntResult {
 	// 1. Look up the idea
@@ -85,7 +85,7 @@ func CreatePlannedStunt(ctx context.Context, repo StuntPlanningRepository, input
 		return CreatePlannedStuntResult{Err: err}
 	}
 	if !ok || stunt.Status != "Idea" {
-		return CreatePlannedStuntResult{Err: ErrStuntNotFound}
+		return CreatePlannedStuntResult{Err: ErrJumpNotFound}
 	}
 
 	// 2. Player must be a group member and the idea owner
@@ -110,7 +110,7 @@ func CreatePlannedStunt(ctx context.Context, repo StuntPlanningRepository, input
 		}
 	}
 
-	// 4. Update to Planned Stunt
+	// 4. Update to Planned Jump
 	updated, err := repo.UpdateStuntToPlanned(ctx, input.IdeaID, input.PlayerID, seasonID)
 	if err != nil {
 		return CreatePlannedStuntResult{Err: err}

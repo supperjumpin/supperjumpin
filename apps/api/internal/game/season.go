@@ -35,7 +35,7 @@ type StandingEntry struct {
 	PlayerID     string
 	DisplayName  string
 	SeasonScore  int
-	JudgedStunts int
+	JudgedJumps int
 }
 
 // SeasonRepository defines persistence operations for the season lifecycle flow.
@@ -60,7 +60,7 @@ type SeasonRepository interface {
 	// SeasonHistoryEntries returns the history entries for a season.
 	SeasonHistoryEntries(ctx context.Context, seasonID string) ([]SeasonHistoryEntry, error)
 
-	// StuntsForSeason returns all stunts linked to the given season.
+	// StuntsForSeason returns all jumps linked to the given season.
 	StuntsForSeason(ctx context.Context, seasonID string) ([]StuntSnapshot, error)
 
 	// JudgmentsForStunt returns all judgments for a given stunt.
@@ -259,28 +259,28 @@ func AutoFinalizeSeason(ctx context.Context, repo SeasonRepository, seasonID str
 	return finalizeStuntsForSeason(ctx, repo, seasonID)
 }
 
-// finalizeStuntsForSeason computes and persists final scores for all performed stunts
-// in the season, transitioning them to Judged Stunt or Unjudged Stunt.
+// finalizeStuntsForSeason computes and persists final scores for all performed jumps
+// in the season, transitioning them to Judged Jump or Unjudged Jump.
 func finalizeStuntsForSeason(ctx context.Context, repo SeasonRepository, seasonID string) error {
-	stunts, err := repo.StuntsForSeason(ctx, seasonID)
+	jumps, err := repo.StuntsForSeason(ctx, seasonID)
 	if err != nil {
 		return err
 	}
-	for _, stunt := range stunts {
-		if stunt.Status != "Performed Stunt" {
+	for _, jump := range jumps {
+		if jump.Status != "Performed Jump" {
 			continue
 		}
-		judgments, err := repo.JudgmentsForStunt(ctx, stunt.ID)
+		judgments, err := repo.JudgmentsForStunt(ctx, jump.ID)
 		if err != nil {
 			return err
 		}
 		if len(judgments) > 0 {
 			score := finalScore(judgments)
-			if err := repo.UpdateStuntFinalization(ctx, stunt.ID, "Judged Stunt", &score); err != nil {
+			if err := repo.UpdateStuntFinalization(ctx, jump.ID, "Judged Jump", &score); err != nil {
 				return err
 			}
 		} else {
-			if err := repo.UpdateStuntFinalization(ctx, stunt.ID, "Unjudged Stunt", nil); err != nil {
+			if err := repo.UpdateStuntFinalization(ctx, jump.ID, "Unjudged Jump", nil); err != nil {
 				return err
 			}
 		}
@@ -291,7 +291,7 @@ func finalizeStuntsForSeason(ctx context.Context, repo SeasonRepository, seasonI
 func finalScore(judgments []Judgment) int {
 	total := 0
 	for _, j := range judgments {
-		total += j.Difficulty + j.Transgression + j.Creativity + j.Documentation
+		total += j.Difficulty + j.Transgression + j.Creativity + j.Presentation
 	}
 	return total / len(judgments)
 }
@@ -306,7 +306,7 @@ func Standings(ctx context.Context, repo SeasonRepository, groupID string) ([]St
 		return []StandingEntry{}, nil
 	}
 
-	stunts, err := repo.StuntsForSeason(ctx, season.ID)
+	jumps, err := repo.StuntsForSeason(ctx, season.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -322,20 +322,20 @@ func Standings(ctx context.Context, repo SeasonRepository, groupID string) ([]St
 	}
 
 	byPlayer := map[string]*StandingEntry{}
-	for _, stunt := range stunts {
-		if stunt.Status != "Judged Stunt" || stunt.FinalScore == nil {
+	for _, jump := range jumps {
+		if jump.Status != "Judged Jump" || jump.FinalScore == nil {
 			continue
 		}
-		entry := byPlayer[stunt.PlayerID]
+		entry := byPlayer[jump.PlayerID]
 		if entry == nil {
 			entry = &StandingEntry{
-				PlayerID:    stunt.PlayerID,
-				DisplayName: displayName[stunt.PlayerID],
+				PlayerID:    jump.PlayerID,
+				DisplayName: displayName[jump.PlayerID],
 			}
-			byPlayer[stunt.PlayerID] = entry
+			byPlayer[jump.PlayerID] = entry
 		}
-		entry.SeasonScore += *stunt.FinalScore
-		entry.JudgedStunts++
+		entry.SeasonScore += *jump.FinalScore
+		entry.JudgedJumps++
 	}
 
 	standings := make([]StandingEntry, 0, len(byPlayer))

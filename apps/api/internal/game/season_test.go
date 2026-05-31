@@ -364,7 +364,7 @@ func TestFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
 		t.Fatalf("expected season_1, got %q", updatedSeasonID)
 	}
 	if !stuntsQueried {
-		t.Fatalf("expected stunts to be queried for finalization")
+		t.Fatalf("expected jumps to be queried for finalization")
 	}
 }
 

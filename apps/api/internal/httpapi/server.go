@@ -311,7 +311,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if err != nil {
-			http.Error(w, "create Planned Stunt", http.StatusInternalServerError)
+			http.Error(w, "create Planned Jump", http.StatusInternalServerError)
 			return
 		}
 		if !ok {
@@ -527,7 +527,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if errors.Is(err, ErrInvalidDisputeResolution) {
-			http.Error(w, "Dispute resolution must be No Action, Disqualified Stunt, or Removed Stunt", http.StatusBadRequest)
+			http.Error(w, "Dispute resolution must be No Action, Disqualified Jump, or Removed Jump", http.StatusBadRequest)
 			return
 		}
 		if err != nil {

@@ -112,7 +112,7 @@ func (s *PostgresStore) Stunt(ctx context.Context, stuntID string) (game.StuntSn
 	var seasonID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
 SELECT id, group_id, player_id, season_id, status, source, destination, food
-FROM stunts
+FROM jumps
 WHERE id = $1`, stuntID).Scan(
 		&snap.ID,
 		&snap.GroupID,
@@ -286,33 +286,33 @@ WHERE token = $2 AND used_by_player_id IS NULL`, playerID, token)
 	return err
 }
 
-func (s *PostgresStore) UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, documentation int) (game.Judgment, bool, error) {
+func (s *PostgresStore) UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, presentation int) (game.Judgment, bool, error) {
 	judgmentID := stableID("judgment", stuntID+":"+playerID)
 	var created bool
 	err := s.db.QueryRowContext(ctx, `
 WITH upsert AS (
-  INSERT INTO judgments (id, stunt_id, player_id, difficulty, transgression, creativity, documentation)
+  INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation)
   VALUES ($1, $2, $3, $4, $5, $6, $7)
-  ON CONFLICT (stunt_id, player_id) DO UPDATE SET
+  ON CONFLICT (jump_id, player_id) DO UPDATE SET
     difficulty = EXCLUDED.difficulty,
     transgression = EXCLUDED.transgression,
     creativity = EXCLUDED.creativity,
-    documentation = EXCLUDED.documentation,
+    presentation = EXCLUDED.presentation,
     updated_at = now()
   RETURNING (xmax = 0) AS created
 )
-SELECT created FROM upsert`, judgmentID, stuntID, playerID, difficulty, transgression, creativity, documentation).Scan(&created)
+SELECT created FROM upsert`, judgmentID, stuntID, playerID, difficulty, transgression, creativity, presentation).Scan(&created)
 	if err != nil {
 		return game.Judgment{}, false, err
 	}
 	return game.Judgment{
 		ID:            judgmentID,
-		StuntID:       stuntID,
+		JumpID:        stuntID,
 		PlayerID:      playerID,
 		Difficulty:    difficulty,
 		Transgression: transgression,
 		Creativity:    creativity,
-		Documentation: documentation,
+		Presentation:  presentation,
 	}, created, nil
 }
 
@@ -325,7 +325,7 @@ func (s *PostgresStore) InsertIdea(ctx context.Context, groupID, playerID, sourc
 			return game.StuntSnapshot{}, err
 		}
 		result, err := s.db.ExecContext(ctx, `
-INSERT INTO stunts (id, group_id, player_id, status, source, destination, food)
+INSERT INTO jumps (id, group_id, player_id, status, source, destination, food)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT DO NOTHING`, id, groupID, playerID, "Idea", source, destination, food)
 		if err != nil {
@@ -358,7 +358,7 @@ func (s *PostgresStore) Idea(ctx context.Context, stuntID string) (game.StuntSna
 	var seasonID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
 SELECT id, group_id, player_id, season_id, status, source, destination, food
-FROM stunts
+FROM jumps
 WHERE id = $1`, stuntID).Scan(
 		&snap.ID,
 		&snap.GroupID,
@@ -396,8 +396,8 @@ func (s *PostgresStore) UpdateStuntToPlanned(ctx context.Context, stuntID, playe
 	var snap game.StuntSnapshot
 	var resultSeasonID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
-UPDATE stunts
-SET status = 'Planned Stunt', season_id = $2
+UPDATE jumps
+SET status = 'Planned Jump', season_id = $2
 WHERE id = $1
   AND status = 'Idea'
 RETURNING id, group_id, player_id, season_id, status, source, destination, food`, stuntID, seasonID).Scan(
@@ -426,7 +426,7 @@ func (s *PostgresStore) PlannedStunt(ctx context.Context, stuntID string) (game.
 	var seasonID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
 SELECT id, group_id, player_id, season_id, status, source, destination, food
-FROM stunts
+FROM jumps
 WHERE id = $1`, stuntID).Scan(
 		&snap.ID,
 		&snap.GroupID,
@@ -443,7 +443,7 @@ WHERE id = $1`, stuntID).Scan(
 	if err != nil {
 		return game.StuntSnapshot{}, false, err
 	}
-	if snap.Status != "Planned Stunt" {
+	if snap.Status != "Planned Jump" {
 		return game.StuntSnapshot{}, false, nil
 	}
 	if seasonID.Valid {
@@ -470,7 +470,7 @@ func (s *PostgresStore) CreateAuthorization(ctx context.Context, stuntID, player
 	}
 	expiresAt := now.Add(15 * time.Minute).UTC()
 	if _, err := tx.ExecContext(ctx, `
-INSERT INTO evidence_upload_authorizations (id, stunt_id, player_id, content_type, media_object_key, expires_at)
+INSERT INTO evidence_upload_authorizations (id, jump_id, player_id, content_type, media_object_key, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6)`,
 		id, stuntID, playerID, contentType, mediaObjectKey, expiresAt,
 	); err != nil {
@@ -481,7 +481,7 @@ VALUES ($1, $2, $3, $4, $5, $6)`,
 	}
 	return game.AuthorizationSnapshot{
 		ID:             id,
-		StuntID:        stuntID,
+		JumpID:         stuntID,
 		MediaObjectKey: mediaObjectKey,
 		ExpiresAt:      expiresAt,
 	}, nil
@@ -500,7 +500,7 @@ func (s *PostgresStore) ClaimAndAdvance(ctx context.Context, authorizationID, st
 	err = tx.QueryRowContext(ctx, `
 SELECT id, player_id, media_object_key, expires_at
 FROM evidence_upload_authorizations
-WHERE id = $1 AND stunt_id = $2 FOR UPDATE`, authorizationID, stuntID).Scan(
+WHERE id = $1 AND jump_id = $2 FOR UPDATE`, authorizationID, stuntID).Scan(
 		&authorizationID, &foundPlayerID, &authMediaObjectKey, &authExpiresAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -516,16 +516,16 @@ WHERE id = $1 AND stunt_id = $2 FOR UPDATE`, authorizationID, stuntID).Scan(
 	evidenceID := stableID("evidence", stuntID+":"+authorizationID)
 	now := time.Now().UTC()
 	if _, err := tx.ExecContext(ctx, `
-INSERT INTO evidences (id, stunt_id, player_id, upload_authorization_id, caption, media_object_key, created_at)
+INSERT INTO evidences (id, jump_id, player_id, upload_authorization_id, caption, media_object_key, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		evidenceID, stuntID, playerID, authorizationID, caption, authMediaObjectKey, now,
 	); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `
-UPDATE stunts
-SET status = 'Performed Stunt'
-WHERE id = $1 AND status = 'Planned Stunt'`, stuntID,
+UPDATE jumps
+SET status = 'Performed Jump'
+WHERE id = $1 AND status = 'Planned Jump'`, stuntID,
 	); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
@@ -548,7 +548,7 @@ func (s *PostgresStore) StuntByID(ctx context.Context, stuntID string) (game.Stu
 	var seasonID sql.NullString
 	err := s.db.QueryRowContext(ctx, `
 SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score
-FROM stunts
+FROM jumps
 WHERE id = $1`, stuntID).Scan(
 		&snap.ID,
 		&snap.GroupID,
@@ -580,7 +580,7 @@ func (s *PostgresStore) InsertDispute(ctx context.Context, stuntID, raisedByPlay
 	defer tx.Rollback()
 
 	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM disputes WHERE stunt_id = $1`, stuntID).Scan(&count); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM disputes WHERE jump_id = $1`, stuntID).Scan(&count); err != nil {
 		return game.DisputeSnapshot{}, err
 	}
 	dispute := Dispute{
@@ -592,7 +592,7 @@ func (s *PostgresStore) InsertDispute(ctx context.Context, stuntID, raisedByPlay
 		Status:           "Open",
 	}
 	if _, err := tx.ExecContext(ctx, `
-INSERT INTO disputes (id, stunt_id, raised_by_player_id, concern, details, status)
+INSERT INTO disputes (id, jump_id, raised_by_player_id, concern, details, status)
 VALUES ($1, $2, $3, $4, $5, $6)`, dispute.ID, dispute.JumpID, dispute.RaisedByPlayerID, dispute.Concern, dispute.Details, dispute.Status); err != nil {
 		return game.DisputeSnapshot{}, err
 	}
@@ -630,7 +630,7 @@ WHERE id = $1`, disputeID, overrideResolution, overrideReason, overrideByPlayerI
 }
 
 func (s *PostgresStore) UpdateStuntStatusAfterDispute(ctx context.Context, stuntID, status string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE stunts SET status = $2, final_score = NULL WHERE id = $1`, stuntID, status)
+	_, err := s.db.ExecContext(ctx, `UPDATE jumps SET status = $2, final_score = NULL WHERE id = $1`, stuntID, status)
 	return err
 }
 
@@ -701,7 +701,7 @@ func (s *PostgresStore) UpdateSeasonStatus(ctx context.Context, seasonID, action
 func (s *PostgresStore) StuntsForSeason(ctx context.Context, seasonID string) ([]game.StuntSnapshot, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score
-FROM stunts
+FROM jumps
 WHERE season_id = $1`, seasonID)
 	if err != nil {
 		return nil, err
@@ -728,9 +728,9 @@ WHERE season_id = $1`, seasonID)
 
 func (s *PostgresStore) JudgmentsForStunt(ctx context.Context, stuntID string) ([]game.Judgment, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, stunt_id, player_id, difficulty, transgression, creativity, documentation
+SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
 FROM judgments
-WHERE stunt_id = $1`, stuntID)
+WHERE jump_id = $1`, stuntID)
 	if err != nil {
 		return nil, err
 	}
@@ -739,7 +739,7 @@ WHERE stunt_id = $1`, stuntID)
 	var result []game.Judgment
 	for rows.Next() {
 		var j game.Judgment
-		if err := rows.Scan(&j.ID, &j.StuntID, &j.PlayerID, &j.Difficulty, &j.Transgression, &j.Creativity, &j.Documentation); err != nil {
+		if err := rows.Scan(&j.ID, &j.JumpID, &j.PlayerID, &j.Difficulty, &j.Transgression, &j.Creativity, &j.Presentation); err != nil {
 			return nil, err
 		}
 		result = append(result, j)
@@ -752,7 +752,7 @@ WHERE stunt_id = $1`, stuntID)
 
 func (s *PostgresStore) UpdateStuntFinalization(ctx context.Context, stuntID string, status string, finalScore *int) error {
 	_, err := s.db.ExecContext(ctx, `
-UPDATE stunts
+UPDATE jumps
 SET status = $2, final_score = $3
 WHERE id = $1`, stuntID, status, finalScore)
 	return err
@@ -922,7 +922,7 @@ func (s *PostgresStore) ensureSeasonStatusesForStunt(ctx context.Context, stuntI
 	defer tx.Rollback()
 
 	var groupID string
-	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM stunts WHERE id = $1`, stuntID).Scan(&groupID); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT group_id FROM jumps WHERE id = $1`, stuntID).Scan(&groupID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -1108,14 +1108,14 @@ type stuntViewQueryer interface {
 
 func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedJumpView, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food, stunts.final_score,
+SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score,
        evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
        players.id, players.display_name
-FROM stunts
-JOIN evidences ON evidences.stunt_id = stunts.id
-JOIN players ON players.id = stunts.player_id
-WHERE stunts.group_id = $1 AND stunts.status IN ('Performed Stunt', 'Judged Stunt', 'Unjudged Stunt', 'Disqualified Stunt')
-ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
+FROM jumps
+JOIN evidences ON evidences.jump_id = jumps.id
+JOIN players ON players.id = jumps.player_id
+WHERE jumps.group_id = $1 AND jumps.status IN ('Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump')
+ORDER BY evidences.created_at DESC, jumps.id DESC`, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1166,11 +1166,11 @@ ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 
 func disputesForStuntQuery(ctx context.Context, queryer stuntViewQueryer, stuntID string) ([]Dispute, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+SELECT id, jump_id, raised_by_player_id, concern, details, status,
        resolution, resolution_reason, resolved_by_player_id,
        override_resolution, override_reason, override_by_player_id
 FROM disputes
-WHERE stunt_id = $1
+WHERE jump_id = $1
 ORDER BY created_at ASC, id ASC`, stuntID)
 	if err != nil {
 		return nil, err
@@ -1237,7 +1237,7 @@ func disputeInDB(ctx context.Context, db *sql.DB, disputeID string) (Dispute, er
 	var overrideReason sql.NullString
 	var overrideByPlayerID sql.NullString
 	if err := db.QueryRowContext(ctx, `
-SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+SELECT id, jump_id, raised_by_player_id, concern, details, status,
        resolution, resolution_reason, resolved_by_player_id,
        override_resolution, override_reason, override_by_player_id
 FROM disputes

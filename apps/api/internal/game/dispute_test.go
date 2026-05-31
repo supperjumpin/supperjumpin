@@ -50,20 +50,20 @@ func (m *mockDisputeRepo) UpdateStuntStatusAfterDispute(_ context.Context, stunt
 }
 
 func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedStunt(t *testing.T) {
-	var insertedStuntID, insertedPlayerID string
+	var insertedJumpID, insertedPlayerID string
 	repo := &mockDisputeRepo{
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
 		},
 		insertDisputeFn: func(_ context.Context, stuntID, raisedByPlayerID, concern, details string) (DisputeSnapshot, error) {
-			insertedStuntID = stuntID
+			insertedJumpID = stuntID
 			insertedPlayerID = raisedByPlayerID
 			return DisputeSnapshot{
 				ID:               "dispute_abc123",
-				StuntID:          stuntID,
+				JumpID:          stuntID,
 				RaisedByPlayerID: raisedByPlayerID,
 				Concern:          concern,
 				Details:          details,
@@ -74,7 +74,7 @@ func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedStunt(t *testing.T) 
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_bob",
-		StuntID:  "stunt_1",
+		JumpID:  "stunt_1",
 		Concern:  "House Rules",
 		Details:  "This blocked the emergency exit.",
 	})
@@ -94,15 +94,15 @@ func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedStunt(t *testing.T) 
 	if result.Dispute.Concern != "House Rules" {
 		t.Fatalf("expected House Rules concern, got %q", result.Dispute.Concern)
 	}
-	if insertedStuntID != "stunt_1" || insertedPlayerID != "player_bob" {
-		t.Fatalf("unexpected insert args: stunt=%s, player=%s", insertedStuntID, insertedPlayerID)
+	if insertedJumpID != "stunt_1" || insertedPlayerID != "player_bob" {
+		t.Fatalf("unexpected insert args: stunt=%s, player=%s", insertedJumpID, insertedPlayerID)
 	}
 }
 
 func TestCreateDispute_NonMemberNotAllowed(t *testing.T) {
 	repo := &mockDisputeRepo{
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{}, false, nil
@@ -111,7 +111,7 @@ func TestCreateDispute_NonMemberNotAllowed(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_stranger",
-		StuntID:  "stunt_1",
+		JumpID:  "stunt_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
@@ -128,7 +128,7 @@ func TestCreateDispute_InvalidConcernReturnsError(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		StuntID:  "stunt_1",
+		JumpID:  "stunt_1",
 		Concern:  "Invalid Concern",
 		Details:  "Details.",
 	})
@@ -140,18 +140,18 @@ func TestCreateDispute_InvalidConcernReturnsError(t *testing.T) {
 func TestCreateDispute_RemovedStuntNotDisputable(t *testing.T) {
 	repo := &mockDisputeRepo{
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Removed Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Removed Jump"}, true, nil
 		},
 	}
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		StuntID:  "stunt_1",
+		JumpID:  "stunt_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
-	if !errors.Is(result.Err, ErrStuntNotFound) {
-		t.Fatalf("expected ErrStuntNotFound for Removed Stunt, got %v", result.Err)
+	if !errors.Is(result.Err, ErrJumpNotFound) {
+		t.Fatalf("expected ErrJumpNotFound for Removed Jump, got %v", result.Err)
 	}
 }
 
@@ -164,12 +164,12 @@ func TestCreateDispute_IdeaNotDisputable(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		StuntID:  "stunt_1",
+		JumpID:  "stunt_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
-	if !errors.Is(result.Err, ErrStuntNotFound) {
-		t.Fatalf("expected ErrStuntNotFound for Idea, got %v", result.Err)
+	if !errors.Is(result.Err, ErrJumpNotFound) {
+		t.Fatalf("expected ErrJumpNotFound for Idea, got %v", result.Err)
 	}
 }
 
@@ -178,7 +178,7 @@ func TestCreateDispute_AllValidConcernsAccepted(t *testing.T) {
 		t.Run(concern, func(t *testing.T) {
 			repo := &mockDisputeRepo{
 				stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-					return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt"}, true, nil
+					return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
 				},
 				groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 					return MembershipSnapshot{Role: "Player"}, true, nil
@@ -190,7 +190,7 @@ func TestCreateDispute_AllValidConcernsAccepted(t *testing.T) {
 
 			result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 				PlayerID: "player_1",
-				StuntID:  "stunt_1",
+				JumpID:  "stunt_1",
 				Concern:  concern,
 				Details:  "Test.",
 			})
@@ -213,12 +213,12 @@ func TestCreateDispute_StuntNotFound(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		StuntID:  "stunt_1",
+		JumpID:  "stunt_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
-	if !errors.Is(result.Err, ErrStuntNotFound) {
-		t.Fatalf("expected ErrStuntNotFound, got %v", result.Err)
+	if !errors.Is(result.Err, ErrJumpNotFound) {
+		t.Fatalf("expected ErrJumpNotFound, got %v", result.Err)
 	}
 }
 
@@ -230,12 +230,12 @@ func TestResolveDispute_CommissionerCanDisqualifySeasonLinkedStunt(t *testing.T)
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{
-				ID: disputeID, StuntID: "stunt_1", Status: "Open",
+				ID: disputeID, JumpID: "stunt_1", Status: "Open",
 			}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
 			return StuntSnapshot{
-				ID: stuntID, GroupID: "group_1", Status: "Judged Stunt",
+				ID: stuntID, GroupID: "group_1", Status: "Judged Jump",
 				SeasonID: &seasonID, FinalScore: intPtr(35),
 			}, true, nil
 		},
@@ -258,7 +258,7 @@ func TestResolveDispute_CommissionerCanDisqualifySeasonLinkedStunt(t *testing.T)
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
 		PlayerID:         "player_commissioner",
 		DisputeID:        "dispute_1",
-		Resolution:       "Disqualified Stunt",
+		Resolution:       "Disqualified Jump",
 		ResolutionReason: "Evidence does not support the claim.",
 	})
 
@@ -271,17 +271,17 @@ func TestResolveDispute_CommissionerCanDisqualifySeasonLinkedStunt(t *testing.T)
 	if result.Dispute.Status != "Resolved" {
 		t.Fatalf("expected Resolved status, got %q", result.Dispute.Status)
 	}
-	if resolvedResolution != "Disqualified Stunt" {
-		t.Fatalf("expected Disqualified Stunt resolution, got %q", resolvedResolution)
+	if resolvedResolution != "Disqualified Jump" {
+		t.Fatalf("expected Disqualified Jump resolution, got %q", resolvedResolution)
 	}
-	if result.Stunt.Status != "Disqualified Stunt" {
-		t.Fatalf("expected stunt status Disqualified Stunt, got %q", result.Stunt.Status)
+	if result.Stunt.Status != "Disqualified Jump" {
+		t.Fatalf("expected stunt status Disqualified Jump, got %q", result.Stunt.Status)
 	}
 	if result.Stunt.FinalScore != nil {
 		t.Fatal("expected FinalScore to be nil after disqualification")
 	}
-	if updatedStatus != "Disqualified Stunt" {
-		t.Fatalf("expected updated stunt status Disqualified Stunt, got %q", updatedStatus)
+	if updatedStatus != "Disqualified Jump" {
+		t.Fatalf("expected updated stunt status Disqualified Jump, got %q", updatedStatus)
 	}
 }
 
@@ -289,10 +289,10 @@ func TestResolveDispute_CommissionerCannotRemoveSeasonLinkedStunt(t *testing.T) 
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
-			return DisputeSnapshot{ID: disputeID, StuntID: "stunt_1", Status: "Open"}, nil
+			return DisputeSnapshot{ID: disputeID, JumpID: "stunt_1", Status: "Open"}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Judged Stunt", SeasonID: &seasonID}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Judged Jump", SeasonID: &seasonID}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
@@ -305,14 +305,14 @@ func TestResolveDispute_CommissionerCannotRemoveSeasonLinkedStunt(t *testing.T) 
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
 		PlayerID:         "player_commissioner",
 		DisputeID:        "dispute_1",
-		Resolution:       "Removed Stunt",
+		Resolution:       "Removed Jump",
 		ResolutionReason: "Privacy issue.",
 	})
 	if result.Err != nil {
 		t.Fatalf("expected no error, got %v", result.Err)
 	}
 	if result.Allowed {
-		t.Fatal("expected Allowed=false for commissioner trying Removed Stunt on season-linked stunt")
+		t.Fatal("expected Allowed=false for commissioner trying Removed Jump on season-linked stunt")
 	}
 }
 
@@ -320,10 +320,10 @@ func TestResolveDispute_GroupAdminCanRemoveOffSeasonStunt(t *testing.T) {
 	var updatedStatus string
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
-			return DisputeSnapshot{ID: disputeID, StuntID: "stunt_1", Status: "Open"}, nil
+			return DisputeSnapshot{ID: disputeID, JumpID: "stunt_1", Status: "Open"}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Group Admin"}, true, nil
@@ -340,7 +340,7 @@ func TestResolveDispute_GroupAdminCanRemoveOffSeasonStunt(t *testing.T) {
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
 		PlayerID:         "player_admin",
 		DisputeID:        "dispute_1",
-		Resolution:       "Removed Stunt",
+		Resolution:       "Removed Jump",
 		ResolutionReason: "Serious privacy issue.",
 	})
 
@@ -353,21 +353,21 @@ func TestResolveDispute_GroupAdminCanRemoveOffSeasonStunt(t *testing.T) {
 	if result.Dispute.Status != "Resolved" {
 		t.Fatalf("expected Resolved status, got %q", result.Dispute.Status)
 	}
-	if result.Stunt.Status != "Removed Stunt" {
-		t.Fatalf("expected Removed Stunt, got %q", result.Stunt.Status)
+	if result.Stunt.Status != "Removed Jump" {
+		t.Fatalf("expected Removed Jump, got %q", result.Stunt.Status)
 	}
-	if updatedStatus != "Removed Stunt" {
-		t.Fatalf("expected updated status Removed Stunt, got %q", updatedStatus)
+	if updatedStatus != "Removed Jump" {
+		t.Fatalf("expected updated status Removed Jump, got %q", updatedStatus)
 	}
 }
 
 func TestResolveDispute_GroupAdminCannotDisqualifyOffSeasonStunt(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
-			return DisputeSnapshot{ID: disputeID, StuntID: "stunt_1", Status: "Open"}, nil
+			return DisputeSnapshot{ID: disputeID, JumpID: "stunt_1", Status: "Open"}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Group Admin"}, true, nil
@@ -377,24 +377,24 @@ func TestResolveDispute_GroupAdminCannotDisqualifyOffSeasonStunt(t *testing.T) {
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
 		PlayerID:         "player_admin",
 		DisputeID:        "dispute_1",
-		Resolution:       "Disqualified Stunt",
+		Resolution:       "Disqualified Jump",
 		ResolutionReason: "House rules.",
 	})
 	if result.Err != nil {
 		t.Fatalf("expected no error, got %v", result.Err)
 	}
 	if result.Allowed {
-		t.Fatal("expected Allowed=false for Group Admin trying Disqualified Stunt on off-season")
+		t.Fatal("expected Allowed=false for Group Admin trying Disqualified Jump on off-season")
 	}
 }
 
 func TestResolveDispute_NonMemberNotAllowed(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
-			return DisputeSnapshot{ID: disputeID, StuntID: "stunt_1", Status: "Open"}, nil
+			return DisputeSnapshot{ID: disputeID, JumpID: "stunt_1", Status: "Open"}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{}, false, nil
@@ -421,13 +421,13 @@ func TestResolveDispute_GroupAdminCanOverrideResolvedDispute(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{
-				ID: disputeID, StuntID: "stunt_1", Status: "Resolved",
-				Resolution: stringPtr("Disqualified Stunt"),
+				ID: disputeID, JumpID: "stunt_1", Status: "Resolved",
+				Resolution: stringPtr("Disqualified Jump"),
 			}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
 			return StuntSnapshot{
-				ID: stuntID, GroupID: "group_1", Status: "Disqualified Stunt",
+				ID: stuntID, GroupID: "group_1", Status: "Disqualified Jump",
 				SeasonID: &seasonID, FinalScore: nil,
 			}, true, nil
 		},
@@ -446,7 +446,7 @@ func TestResolveDispute_GroupAdminCanOverrideResolvedDispute(t *testing.T) {
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
 		PlayerID:         "player_admin",
 		DisputeID:        "dispute_1",
-		Resolution:       "Removed Stunt",
+		Resolution:       "Removed Jump",
 		ResolutionReason: "Serious privacy violation.",
 	})
 
@@ -459,11 +459,11 @@ func TestResolveDispute_GroupAdminCanOverrideResolvedDispute(t *testing.T) {
 	if result.Dispute.Status != "Overridden" {
 		t.Fatalf("expected Overridden status, got %q", result.Dispute.Status)
 	}
-	if overriddenResolution != "Removed Stunt" {
-		t.Fatalf("expected override Removed Stunt, got %q", overriddenResolution)
+	if overriddenResolution != "Removed Jump" {
+		t.Fatalf("expected override Removed Jump, got %q", overriddenResolution)
 	}
-	if result.Stunt.Status != "Removed Stunt" {
-		t.Fatalf("expected Removed Stunt, got %q", result.Stunt.Status)
+	if result.Stunt.Status != "Removed Jump" {
+		t.Fatalf("expected Removed Jump, got %q", result.Stunt.Status)
 	}
 }
 
@@ -471,12 +471,12 @@ func TestResolveDispute_GroupAdminCannotOverrideWithNoAction(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{
-				ID: disputeID, StuntID: "stunt_1", Status: "Resolved",
-				Resolution: stringPtr("Disqualified Stunt"),
+				ID: disputeID, JumpID: "stunt_1", Status: "Resolved",
+				Resolution: stringPtr("Disqualified Jump"),
 			}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Disqualified Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Disqualified Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Group Admin"}, true, nil
@@ -533,10 +533,10 @@ func TestResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedStunt(t *testin
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
-			return DisputeSnapshot{ID: disputeID, StuntID: "stunt_1", Status: "Open"}, nil
+			return DisputeSnapshot{ID: disputeID, JumpID: "stunt_1", Status: "Open"}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Stunt", SeasonID: &seasonID}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Performed Jump", SeasonID: &seasonID}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
@@ -564,7 +564,7 @@ func TestResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedStunt(t *testin
 	if result.Dispute.Status != "Resolved" {
 		t.Fatalf("expected Resolved, got %q", result.Dispute.Status)
 	}
-	if result.Stunt.Status != "Performed Stunt" {
+	if result.Stunt.Status != "Performed Jump" {
 		t.Fatalf("expected stunt to remain unchanged, got %q", result.Stunt.Status)
 	}
 }
@@ -573,10 +573,10 @@ func TestResolveDispute_NonCommissionerPlayerNotAllowed(t *testing.T) {
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
-			return DisputeSnapshot{ID: disputeID, StuntID: "stunt_1", Status: "Open"}, nil
+			return DisputeSnapshot{ID: disputeID, JumpID: "stunt_1", Status: "Open"}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Judged Stunt", SeasonID: &seasonID}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Judged Jump", SeasonID: &seasonID}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
@@ -604,12 +604,12 @@ func TestResolveDispute_PlainPlayerNotAllowedToOverride(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{
-				ID: disputeID, StuntID: "stunt_1", Status: "Resolved",
-				Resolution: stringPtr("Disqualified Stunt"),
+				ID: disputeID, JumpID: "stunt_1", Status: "Resolved",
+				Resolution: stringPtr("Disqualified Jump"),
 			}, nil
 		},
 		stuntByIDFn: func(_ context.Context, stuntID string) (StuntSnapshot, bool, error) {
-			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Disqualified Stunt"}, true, nil
+			return StuntSnapshot{ID: stuntID, GroupID: "group_1", Status: "Disqualified Jump"}, true, nil
 		},
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
@@ -619,7 +619,7 @@ func TestResolveDispute_PlainPlayerNotAllowedToOverride(t *testing.T) {
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
 		PlayerID:         "player_bob",
 		DisputeID:        "dispute_1",
-		Resolution:       "Removed Stunt",
+		Resolution:       "Removed Jump",
 		ResolutionReason: "Should not be allowed.",
 	})
 	if result.Err != nil {

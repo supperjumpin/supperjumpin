@@ -42,7 +42,7 @@ func mapGameErr(err error) error {
 	if errors.Is(err, game.ErrInvalidJudgmentScore) {
 		return ErrInvalidJudgmentScore
 	}
-	if errors.Is(err, game.ErrStuntNotFound) {
+	if errors.Is(err, game.ErrJumpNotFound) {
 		return ErrJumpNotFound
 	}
 	if errors.Is(err, game.ErrJudgingWindowClosed) {
@@ -468,7 +468,7 @@ func createPlannedStunt(ctx context.Context, db Persistence, player Player, idea
 
 func authorizeEvidenceUpload(ctx context.Context, db Persistence, player Player, stuntID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
 	result := game.AuthorizeEvidenceUpload(ctx, db, game.AuthorizeEvidenceUploadInput{
-		StuntID:     stuntID,
+		JumpID:      stuntID,
 		PlayerID:    player.ID,
 		ContentType: contentType,
 	})
@@ -480,7 +480,7 @@ func authorizeEvidenceUpload(ctx context.Context, db Persistence, player Player,
 	}
 	return EvidenceUploadAuthorization{
 		ID:             result.Authorization.ID,
-		JumpID:         result.Authorization.StuntID,
+		JumpID:         result.Authorization.JumpID,
 		UploadURL:      "https://storage.supperjumpin.test/uploads/" + result.Authorization.MediaObjectKey,
 		UploadMethod:   httpMethodPut,
 		UploadHeaders:  map[string]string{"Content-Type": contentType},
@@ -491,7 +491,7 @@ func authorizeEvidenceUpload(ctx context.Context, db Persistence, player Player,
 
 func submitEvidence(ctx context.Context, db Persistence, player Player, stuntID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
 	result := game.SubmitEvidence(ctx, db, game.SubmitEvidenceInput{
-		StuntID:               stuntID,
+		JumpID:                stuntID,
 		PlayerID:              player.ID,
 		UploadAuthorizationID: uploadAuthorizationID,
 		Caption:               caption,
@@ -508,7 +508,7 @@ func submitEvidence(ctx context.Context, db Persistence, player Player, stuntID 
 			GroupID:     result.Stunt.GroupID,
 			PlayerID:    result.Stunt.PlayerID,
 			SeasonID:    result.Stunt.SeasonID,
-			Status:      stuntStatusToJumpStatus(result.Stunt.Status),
+			Status:      result.Stunt.Status,
 			Source:      result.Stunt.Source,
 			Destination: result.Stunt.Destination,
 			Food:        result.Stunt.Food,
@@ -516,7 +516,7 @@ func submitEvidence(ctx context.Context, db Persistence, player Player, stuntID 
 		},
 		Evidence: Evidence{
 			ID:             result.Evidence.ID,
-			JumpID:         result.Evidence.StuntID,
+			JumpID:         result.Evidence.JumpID,
 			Caption:        result.Evidence.Caption,
 			MediaObjectKey: result.Evidence.MediaObjectKey,
 			CreatedAt:      result.Evidence.CreatedAt,
@@ -526,12 +526,12 @@ func submitEvidence(ctx context.Context, db Persistence, player Player, stuntID 
 
 func submitJudgment(ctx context.Context, db Persistence, player Player, stuntID string, difficulty int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
 	result := game.SubmitJudgment(ctx, db, game.JudgmentInput{
-		StuntID:       stuntID,
+		JumpID:        stuntID,
 		JudgePlayerID: player.ID,
 		Difficulty:    difficulty,
 		Transgression: transgression,
 		Creativity:    creativity,
-		Documentation: presentation,
+		Presentation:  presentation,
 	}, db.Now())
 	if result.Err != nil {
 		return Judgment{}, false, false, mapGameErr(result.Err)
@@ -541,19 +541,19 @@ func submitJudgment(ctx context.Context, db Persistence, player Player, stuntID 
 	}
 	return Judgment{
 		ID:            result.Judgment.ID,
-		JumpID:        result.Judgment.StuntID,
+		JumpID:        result.Judgment.JumpID,
 		PlayerID:      result.Judgment.PlayerID,
 		Difficulty:    result.Judgment.Difficulty,
 		Transgression: result.Judgment.Transgression,
 		Creativity:    result.Judgment.Creativity,
-		Presentation:  result.Judgment.Documentation,
+		Presentation:  result.Judgment.Presentation,
 	}, true, result.Created, nil
 }
 
 func createDispute(ctx context.Context, db Persistence, player Player, stuntID string, concern string, details string) (Dispute, bool, error) {
 	result := game.CreateDispute(ctx, db, game.CreateDisputeInput{
 		PlayerID: player.ID,
-		StuntID:  stuntID,
+		JumpID:   stuntID,
 		Concern:  concern,
 		Details:  details,
 	})
@@ -572,7 +572,7 @@ func resolveDispute(ctx context.Context, db Persistence, player Player, disputeI
 	result := game.ResolveDispute(ctx, db, game.ResolveDisputeInput{
 		PlayerID:         player.ID,
 		DisputeID:        disputeID,
-		Resolution:       jumpStatusToStuntStatus(resolution),
+		Resolution:       resolution,
 		ResolutionReason: resolutionReason,
 	})
 	if result.Err != nil {
@@ -946,12 +946,12 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, stuntID, playerID stri
 	s.judgments[key] = httpJudgment
 	return game.Judgment{
 		ID:            httpJudgment.ID,
-		StuntID:       httpJudgment.JumpID,
+		JumpID:        httpJudgment.JumpID,
 		PlayerID:      httpJudgment.PlayerID,
 		Difficulty:    httpJudgment.Difficulty,
 		Transgression: httpJudgment.Transgression,
 		Creativity:    httpJudgment.Creativity,
-		Documentation: httpJudgment.Presentation,
+		Presentation:  httpJudgment.Presentation,
 	}, !existed, nil
 }
 
@@ -961,7 +961,7 @@ func stuntFromGame(snap game.StuntSnapshot) Jump {
 		ID:          snap.ID,
 		GroupID:     snap.GroupID,
 		PlayerID:    snap.PlayerID,
-		Status:      stuntStatusToJumpStatus(snap.Status),
+		Status:      snap.Status,
 		SeasonID:    snap.SeasonID,
 		Source:      snap.Source,
 		Destination: snap.Destination,
@@ -975,7 +975,7 @@ func stuntToSnapshot(stunt Jump) game.StuntSnapshot {
 		ID:          stunt.ID,
 		GroupID:     stunt.GroupID,
 		PlayerID:    stunt.PlayerID,
-		Status:      jumpStatusToStuntStatus(stunt.Status),
+		Status:      stunt.Status,
 		SeasonID:    stunt.SeasonID,
 		Source:      stunt.Source,
 		Destination: stunt.Destination,
@@ -1032,7 +1032,7 @@ func (s *MemoryStore) UpdateStuntToPlanned(ctx context.Context, stuntID, playerI
 	defer s.mu.Unlock()
 
 	stunt := s.stunts[stuntID]
-	stunt.Status = "Planned Stunt"
+	stunt.Status = "Planned Jump"
 	stunt.SeasonID = seasonID
 	stunt.OffSeason = seasonID == nil
 	s.stunts[stuntID] = stunt
@@ -1046,7 +1046,7 @@ func (s *MemoryStore) PlannedStunt(ctx context.Context, stuntID string) (game.St
 	defer s.mu.Unlock()
 
 	stunt, ok := s.stunts[stuntID]
-	if !ok || stunt.Status != "Planned Stunt" {
+	if !ok || stunt.Status != "Planned Jump" {
 		return game.StuntSnapshot{}, false, nil
 	}
 	return stuntToSnapshot(stunt), true, nil
@@ -1072,7 +1072,7 @@ func (s *MemoryStore) CreateAuthorization(ctx context.Context, stuntID, playerID
 	s.uploads[id] = auth
 	return game.AuthorizationSnapshot{
 		ID:             id,
-		StuntID:        stuntID,
+		JumpID:         stuntID,
 		MediaObjectKey: mediaObjectKey,
 		ExpiresAt:      auth.ExpiresAt,
 	}, nil
@@ -1089,7 +1089,7 @@ func (s *MemoryStore) ClaimAndAdvance(ctx context.Context, authorizationID, stun
 	delete(s.uploads, authorizationID)
 
 	stunt := s.stunts[stuntID]
-	stunt.Status = "Performed Stunt"
+	stunt.Status = "Performed Jump"
 	s.stunts[stunt.ID] = stunt
 
 	evidenceID := stableID("evidence", stuntID+":"+authorizationID)
@@ -1170,12 +1170,12 @@ func (s *MemoryStore) JudgmentsForStunt(ctx context.Context, stuntID string) ([]
 		if j.JumpID == stuntID {
 			result = append(result, game.Judgment{
 				ID:            j.ID,
-				StuntID:       j.JumpID,
+				JumpID:        j.JumpID,
 				PlayerID:      j.PlayerID,
 				Difficulty:    j.Difficulty,
 				Transgression: j.Transgression,
 				Creativity:    j.Creativity,
-				Documentation: j.Presentation,
+				Presentation:  j.Presentation,
 			})
 		}
 	}
@@ -1451,7 +1451,7 @@ func standingsFromGame(entries []game.StandingEntry) []StandingEntry {
 		result[i] = StandingEntry{
 			Player:      Player{ID: e.PlayerID, DisplayName: e.DisplayName},
 			SeasonScore: e.SeasonScore,
-			JudgedJumps: e.JudgedStunts,
+			JudgedJumps: e.JudgedJumps,
 		}
 	}
 	return result
@@ -1470,15 +1470,15 @@ func groupHome(group Group, membership GroupMembership, activeSeason *Season, re
 func disputeToSnapshot(d Dispute) game.DisputeSnapshot {
 	return game.DisputeSnapshot{
 		ID:                   d.ID,
-		StuntID:              d.JumpID,
+		JumpID:               d.JumpID,
 		RaisedByPlayerID:     d.RaisedByPlayerID,
 		Concern:              d.Concern,
 		Details:              d.Details,
 		Status:               d.Status,
-		Resolution:           mapOptionalStatus(d.Resolution, jumpStatusToStuntStatus),
+		Resolution:           d.Resolution,
 		ResolutionReason:     d.ResolutionReason,
 		ResolvedByPlayerID:   d.ResolvedByPlayerID,
-		OverrideResolution:   mapOptionalStatus(d.OverrideResolution, jumpStatusToStuntStatus),
+		OverrideResolution:   d.OverrideResolution,
 		OverrideReason:       d.OverrideReason,
 		OverrideByPlayerID:   d.OverrideByPlayerID,
 	}
@@ -1487,65 +1487,34 @@ func disputeToSnapshot(d Dispute) game.DisputeSnapshot {
 func disputeFromSnapshot(snap game.DisputeSnapshot) Dispute {
 	return Dispute{
 		ID:                   snap.ID,
-		JumpID:               snap.StuntID,
+		JumpID:               snap.JumpID,
 		RaisedByPlayerID:     snap.RaisedByPlayerID,
 		Concern:              snap.Concern,
 		Details:              snap.Details,
 		Status:               snap.Status,
-		Resolution:           mapOptionalStatus(snap.Resolution, stuntStatusToJumpStatus),
+		Resolution:           snap.Resolution,
 		ResolutionReason:     snap.ResolutionReason,
 		ResolvedByPlayerID:   snap.ResolvedByPlayerID,
-		OverrideResolution:   mapOptionalStatus(snap.OverrideResolution, stuntStatusToJumpStatus),
+		OverrideResolution:   snap.OverrideResolution,
 		OverrideReason:       snap.OverrideReason,
 		OverrideByPlayerID:   snap.OverrideByPlayerID,
 	}
 }
 
 func visiblePerformedStatus(status string) bool {
-	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt" || status == "Disqualified Stunt"
+	return status == "Performed Jump" || status == "Judged Jump" || status == "Unjudged Jump" || status == "Disqualified Jump"
 }
 
 func jumpForResponse(jump Jump) Jump {
-	jump.Status = stuntStatusToJumpStatus(jump.Status)
 	return jump
 }
 
 func stuntStatusToJumpStatus(status string) string {
-	switch status {
-	case "Planned Stunt":
-		return "Planned Jump"
-	case "Performed Stunt":
-		return "Performed Jump"
-	case "Judged Stunt":
-		return "Judged Jump"
-	case "Unjudged Stunt":
-		return "Unjudged Jump"
-	case "Disqualified Stunt":
-		return "Disqualified Jump"
-	case "Removed Stunt":
-		return "Removed Jump"
-	default:
-		return status
-	}
+	return status
 }
 
 func jumpStatusToStuntStatus(status string) string {
-	switch status {
-	case "Planned Jump":
-		return "Planned Stunt"
-	case "Performed Jump":
-		return "Performed Stunt"
-	case "Judged Jump":
-		return "Judged Stunt"
-	case "Unjudged Jump":
-		return "Unjudged Stunt"
-	case "Disqualified Jump":
-		return "Disqualified Stunt"
-	case "Removed Jump":
-		return "Removed Stunt"
-	default:
-		return status
-	}
+	return status
 }
 
 func mapOptionalStatus(value *string, mapper func(string) string) *string {

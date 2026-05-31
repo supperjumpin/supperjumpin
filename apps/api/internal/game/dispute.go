@@ -13,7 +13,7 @@ var (
 
 type DisputeSnapshot struct {
 	ID                 string
-	StuntID            string
+	JumpID            string
 	RaisedByPlayerID   string
 	Concern            string
 	Details            string
@@ -39,7 +39,7 @@ type DisputeRepository interface {
 
 type CreateDisputeInput struct {
 	PlayerID string
-	StuntID  string
+	JumpID  string
 	Concern  string
 	Details  string
 }
@@ -69,12 +69,12 @@ func CreateDispute(ctx context.Context, repo DisputeRepository, input CreateDisp
 		return CreateDisputeResult{Err: ErrInvalidDisputeConcern}
 	}
 
-	stunt, ok, err := repo.StuntByID(ctx, input.StuntID)
+	stunt, ok, err := repo.StuntByID(ctx, input.JumpID)
 	if err != nil {
 		return CreateDisputeResult{Err: err}
 	}
 	if !ok || !disputableStuntStatus(stunt.Status) {
-		return CreateDisputeResult{Err: ErrStuntNotFound}
+		return CreateDisputeResult{Err: ErrJumpNotFound}
 	}
 
 	_, ok, err = repo.GroupMembership(ctx, input.PlayerID, stunt.GroupID)
@@ -85,7 +85,7 @@ func CreateDispute(ctx context.Context, repo DisputeRepository, input CreateDisp
 		return CreateDisputeResult{Allowed: false}
 	}
 
-	dispute, err := repo.InsertDispute(ctx, input.StuntID, input.PlayerID, input.Concern, input.Details)
+	dispute, err := repo.InsertDispute(ctx, input.JumpID, input.PlayerID, input.Concern, input.Details)
 	if err != nil {
 		return CreateDisputeResult{Err: err}
 	}
@@ -106,12 +106,12 @@ func ResolveDispute(ctx context.Context, repo DisputeRepository, input ResolveDi
 		return ResolveDisputeResult{Err: ErrDisputeNotFound}
 	}
 
-	stunt, ok, err := repo.StuntByID(ctx, dispute.StuntID)
+	stunt, ok, err := repo.StuntByID(ctx, dispute.JumpID)
 	if err != nil {
 		return ResolveDisputeResult{Err: err}
 	}
 	if !ok {
-		return ResolveDisputeResult{Err: ErrStuntNotFound}
+		return ResolveDisputeResult{Err: ErrJumpNotFound}
 	}
 
 	membership, ok, err := repo.GroupMembership(ctx, input.PlayerID, stunt.GroupID)
@@ -124,11 +124,11 @@ func ResolveDispute(ctx context.Context, repo DisputeRepository, input ResolveDi
 
 	if dispute.Status == "Open" {
 		if stunt.SeasonID == nil {
-			if membership.Role != "Group Admin" || input.Resolution == "Disqualified Stunt" {
+			if membership.Role != "Group Admin" || input.Resolution == "Disqualified Jump" {
 				return ResolveDisputeResult{Allowed: false}
 			}
 		} else {
-			if input.Resolution == "Removed Stunt" {
+			if input.Resolution == "Removed Jump" {
 				return ResolveDisputeResult{Allowed: false}
 			}
 			season, err := repo.Season(ctx, *stunt.SeasonID)
@@ -188,7 +188,7 @@ func validDisputeConcern(concern string) bool {
 
 func validDisputeResolution(resolution string) bool {
 	switch resolution {
-	case "No Action", "Disqualified Stunt", "Removed Stunt":
+	case "No Action", "Disqualified Jump", "Removed Jump":
 		return true
 	default:
 		return false
@@ -196,16 +196,16 @@ func validDisputeResolution(resolution string) bool {
 }
 
 func disputableStuntStatus(status string) bool {
-	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt" || status == "Disqualified Stunt"
+	return status == "Performed Jump" || status == "Judged Jump" || status == "Unjudged Jump" || status == "Disqualified Jump"
 }
 
 func applyDisputeResolutionToStunt(stunt StuntSnapshot, resolution string) StuntSnapshot {
 	switch resolution {
-	case "Disqualified Stunt":
-		stunt.Status = "Disqualified Stunt"
+	case "Disqualified Jump":
+		stunt.Status = "Disqualified Jump"
 		stunt.FinalScore = nil
-	case "Removed Stunt":
-		stunt.Status = "Removed Stunt"
+	case "Removed Jump":
+		stunt.Status = "Removed Jump"
 		stunt.FinalScore = nil
 	}
 	return stunt

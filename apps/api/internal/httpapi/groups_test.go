@@ -1721,17 +1721,17 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
-CREATE TRIGGER supperjumpin_test_slow_stunt_update
-BEFORE UPDATE ON stunts
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_jump_update ON jumps;
+CREATE TRIGGER supperjumpin_test_slow_jump_update
+BEFORE UPDATE ON jumps
 FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_stunt_update();`); err != nil {
-		t.Fatalf("install slow Stunt update trigger: %v", err)
+		t.Fatalf("install slow Jump update trigger: %v", err)
 	}
 	t.Cleanup(func() {
 		if _, err := db.ExecContext(context.Background(), `
-DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_jump_update ON jumps;
 DROP FUNCTION IF EXISTS supperjumpin_test_slow_stunt_update();`); err != nil {
-			t.Fatalf("remove slow Stunt update trigger: %v", err)
+			t.Fatalf("remove slow Jump update trigger: %v", err)
 		}
 	})
 }

@@ -14,7 +14,7 @@ var (
 // AuthorizationSnapshot is a read-only view of an evidence upload authorization.
 type AuthorizationSnapshot struct {
 	ID             string
-	StuntID        string
+	JumpID        string
 	MediaObjectKey string
 	ExpiresAt      time.Time
 }
@@ -22,7 +22,7 @@ type AuthorizationSnapshot struct {
 // EvidenceSnapshot is a read-only view of an Evidence record.
 type EvidenceSnapshot struct {
 	ID             string
-	StuntID        string
+	JumpID        string
 	PlayerID       string
 	MediaObjectKey string
 	Caption        string
@@ -38,7 +38,7 @@ type EvidenceCreateResult struct {
 // EvidenceRepository defines persistence operations for the evidence flow.
 type EvidenceRepository interface {
 	// PlannedStunt returns the stunt. ok is true only when the stunt exists
-	// and is "Planned Stunt".
+	// and is "Planned Jump".
 	PlannedStunt(ctx context.Context, stuntID string) (StuntSnapshot, bool, error)
 	// Season returns the Season for the given ID.
 	Season(ctx context.Context, seasonID string) (SeasonSnapshot, error)
@@ -53,7 +53,7 @@ type EvidenceRepository interface {
 
 // AuthorizeEvidenceUploadInput bundles input for AuthorizeEvidenceUpload.
 type AuthorizeEvidenceUploadInput struct {
-	StuntID     string
+	JumpID     string
 	PlayerID    string
 	ContentType string
 }
@@ -67,7 +67,7 @@ type AuthorizeEvidenceUploadResult struct {
 
 // SubmitEvidenceInput bundles input for SubmitEvidence.
 type SubmitEvidenceInput struct {
-	StuntID              string
+	JumpID              string
 	PlayerID             string
 	UploadAuthorizationID string
 	Caption              string
@@ -86,12 +86,12 @@ type SubmitEvidenceResult struct {
 // Returns Allowed=false when the player is not the stunt performer.
 // Returns an error when the stunt is not found or persistence fails.
 func AuthorizeEvidenceUpload(ctx context.Context, repo EvidenceRepository, input AuthorizeEvidenceUploadInput) AuthorizeEvidenceUploadResult {
-	stunt, ok, err := repo.PlannedStunt(ctx, input.StuntID)
+	stunt, ok, err := repo.PlannedStunt(ctx, input.JumpID)
 	if err != nil {
 		return AuthorizeEvidenceUploadResult{Err: err}
 	}
 	if !ok {
-		return AuthorizeEvidenceUploadResult{Err: ErrStuntNotFound}
+		return AuthorizeEvidenceUploadResult{Err: ErrJumpNotFound}
 	}
 
 	// Only the stunt performer may authorize an upload.
@@ -99,7 +99,7 @@ func AuthorizeEvidenceUpload(ctx context.Context, repo EvidenceRepository, input
 		return AuthorizeEvidenceUploadResult{Allowed: false}
 	}
 
-	auth, err := repo.CreateAuthorization(ctx, input.StuntID, input.PlayerID, input.ContentType)
+	auth, err := repo.CreateAuthorization(ctx, input.JumpID, input.PlayerID, input.ContentType)
 	if err != nil {
 		return AuthorizeEvidenceUploadResult{Err: err}
 	}
@@ -116,12 +116,12 @@ func AuthorizeEvidenceUpload(ctx context.Context, repo EvidenceRepository, input
 // Returns an error when the stunt/authorization is not found, the
 // submission window is closed, or persistence fails.
 func SubmitEvidence(ctx context.Context, repo EvidenceRepository, input SubmitEvidenceInput, now time.Time) SubmitEvidenceResult {
-	stunt, ok, err := repo.PlannedStunt(ctx, input.StuntID)
+	stunt, ok, err := repo.PlannedStunt(ctx, input.JumpID)
 	if err != nil {
 		return SubmitEvidenceResult{Err: err}
 	}
 	if !ok {
-		return SubmitEvidenceResult{Err: ErrStuntNotFound}
+		return SubmitEvidenceResult{Err: ErrJumpNotFound}
 	}
 
 	// Only the stunt performer may submit evidence.
@@ -129,7 +129,7 @@ func SubmitEvidence(ctx context.Context, repo EvidenceRepository, input SubmitEv
 		return SubmitEvidenceResult{Allowed: false, Stunt: stunt}
 	}
 
-	// Check submission window for season-linked stunts.
+	// Check submission window for season-linked jumps.
 	if stunt.SeasonID != nil {
 		season, err := repo.Season(ctx, *stunt.SeasonID)
 		if err != nil {
@@ -140,16 +140,16 @@ func SubmitEvidence(ctx context.Context, repo EvidenceRepository, input SubmitEv
 		}
 	}
 
-	result, err := repo.ClaimAndAdvance(ctx, input.UploadAuthorizationID, input.StuntID, input.PlayerID, input.Caption)
+	result, err := repo.ClaimAndAdvance(ctx, input.UploadAuthorizationID, input.JumpID, input.PlayerID, input.Caption)
 	if err != nil {
 		return SubmitEvidenceResult{Err: err}
 	}
 
-	stunt.Status = "Performed Stunt"
+	stunt.Status = "Performed Jump"
 	return SubmitEvidenceResult{
 		Evidence: EvidenceSnapshot{
 			ID:             result.EvidenceID,
-			StuntID:        input.StuntID,
+			JumpID:        input.JumpID,
 			PlayerID:       input.PlayerID,
 			MediaObjectKey: result.MediaObjectKey,
 			Caption:        input.Caption,
