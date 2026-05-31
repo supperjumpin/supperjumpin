@@ -1,6 +1,6 @@
 CREATE TABLE disputes (
     id TEXT PRIMARY KEY,
-    stunt_id TEXT NOT NULL REFERENCES stunts(id),
+    jump_id TEXT NOT NULL REFERENCES jumps(id),
     raised_by_player_id TEXT NOT NULL REFERENCES players(id),
     concern TEXT NOT NULL CHECK (concern IN ('House Rules', 'Credibility', 'Source', 'Destination', 'Food', 'duplicate', 'other')),
     details TEXT NOT NULL,
@@ -14,4 +14,4 @@ CREATE TABLE disputes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX disputes_stunt_id_idx ON disputes(stunt_id);
+CREATE INDEX disputes_jump_id_idx ON disputes(jump_id);
