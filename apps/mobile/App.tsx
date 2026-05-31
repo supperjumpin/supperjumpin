@@ -7,7 +7,7 @@ import {
   createGroup,
   createIdea,
   createInvite,
-  createPlannedStunt,
+  createPlannedJump,
   getGroupHome,
   getMe,
   listGroups,
@@ -19,8 +19,8 @@ import type {
   GroupMembershipSummary,
   Judgment,
   MeResponse,
-  PerformedStuntView,
-  Stunt,
+  PerformedJumpView,
+  Jump,
 } from "@supperjumpin/api-client";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://example.supabase.co";
@@ -46,10 +46,10 @@ export default function App() {
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [memberships, setMemberships] = useState<GroupMembershipSummary[]>([]);
   const [groupHome, setGroupHome] = useState<GroupHomeResponse | null>(null);
-  const [selectedStunt, setSelectedStunt] = useState<PerformedStuntView | null>(null);
-  const [idea, setIdea] = useState<Stunt | null>(null);
-  const [plannedStunt, setPlannedStunt] = useState<Stunt | null>(null);
-  const [gestureScores, setGestureScores] = useState<{ difficulty: number; transgression: number; creativity: number; documentation: number } | null>(null);
+  const [selectedJump, setSelectedJump] = useState<PerformedJumpView | null>(null);
+  const [idea, setIdea] = useState<Jump | null>(null);
+  const [plannedJump, setPlannedJump] = useState<Jump | null>(null);
+  const [gestureScores, setGestureScores] = useState<{ difficulty: number; transgression: number; creativity: number; presentation: number } | null>(null);
   const [pendingJudgment, setPendingJudgment] = useState<Judgment | null>(null);
   const [isJudging, setIsJudging] = useState(false);
 
@@ -86,7 +86,7 @@ export default function App() {
     const home = await createGroup({ baseUrl: apiBaseUrl, accessToken, name: groupName });
     const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
     setGroupHome(home);
-    setSelectedStunt(home.recentStunts[0] ?? null);
+    setSelectedJump(home.recentJumps[0] ?? null);
     setMemberships(groups.memberships);
     setGroupName("");
     setStatus(`Created ${home.group.name}. You are its Group Admin.`);
@@ -117,7 +117,7 @@ export default function App() {
       const home = await acceptInvite({ baseUrl: apiBaseUrl, accessToken, token: inviteToken.trim() });
       const groups = await listGroups({ baseUrl: apiBaseUrl, accessToken });
       setGroupHome(home);
-      setSelectedStunt(home.recentStunts[0] ?? null);
+      setSelectedJump(home.recentJumps[0] ?? null);
       setMemberships(groups.memberships);
       setInviteToken("");
       setStatus(`Joined ${home.group.name}.`);
@@ -129,9 +129,9 @@ export default function App() {
   async function selectGroup(token: string, groupId: string) {
     const home = await getGroupHome({ baseUrl: apiBaseUrl, accessToken: token, groupId });
     setGroupHome(home);
-    setSelectedStunt(home.recentStunts[0] ?? null);
+    setSelectedJump(home.recentJumps[0] ?? null);
     setIdea(null);
-    setPlannedStunt(null);
+    setPlannedJump(null);
   }
 
   async function startNewSeason() {
@@ -142,7 +142,7 @@ export default function App() {
 
     const home = await startSeason({ baseUrl: apiBaseUrl, accessToken, groupId: groupHome.group.id });
     setGroupHome(home);
-    setSelectedStunt(home.recentStunts[0] ?? null);
+    setSelectedJump(home.recentJumps[0] ?? null);
     setStatus(`Started an Active Season for ${home.group.name}. You are the Season Commissioner.`);
   }
 
@@ -161,57 +161,57 @@ export default function App() {
       food,
     });
     setIdea(captured);
-    setPlannedStunt(null);
+    setPlannedJump(null);
     setStatus(`Captured Idea: ${captured.food} from ${captured.source} at ${captured.destination}.`);
   }
 
-  async function planStunt(offSeason = false) {
+  async function planJump(offSeason = false) {
     if (!accessToken || !idea) {
-      setStatus("Create an Idea before creating a Planned Stunt.");
+      setStatus("Create an Idea before creating a Planned Jump.");
       return;
     }
 
-    const planned = await createPlannedStunt({ baseUrl: apiBaseUrl, accessToken, ideaId: idea.id, offSeason });
-    setPlannedStunt(planned);
+    const planned = await createPlannedJump({ baseUrl: apiBaseUrl, accessToken, ideaId: idea.id, offSeason });
+    setPlannedJump(planned);
     setIdea(null);
     setSource("");
     setDestination("");
     setFood("");
     setStatus(
       planned.offSeason
-        ? `Created an Off-Season Stunt for ${planned.food}.`
-        : `Created a Season-linked Planned Stunt for ${planned.food}.`,
+        ? `Created an Off-Season Jump for ${planned.food}.`
+        : `Created a Season-linked Planned Jump for ${planned.food}.`,
     );
   }
 
-  async function startJudging(stunt: PerformedStuntView) {
+  async function startJudging(jump: PerformedJumpView) {
     if (!accessToken) {
-      setStatus("Sign in to judge stunts.");
+      setStatus("Sign in to judge jumps.");
       return;
     }
-    if (stunt.performer.id === profile?.player.id) {
-      setStatus("You cannot judge your own stunt.");
+    if (jump.performer.id === profile?.player.id) {
+      setStatus("You cannot judge your own jump.");
       return;
     }
     setIsJudging(true);
-    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, documentation: 5 });
-    setSelectedStunt(stunt);
+    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, presentation: 5 });
+    setSelectedJump(jump);
     setStatus("Use gestures or buttons to set scores. Swipe up/down on each factor.");
   }
 
-  function updateGestureScore(factor: "difficulty" | "transgression" | "creativity" | "documentation", delta: number) {
+  function updateGestureScore(factor: "difficulty" | "transgression" | "creativity" | "presentation", delta: number) {
     if (!gestureScores) return;
     const newValue = Math.max(0, Math.min(10, gestureScores[factor] + delta));
     setGestureScores({ ...gestureScores, [factor]: newValue });
   }
 
   function clearGestureScores() {
-    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, documentation: 5 });
+    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, presentation: 5 });
     setStatus("Gesture scores cleared. Start fresh.");
   }
 
   async function submitGestureJudgment() {
-    if (!accessToken || !selectedStunt || !gestureScores) {
+    if (!accessToken || !selectedJump || !gestureScores) {
       setStatus("Cannot submit judgment without scores.");
       return;
     }
@@ -220,13 +220,13 @@ export default function App() {
       const judgment = await submitJudgment({
         baseUrl: apiBaseUrl,
         accessToken,
-        stuntId: selectedStunt.stunt.id,
+        jumpId: selectedJump.jump.id,
         ...gestureScores,
       });
       setPendingJudgment(judgment);
       setIsJudging(false);
       setGestureScores(null);
-      setStatus(`Judgment submitted for ${selectedStunt.stunt.food}.`);
+      setStatus(`Judgment submitted for ${selectedJump.jump.food}.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not submit judgment.");
     }
@@ -238,7 +238,7 @@ export default function App() {
     setStatus("Judging cancelled.");
   }
 
-  function createScorePanResponder(factor: "difficulty" | "transgression" | "creativity" | "documentation") {
+  function createScorePanResponder(factor: "difficulty" | "transgression" | "creativity" | "presentation") {
     let lastY = 0;
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -260,7 +260,7 @@ export default function App() {
   const difficultyPan = createScorePanResponder("difficulty");
   const transgressionPan = createScorePanResponder("transgression");
   const creativityPan = createScorePanResponder("creativity");
-  const documentationPan = createScorePanResponder("documentation");
+  const presentationPan = createScorePanResponder("presentation");
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -334,43 +334,43 @@ export default function App() {
             ) : (
               <Button onPress={startNewSeason} title="Start Season" />
             )}
-            <Text style={styles.body}>Recent Stunts: {groupHome.recentStunts.length}</Text>
+            <Text style={styles.body}>Recent Jumps: {groupHome.recentJumps.length}</Text>
             <Text style={styles.body}>Standings: {groupHome.standings.length}</Text>
-            {groupHome.recentStunts.length > 0 ? (
+            {groupHome.recentJumps.length > 0 ? (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Recent Performed Stunts</Text>
-                {groupHome.recentStunts.map((performedStunt: PerformedStuntView) => (
+                <Text style={styles.sectionTitle}>Recent Performed Jumps</Text>
+                {groupHome.recentJumps.map((performedJump: PerformedJumpView) => (
                   <Button
-                    key={performedStunt.stunt.id}
-                    onPress={() => setSelectedStunt(performedStunt)}
-                    title={`${performedStunt.stunt.food} at ${performedStunt.stunt.destination}`}
+                    key={performedJump.jump.id}
+                    onPress={() => setSelectedJump(performedJump)}
+                    title={`${performedJump.jump.food} at ${performedJump.jump.destination}`}
                   />
                 ))}
               </View>
             ) : null}
-            {selectedStunt ? (
-              <View style={styles.stuntCard}>
-                <Text style={styles.sectionTitle}>Stunt Detail</Text>
-                <Text style={styles.body}>Source: {selectedStunt.stunt.source}</Text>
-                <Text style={styles.body}>Destination: {selectedStunt.stunt.destination}</Text>
-                <Text style={styles.body}>Food: {selectedStunt.stunt.food}</Text>
-                <Text style={styles.body}>Performer: {selectedStunt.performer.displayName}</Text>
-                <Text style={styles.body}>Caption: {selectedStunt.evidence.caption}</Text>
-                <Text style={styles.body}>Media object: {selectedStunt.evidence.mediaObjectKey}</Text>
-                {pendingJudgment && selectedStunt.stunt.id === pendingJudgment.stuntId ? (
+            {selectedJump ? (
+              <View style={styles.jumpCard}>
+                <Text style={styles.sectionTitle}>Jump Detail</Text>
+                <Text style={styles.body}>Source: {selectedJump.jump.source}</Text>
+                <Text style={styles.body}>Destination: {selectedJump.jump.destination}</Text>
+                <Text style={styles.body}>Food: {selectedJump.jump.food}</Text>
+                <Text style={styles.body}>Performer: {selectedJump.performer.displayName}</Text>
+                <Text style={styles.body}>Caption: {selectedJump.evidence.caption}</Text>
+                <Text style={styles.body}>Media object: {selectedJump.evidence.mediaObjectKey}</Text>
+                {pendingJudgment && selectedJump.jump.id === pendingJudgment.jumpId ? (
                   <View style={styles.judgmentSummary}>
                     <Text style={styles.sectionTitle}>Your Judgment</Text>
                     <Text style={styles.body}>Difficulty: {pendingJudgment.difficulty}</Text>
                     <Text style={styles.body}>Transgression: {pendingJudgment.transgression}</Text>
                     <Text style={styles.body}>Creativity: {pendingJudgment.creativity}</Text>
-                    <Text style={styles.body}>Documentation: {pendingJudgment.documentation}</Text>
+                    <Text style={styles.body}>Presentation: {pendingJudgment.presentation}</Text>
                   </View>
                 ) : null}
-                {!isJudging && selectedStunt.performer.id !== profile?.player.id ? (
-                  <Button onPress={() => startJudging(selectedStunt)} title="Judge this Stunt" />
+                {!isJudging && selectedJump.performer.id !== profile?.player.id ? (
+                  <Button onPress={() => startJudging(selectedJump)} title="Judge this Jump" />
                 ) : null}
-                {selectedStunt.performer.id === profile?.player.id ? (
-                  <Text style={styles.body}>Your own stunt - cannot judge.</Text>
+                {selectedJump.performer.id === profile?.player.id ? (
+                  <Text style={styles.body}>Your own jump - cannot judge.</Text>
                 ) : null}
               </View>
             ) : null}
@@ -396,11 +396,11 @@ export default function App() {
                   <Button onPress={() => updateGestureScore("creativity", -1)} title="-" accessibilityLabel="Decrease creativity score by 1" />
                   <Button onPress={() => updateGestureScore("creativity", 1)} title="+" accessibilityLabel="Increase creativity score by 1" />
                 </View>
-                <View style={styles.scoreRow} {...documentationPan.panHandlers} accessibilityLabel="Documentation score adjustment. Swipe up or down to change value.">
-                  <Text style={styles.scoreLabel}>Documentation:</Text>
-                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.documentation} out of 10`}>{gestureScores.documentation}</Text>
-                  <Button onPress={() => updateGestureScore("documentation", -1)} title="-" accessibilityLabel="Decrease documentation score by 1" />
-                  <Button onPress={() => updateGestureScore("documentation", 1)} title="+" accessibilityLabel="Increase documentation score by 1" />
+                <View style={styles.scoreRow} {...presentationPan.panHandlers} accessibilityLabel="Presentation score adjustment. Swipe up or down to change value.">
+                  <Text style={styles.scoreLabel}>Presentation:</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.presentation} out of 10`}>{gestureScores.presentation}</Text>
+                  <Button onPress={() => updateGestureScore("presentation", -1)} title="-" accessibilityLabel="Decrease presentation score by 1" />
+                  <Button onPress={() => updateGestureScore("presentation", 1)} title="+" accessibilityLabel="Increase presentation score by 1" />
                 </View>
                 <View style={styles.judgmentActions}>
                   <Button onPress={clearGestureScores} title="Clear" color="#c1673a" />
@@ -421,16 +421,16 @@ export default function App() {
               <TextInput onChangeText={setFood} placeholder="Food" style={styles.input} value={food} />
               <Button onPress={captureIdea} title="Capture Idea" />
               {idea ? (
-                <View style={styles.stuntCard}>
+                <View style={styles.jumpCard}>
                   <Text style={styles.body}>Idea: {idea.food}</Text>
-                  <Button onPress={() => planStunt(false)} title="Create Planned Stunt" />
-                  <Button onPress={() => planStunt(true)} title="Create Off-Season Stunt" />
+                  <Button onPress={() => planJump(false)} title="Create Planned Jump" />
+                  <Button onPress={() => planJump(true)} title="Create Off-Season Jump" />
                 </View>
               ) : null}
-              {plannedStunt ? (
+              {plannedJump ? (
                 <Text style={styles.body}>
-                  Planned Stunt: {plannedStunt.source} to {plannedStunt.destination} with {plannedStunt.food} (
-                  {plannedStunt.offSeason ? "Off-Season Stunt" : "Season-linked"})
+                  Planned Jump: {plannedJump.source} to {plannedJump.destination} with {plannedJump.food} (
+                  {plannedJump.offSeason ? "Off-Season Jump" : "Season-linked"})
                 </Text>
               ) : null}
             </View>
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "900",
   },
-  stuntCard: {
+  jumpCard: {
     backgroundColor: "#fffaf2",
     borderColor: "#c1673a",
     borderRadius: 12,

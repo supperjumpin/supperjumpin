@@ -73,7 +73,7 @@ paths:
             type: string
       responses:
         "200":
-          description: Group identity, the Player's Group Membership, current Season state, recent Stunts, and Standings.
+          description: Group identity, the Player's Group Membership, current Season state, recent Jumps, and Standings.
           content:
             application/json:
               schema:
@@ -264,17 +264,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Stunt"
+                $ref: "#/components/schemas/Jump"
         "400":
           description: Invalid Idea creation request.
         "401":
           description: Missing or invalid bearer token.
         "403":
           description: The signed-in Player does not have a Group Membership for this Group.
-  /v1/ideas/{ideaId}/planned-stunt:
+  /v1/ideas/{ideaId}/planned-jump:
     post:
-      operationId: createPlannedStunt
-      summary: Create a Planned Stunt from an Idea
+      operationId: createPlannedJump
+      deprecated: true
+      summary: Create a Planned Jump from an Idea
       security:
         - bearerAuth: []
       parameters:
@@ -292,30 +293,30 @@ paths:
               properties:
                 offSeason:
                   type: boolean
-                  description: When true, the Planned Stunt is explicitly Off-Season even during an Active Season.
+                  description: When true, the Planned Jump is explicitly Off-Season even during an Active Season.
       responses:
         "201":
-          description: The Planned Stunt, Season-linked by default during an Active Season.
+          description: The Planned Jump, Season-linked by default during an Active Season.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Stunt"
+                $ref: "#/components/schemas/Jump"
         "400":
-          description: Invalid Planned Stunt request.
+          description: Invalid Planned Jump request.
         "401":
           description: Missing or invalid bearer token.
         "403":
           description: The signed-in Player is not allowed to plan this Idea.
         "404":
           description: Idea not found.
-  /v1/stunts/{stuntId}/evidence-upload-authorizations:
+  /v1/jumps/{jumpId}/evidence-upload-authorizations:
     post:
       operationId: authorizeEvidenceUpload
-      summary: Authorize direct Evidence upload for a performer's Planned Stunt
+      summary: Authorize direct Evidence upload for a performer's Planned Jump
       security:
         - bearerAuth: []
       parameters:
-        - name: stuntId
+        - name: jumpId
           in: path
           required: true
           schema:
@@ -342,17 +343,17 @@ paths:
         "401":
           description: Missing or invalid bearer token.
         "403":
-          description: The signed-in Player is not the performer of this Planned Stunt.
+          description: The signed-in Player is not the performer of this Planned Jump.
         "404":
-          description: Planned Stunt not found.
-  /v1/stunts/{stuntId}/evidence:
+          description: Planned Jump not found.
+  /v1/jumps/{jumpId}/evidence:
     post:
       operationId: submitEvidence
-      summary: Finalize an Evidence record and transition a Planned Stunt into a Performed Stunt
+      summary: Finalize an Evidence record and transition a Planned Jump into a Performed Jump
       security:
         - bearerAuth: []
       parameters:
-        - name: stuntId
+        - name: jumpId
           in: path
           required: true
           schema:
@@ -371,7 +372,7 @@ paths:
                   type: string
       responses:
         "201":
-          description: Backend-owned Evidence record and the updated Performed Stunt.
+          description: Backend-owned Evidence record and the updated Performed Jump.
           content:
             application/json:
               schema:
@@ -381,17 +382,17 @@ paths:
         "401":
           description: Missing or invalid bearer token.
         "403":
-          description: The signed-in Player is not the performer of this Planned Stunt.
+          description: The signed-in Player is not the performer of this Planned Jump.
         "404":
-          description: Planned Stunt or upload authorization not found.
-  /v1/stunts/{stuntId}/judgment:
+          description: Planned Jump or upload authorization not found.
+  /v1/jumps/{jumpId}/judgment:
     post:
       operationId: submitJudgment
-      summary: Submit or edit the signed-in Judge's Judgment for a Performed Stunt
+      summary: Submit or edit the signed-in Judge's Judgment for a Performed Jump
       security:
         - bearerAuth: []
       parameters:
-        - name: stuntId
+        - name: jumpId
           in: path
           required: true
           schema:
@@ -402,7 +403,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [difficulty, transgression, creativity, documentation]
+              required: [difficulty, transgression, creativity, presentation]
               properties:
                 difficulty:
                   type: integer
@@ -416,7 +417,7 @@ paths:
                   type: integer
                   minimum: 0
                   maximum: 10
-                documentation:
+                presentation:
                   type: integer
                   minimum: 0
                   maximum: 10
@@ -438,19 +439,19 @@ paths:
         "401":
           description: Missing or invalid bearer token.
         "403":
-          description: The signed-in Player is not an eligible Judge for this Performed Stunt.
+          description: The signed-in Player is not an eligible Judge for this Performed Jump.
         "404":
-          description: Performed Stunt not found.
+          description: Performed Jump not found.
         "409":
           description: The Judging Window is closed.
-  /v1/stunts/{stuntId}/disputes:
+  /v1/jumps/{jumpId}/disputes:
     post:
       operationId: createDispute
-      summary: Raise a Dispute on a visible Stunt in the Group
+      summary: Raise a Dispute on a visible Jump in the Group
       security:
         - bearerAuth: []
       parameters:
-        - name: stuntId
+        - name: jumpId
           in: path
           required: true
           schema:
@@ -482,11 +483,11 @@ paths:
         "403":
           description: The signed-in Player does not have a Group Membership for this Group.
         "404":
-          description: Visible Stunt not found.
+          description: Visible Jump not found.
   /v1/disputes/{disputeId}/resolution:
     post:
       operationId: resolveDispute
-      summary: Resolve or override a Dispute with visible Stunt outcome changes
+      summary: Resolve or override a Dispute with visible Jump outcome changes
       security:
         - bearerAuth: []
       parameters:
@@ -505,12 +506,12 @@ paths:
               properties:
                 resolution:
                   type: string
-                  enum: [No Action, Disqualified Stunt, Removed Stunt]
+                  enum: [No Action, Disqualified Jump, Removed Jump]
                 resolutionReason:
                   type: string
       responses:
         "200":
-          description: The updated Stunt and Dispute resolution state.
+          description: The updated Jump and Dispute resolution state.
           content:
             application/json:
               schema:
@@ -638,7 +639,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SeasonHistoryEntry"
-    Stunt:
+    Jump:
       type: object
       required: [id, groupId, playerId, seasonId, status, source, destination, food, offSeason, finalScore]
       properties:
@@ -646,17 +647,17 @@ components:
           type: string
         groupId:
           type: string
-          description: The exactly one Group this Stunt belongs to.
+          description: The exactly one Group this Jump belongs to.
         playerId:
           type: string
         seasonId:
           anyOf:
             - type: string
             - type: "null"
-          description: Present only for Season-linked Planned Stunts.
+          description: Present only for Season-linked Planned Jumps.
         status:
           type: string
-          enum: [Idea, Planned Stunt, Performed Stunt, Judged Stunt, Unjudged Stunt, Disqualified Stunt, Removed Stunt]
+          enum: [Idea, Planned Jump, Performed Jump, Judged Jump, Unjudged Jump, Disqualified Jump, Removed Jump]
         source:
           type: string
         destination:
@@ -669,14 +670,14 @@ components:
           anyOf:
             - type: integer
             - type: "null"
-          description: Present only after a Season-linked Performed Stunt becomes a Judged Stunt.
+          description: Present only after a Season-linked Performed Jump becomes a Judged Jump.
     EvidenceUploadAuthorization:
       type: object
-      required: [id, stuntId, uploadUrl, uploadMethod, uploadHeaders, mediaObjectKey, expiresAt]
+      required: [id, jumpId, uploadUrl, uploadMethod, uploadHeaders, mediaObjectKey, expiresAt]
       properties:
         id:
           type: string
-        stuntId:
+        jumpId:
           type: string
         uploadUrl:
           type: string
@@ -694,11 +695,11 @@ components:
           format: date-time
     Evidence:
       type: object
-      required: [id, stuntId, caption, mediaObjectKey, createdAt]
+      required: [id, jumpId, caption, mediaObjectKey, createdAt]
       properties:
         id:
           type: string
-        stuntId:
+        jumpId:
           type: string
         caption:
           type: string
@@ -709,19 +710,19 @@ components:
           format: date-time
     EvidenceSubmission:
       type: object
-      required: [stunt, evidence]
+      required: [jump, evidence]
       properties:
-        stunt:
-          $ref: "#/components/schemas/Stunt"
+        jump:
+          $ref: "#/components/schemas/Jump"
         evidence:
           $ref: "#/components/schemas/Evidence"
     Judgment:
       type: object
-      required: [id, stuntId, playerId, difficulty, transgression, creativity, documentation]
+      required: [id, jumpId, playerId, difficulty, transgression, creativity, presentation]
       properties:
         id:
           type: string
-        stuntId:
+        jumpId:
           type: string
         playerId:
           type: string
@@ -737,16 +738,16 @@ components:
           type: integer
           minimum: 0
           maximum: 10
-        documentation:
+        presentation:
           type: integer
           minimum: 0
           maximum: 10
-    PerformedStuntView:
+    PerformedJumpView:
       type: object
-      required: [stunt, performer, evidence, disputes]
+      required: [jump, performer, evidence, disputes]
       properties:
-        stunt:
-          $ref: "#/components/schemas/Stunt"
+        jump:
+          $ref: "#/components/schemas/Jump"
         performer:
           $ref: "#/components/schemas/Player"
         evidence:
@@ -757,11 +758,11 @@ components:
             $ref: "#/components/schemas/Dispute"
     Dispute:
       type: object
-      required: [id, stuntId, raisedByPlayerId, concern, details, status]
+      required: [id, jumpId, raisedByPlayerId, concern, details, status]
       properties:
         id:
           type: string
-        stuntId:
+        jumpId:
           type: string
         raisedByPlayerId:
           type: string
@@ -776,7 +777,7 @@ components:
         resolution:
           anyOf:
             - type: string
-              enum: [No Action, Disqualified Stunt, Removed Stunt]
+              enum: [No Action, Disqualified Jump, Removed Jump]
             - type: "null"
         resolutionReason:
           anyOf:
@@ -789,7 +790,7 @@ components:
         overrideResolution:
           anyOf:
             - type: string
-              enum: [Disqualified Stunt, Removed Stunt]
+              enum: [Disqualified Jump, Removed Jump]
             - type: "null"
         overrideReason:
           anyOf:
@@ -801,25 +802,25 @@ components:
             - type: "null"
     DisputeResolution:
       type: object
-      required: [stunt, dispute]
+      required: [jump, dispute]
       properties:
-        stunt:
-          $ref: "#/components/schemas/Stunt"
+        jump:
+          $ref: "#/components/schemas/Jump"
         dispute:
           $ref: "#/components/schemas/Dispute"
     StandingEntry:
       type: object
-      required: [player, seasonScore, judgedStunts]
+      required: [player, seasonScore, judgedJumps]
       properties:
         player:
           $ref: "#/components/schemas/Player"
         seasonScore:
           type: integer
-        judgedStunts:
+        judgedJumps:
           type: integer
     GroupHomeResponse:
       type: object
-      required: [group, membership, activeSeason, recentStunts, standings]
+      required: [group, membership, activeSeason, recentJumps, standings]
       properties:
         group:
           $ref: "#/components/schemas/Group"
@@ -830,10 +831,10 @@ components:
             - $ref: "#/components/schemas/Season"
             - type: "null"
           description: The Group's currently open Season, including Judging Grace Period, or null when none exists.
-        recentStunts:
+        recentJumps:
           type: array
           items:
-            $ref: "#/components/schemas/PerformedStuntView"
+            $ref: "#/components/schemas/PerformedJumpView"
         standings:
           type: array
           items:

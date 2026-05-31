@@ -97,7 +97,7 @@ export async function createIdea({ baseUrl, accessToken, groupId, source, destin
   return response.json();
 }
 
-export async function createPlannedStunt({ baseUrl, accessToken, ideaId, offSeason = false, fetchImpl = fetch }) {
+export async function createPlannedJump({ baseUrl, accessToken, ideaId, offSeason = false, fetchImpl = fetch }) {
   const init = {
     method: "POST",
     headers: authHeaders(accessToken),
@@ -107,17 +107,17 @@ export async function createPlannedStunt({ baseUrl, accessToken, ideaId, offSeas
     init.body = JSON.stringify({ offSeason: true });
   }
 
-  const response = await fetchImpl(`${baseUrl}/v1/ideas/${ideaId}/planned-stunt`, init);
+  const response = await fetchImpl(`${baseUrl}/v1/ideas/${ideaId}/planned-jump`, init);
 
   if (!response.ok) {
-    throw new Error(`createPlannedStunt failed with status ${response.status}`);
+    throw new Error(`createPlannedJump failed with status ${response.status}`);
   }
 
   return response.json();
 }
 
-export async function authorizeEvidenceUpload({ baseUrl, accessToken, stuntId, contentType, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${baseUrl}/v1/stunts/${stuntId}/evidence-upload-authorizations`, {
+export async function authorizeEvidenceUpload({ baseUrl, accessToken, jumpId, contentType, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/evidence-upload-authorizations`, {
     method: "POST",
     headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
     body: JSON.stringify({ contentType }),
@@ -130,8 +130,8 @@ export async function authorizeEvidenceUpload({ baseUrl, accessToken, stuntId, c
   return response.json();
 }
 
-export async function submitEvidence({ baseUrl, accessToken, stuntId, uploadAuthorizationId, caption, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${baseUrl}/v1/stunts/${stuntId}/evidence`, {
+export async function submitEvidence({ baseUrl, accessToken, jumpId, uploadAuthorizationId, caption, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/evidence`, {
     method: "POST",
     headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
     body: JSON.stringify({ uploadAuthorizationId, caption }),
@@ -147,17 +147,17 @@ export async function submitEvidence({ baseUrl, accessToken, stuntId, uploadAuth
 export async function submitJudgment({
   baseUrl,
   accessToken,
-  stuntId,
+  jumpId,
   difficulty,
   transgression,
   creativity,
-  documentation,
+  presentation,
   fetchImpl = fetch,
 }) {
-  const response = await fetchImpl(`${baseUrl}/v1/stunts/${stuntId}/judgment`, {
+  const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/judgment`, {
     method: "POST",
     headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
-    body: JSON.stringify({ difficulty, transgression, creativity, documentation }),
+    body: JSON.stringify({ difficulty, transgression, creativity, presentation }),
   });
 
   if (!response.ok) {

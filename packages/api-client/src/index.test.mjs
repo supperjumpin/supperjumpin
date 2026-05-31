@@ -7,7 +7,7 @@ import {
   createGroup,
   createIdea,
   createInvite,
-  createPlannedStunt,
+  createPlannedJump,
   getGroupHome,
   getMe,
   listGroups,
@@ -87,7 +87,7 @@ test("listGroups returns the signed-in Player's Group Memberships", async () => 
   assert.equal(groups.memberships[0].group.name, "Breakfast Crew");
 });
 
-test("getGroupHome fetches recent Performed Stunts for a selected Group", async () => {
+test("getGroupHome fetches recent Performed Jumps for a selected Group", async () => {
   const seen = {};
   const home = await getGroupHome({
     baseUrl: "http://api.example.test",
@@ -102,11 +102,11 @@ test("getGroupHome fetches recent Performed Stunts for a selected Group", async 
           null,
           [
             {
-              stunt: stuntResponse({ status: "Performed Stunt", seasonId: "season_123", offSeason: false }),
+              jump: jumpResponse({ status: "Performed Jump", seasonId: "season_123", offSeason: false }),
               performer: { id: "player_123", displayName: "alice" },
               evidence: {
                 id: "evidence_123",
-                stuntId: "stunt_123",
+                jumpId: "stunt_123",
                 caption: "Crunchwrap successfully smuggled into the parking lot.",
                 mediaObjectKey: "evidence_object_123",
                 createdAt: "2026-06-01T00:00:00Z",
@@ -121,8 +121,8 @@ test("getGroupHome fetches recent Performed Stunts for a selected Group", async 
   assert.equal(seen.url, "http://api.example.test/v1/groups/group_123/home");
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.equal(home.activeSeason, null);
-  assert.equal(home.recentStunts[0].performer.displayName, "alice");
-  assert.equal(home.recentStunts[0].evidence.caption, "Crunchwrap successfully smuggled into the parking lot.");
+  assert.equal(home.recentJumps[0].performer.displayName, "alice");
+  assert.equal(home.recentJumps[0].evidence.caption, "Crunchwrap successfully smuggled into the parking lot.");
   assert.deepEqual(home.standings, []);
 });
 
@@ -211,7 +211,7 @@ test("createIdea posts Source Destination and Food for a Group", async () => {
       seen.authorization = init.headers.Authorization;
       seen.body = JSON.parse(init.body);
       return Response.json(
-        stuntResponse({ status: "Idea", seasonId: null, offSeason: true }),
+        jumpResponse({ status: "Idea", seasonId: null, offSeason: true }),
         { status: 201 },
       );
     },
@@ -228,21 +228,21 @@ test("createIdea posts Source Destination and Food for a Group", async () => {
   assert.equal(idea.status, "Idea");
 });
 
-test("createPlannedStunt can request default Season-linked or explicit Off-Season behavior", async () => {
+test("createPlannedJump can request default Season-linked or explicit Off-Season behavior", async () => {
   const calls = [];
-  const planned = await createPlannedStunt({
+  const planned = await createPlannedJump({
     baseUrl: "http://api.example.test",
     accessToken: "supabase-access-token",
     ideaId: "stunt_123",
     fetchImpl: async (url, init) => {
       calls.push({ url, method: init.method, authorization: init.headers.Authorization, body: init.body });
       return Response.json(
-        stuntResponse({ status: "Planned Stunt", seasonId: "season_123", offSeason: false }),
+        jumpResponse({ status: "Planned Jump", seasonId: "season_123", offSeason: false }),
         { status: 201 },
       );
     },
   });
-  const offSeason = await createPlannedStunt({
+  const offSeason = await createPlannedJump({
     baseUrl: "http://api.example.test",
     accessToken: "supabase-access-token",
     ideaId: "stunt_456",
@@ -250,30 +250,30 @@ test("createPlannedStunt can request default Season-linked or explicit Off-Seaso
     fetchImpl: async (url, init) => {
       calls.push({ url, method: init.method, authorization: init.headers.Authorization, body: init.body });
       return Response.json(
-        stuntResponse({ id: "stunt_456", status: "Planned Stunt", seasonId: null, offSeason: true }),
+        jumpResponse({ id: "stunt_456", status: "Planned Jump", seasonId: null, offSeason: true }),
         { status: 201 },
       );
     },
   });
 
-  assert.equal(calls[0].url, "http://api.example.test/v1/ideas/stunt_123/planned-stunt");
+  assert.equal(calls[0].url, "http://api.example.test/v1/ideas/stunt_123/planned-jump");
   assert.equal(calls[0].method, "POST");
   assert.equal(calls[0].authorization, "Bearer supabase-access-token");
   assert.equal(calls[0].body, undefined);
   assert.equal(planned.seasonId, "season_123");
   assert.equal(planned.offSeason, false);
-  assert.equal(calls[1].url, "http://api.example.test/v1/ideas/stunt_456/planned-stunt");
+  assert.equal(calls[1].url, "http://api.example.test/v1/ideas/stunt_456/planned-jump");
   assert.deepEqual(JSON.parse(calls[1].body), { offSeason: true });
   assert.equal(offSeason.seasonId, null);
   assert.equal(offSeason.offSeason, true);
 });
 
-test("authorizeEvidenceUpload requests a direct upload target for a Planned Stunt", async () => {
+test("authorizeEvidenceUpload requests a direct upload target for a Planned Jump", async () => {
   const seen = {};
   const authorization = await authorizeEvidenceUpload({
     baseUrl: "http://api.example.test",
     accessToken: "supabase-access-token",
-    stuntId: "stunt_123",
+    jumpId: "stunt_123",
     contentType: "image/jpeg",
     fetchImpl: async (url, init) => {
       seen.url = url;
@@ -283,7 +283,7 @@ test("authorizeEvidenceUpload requests a direct upload target for a Planned Stun
       return Response.json(
         {
           id: "evidence_upload_123",
-          stuntId: "stunt_123",
+          jumpId: "stunt_123",
           uploadUrl: "https://storage.supperjumpin.test/uploads/evidence_object_123",
           uploadMethod: "PUT",
           uploadHeaders: { "Content-Type": "image/jpeg" },
@@ -295,7 +295,7 @@ test("authorizeEvidenceUpload requests a direct upload target for a Planned Stun
     },
   });
 
-  assert.equal(seen.url, "http://api.example.test/v1/stunts/stunt_123/evidence-upload-authorizations");
+  assert.equal(seen.url, "http://api.example.test/v1/jumps/stunt_123/evidence-upload-authorizations");
   assert.equal(seen.method, "POST");
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.deepEqual(seen.body, { contentType: "image/jpeg" });
@@ -303,12 +303,12 @@ test("authorizeEvidenceUpload requests a direct upload target for a Planned Stun
   assert.equal(authorization.mediaObjectKey, "evidence_object_123");
 });
 
-test("submitEvidence finalizes backend-owned Evidence for a Planned Stunt", async () => {
+test("submitEvidence finalizes backend-owned Evidence for a Planned Jump", async () => {
   const seen = {};
   const submission = await submitEvidence({
     baseUrl: "http://api.example.test",
     accessToken: "supabase-access-token",
-    stuntId: "stunt_123",
+    jumpId: "stunt_123",
     uploadAuthorizationId: "evidence_upload_123",
     caption: "Crunchwrap successfully smuggled into the parking lot.",
     fetchImpl: async (url, init) => {
@@ -318,10 +318,10 @@ test("submitEvidence finalizes backend-owned Evidence for a Planned Stunt", asyn
       seen.body = JSON.parse(init.body);
       return Response.json(
         {
-          stunt: stuntResponse({ status: "Performed Stunt" }),
+          jump: jumpResponse({ status: "Performed Jump" }),
           evidence: {
             id: "evidence_123",
-            stuntId: "stunt_123",
+            jumpId: "stunt_123",
             caption: "Crunchwrap successfully smuggled into the parking lot.",
             mediaObjectKey: "evidence_object_123",
             createdAt: "2026-06-01T00:00:00Z",
@@ -332,27 +332,27 @@ test("submitEvidence finalizes backend-owned Evidence for a Planned Stunt", asyn
     },
   });
 
-  assert.equal(seen.url, "http://api.example.test/v1/stunts/stunt_123/evidence");
+  assert.equal(seen.url, "http://api.example.test/v1/jumps/stunt_123/evidence");
   assert.equal(seen.method, "POST");
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.deepEqual(seen.body, {
     uploadAuthorizationId: "evidence_upload_123",
     caption: "Crunchwrap successfully smuggled into the parking lot.",
   });
-  assert.equal(submission.stunt.status, "Performed Stunt");
+  assert.equal(submission.jump.status, "Performed Jump");
   assert.equal(submission.evidence.mediaObjectKey, "evidence_object_123");
 });
 
-test("submitJudgment posts the four Judgment scores for a Performed Stunt", async () => {
+test("submitJudgment posts the four Judgment scores for a Performed Jump", async () => {
   const seen = {};
   const judgment = await submitJudgment({
     baseUrl: "http://api.example.test",
     accessToken: "supabase-access-token",
-    stuntId: "stunt_123",
+    jumpId: "stunt_123",
     difficulty: 4,
     transgression: 5,
     creativity: 3,
-    documentation: 2,
+    presentation: 2,
     fetchImpl: async (url, init) => {
       seen.url = url;
       seen.method = init.method;
@@ -361,42 +361,42 @@ test("submitJudgment posts the four Judgment scores for a Performed Stunt", asyn
       return Response.json(
         {
           id: "judgment_123",
-          stuntId: "stunt_123",
+          jumpId: "stunt_123",
           playerId: "player_456",
           difficulty: 4,
           transgression: 5,
           creativity: 3,
-          documentation: 2,
+          presentation: 2,
         },
         { status: 201 },
       );
     },
   });
 
-  assert.equal(seen.url, "http://api.example.test/v1/stunts/stunt_123/judgment");
+  assert.equal(seen.url, "http://api.example.test/v1/jumps/stunt_123/judgment");
   assert.equal(seen.method, "POST");
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.deepEqual(seen.body, {
     difficulty: 4,
     transgression: 5,
     creativity: 3,
-    documentation: 2,
+    presentation: 2,
   });
   assert.equal(judgment.playerId, "player_456");
   assert.equal(judgment.transgression, 5);
 });
 
-function groupHomeResponse(group, activeSeason = null, recentStunts = []) {
+function groupHomeResponse(group, activeSeason = null, recentJumps = []) {
   return {
     group,
     membership: { groupId: group.id, playerId: "player_123", role: "Group Admin" },
     activeSeason,
-    recentStunts,
+    recentJumps,
     standings: [],
   };
 }
 
-function stuntResponse(overrides = {}) {
+function jumpResponse(overrides = {}) {
   return {
     id: "stunt_123",
     groupId: "group_123",

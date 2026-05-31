@@ -175,7 +175,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/ideas/{ideaId}/planned-stunt": {
+    "/v1/ideas/{ideaId}/planned-jump": {
         parameters: {
             query?: never;
             header?: never;
@@ -184,15 +184,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a Planned Stunt from an Idea */
-        post: operations["createPlannedStunt"];
+        /**
+         * Create a Planned Jump from an Idea
+         * @deprecated
+         */
+        post: operations["createPlannedJump"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/stunts/{stuntId}/evidence-upload-authorizations": {
+    "/v1/jumps/{jumpId}/evidence-upload-authorizations": {
         parameters: {
             query?: never;
             header?: never;
@@ -201,7 +204,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Authorize direct Evidence upload for a performer's Planned Stunt */
+        /** Authorize direct Evidence upload for a performer's Planned Jump */
         post: operations["authorizeEvidenceUpload"];
         delete?: never;
         options?: never;
@@ -209,7 +212,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/stunts/{stuntId}/evidence": {
+    "/v1/jumps/{jumpId}/evidence": {
         parameters: {
             query?: never;
             header?: never;
@@ -218,7 +221,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Finalize an Evidence record and transition a Planned Stunt into a Performed Stunt */
+        /** Finalize an Evidence record and transition a Planned Jump into a Performed Jump */
         post: operations["submitEvidence"];
         delete?: never;
         options?: never;
@@ -226,7 +229,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/stunts/{stuntId}/judgment": {
+    "/v1/jumps/{jumpId}/judgment": {
         parameters: {
             query?: never;
             header?: never;
@@ -235,7 +238,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit or edit the signed-in Judge's Judgment for a Performed Stunt */
+        /** Submit or edit the signed-in Judge's Judgment for a Performed Jump */
         post: operations["submitJudgment"];
         delete?: never;
         options?: never;
@@ -243,7 +246,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/stunts/{stuntId}/disputes": {
+    "/v1/jumps/{jumpId}/disputes": {
         parameters: {
             query?: never;
             header?: never;
@@ -252,7 +255,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Raise a Dispute on a visible Stunt in the Group */
+        /** Raise a Dispute on a visible Jump in the Group */
         post: operations["createDispute"];
         delete?: never;
         options?: never;
@@ -269,7 +272,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resolve or override a Dispute with visible Stunt outcome changes */
+        /** Resolve or override a Dispute with visible Jump outcome changes */
         post: operations["resolveDispute"];
         delete?: never;
         options?: never;
@@ -340,25 +343,25 @@ export interface components {
         SeasonHistoryResponse: {
             entries: components["schemas"]["SeasonHistoryEntry"][];
         };
-        Stunt: {
+        Jump: {
             id: string;
-            /** @description The exactly one Group this Stunt belongs to. */
+            /** @description The exactly one Group this Jump belongs to. */
             groupId: string;
             playerId: string;
-            /** @description Present only for Season-linked Planned Stunts. */
+            /** @description Present only for Season-linked Planned Jumps. */
             seasonId: string | null;
             /** @enum {string} */
-            status: "Idea" | "Planned Stunt" | "Performed Stunt" | "Judged Stunt" | "Unjudged Stunt" | "Disqualified Stunt" | "Removed Stunt";
+            status: "Idea" | "Planned Jump" | "Performed Jump" | "Judged Jump" | "Unjudged Jump" | "Disqualified Jump" | "Removed Jump";
             source: string;
             destination: string;
             food: string;
             offSeason: boolean;
-            /** @description Present only after a Season-linked Performed Stunt becomes a Judged Stunt. */
+            /** @description Present only after a Season-linked Performed Jump becomes a Judged Jump. */
             finalScore: number | null;
         };
         EvidenceUploadAuthorization: {
             id: string;
-            stuntId: string;
+            jumpId: string;
             uploadUrl: string;
             /** @enum {string} */
             uploadMethod: "PUT";
@@ -371,62 +374,62 @@ export interface components {
         };
         Evidence: {
             id: string;
-            stuntId: string;
+            jumpId: string;
             caption: string;
             mediaObjectKey: string;
             /** Format: date-time */
             createdAt: string;
         };
         EvidenceSubmission: {
-            stunt: components["schemas"]["Stunt"];
+            jump: components["schemas"]["Jump"];
             evidence: components["schemas"]["Evidence"];
         };
         Judgment: {
             id: string;
-            stuntId: string;
+            jumpId: string;
             playerId: string;
             difficulty: number;
             transgression: number;
             creativity: number;
-            documentation: number;
+            presentation: number;
         };
-        PerformedStuntView: {
-            stunt: components["schemas"]["Stunt"];
+        PerformedJumpView: {
+            jump: components["schemas"]["Jump"];
             performer: components["schemas"]["Player"];
             evidence: components["schemas"]["Evidence"];
             disputes: components["schemas"]["Dispute"][];
         };
         Dispute: {
             id: string;
-            stuntId: string;
+            jumpId: string;
             raisedByPlayerId: string;
             /** @enum {string} */
             concern: "House Rules" | "Credibility" | "Source" | "Destination" | "Food" | "duplicate" | "other";
             details: string;
             /** @enum {string} */
             status: "Open" | "Resolved" | "Overridden";
-            resolution?: ("No Action" | "Disqualified Stunt" | "Removed Stunt") | null;
+            resolution?: ("No Action" | "Disqualified Jump" | "Removed Jump") | null;
             resolutionReason?: string | null;
             resolvedByPlayerId?: string | null;
-            overrideResolution?: ("Disqualified Stunt" | "Removed Stunt") | null;
+            overrideResolution?: ("Disqualified Jump" | "Removed Jump") | null;
             overrideReason?: string | null;
             overrideByPlayerId?: string | null;
         };
         DisputeResolution: {
-            stunt: components["schemas"]["Stunt"];
+            jump: components["schemas"]["Jump"];
             dispute: components["schemas"]["Dispute"];
         };
         StandingEntry: {
             player: components["schemas"]["Player"];
             seasonScore: number;
-            judgedStunts: number;
+            judgedJumps: number;
         };
         GroupHomeResponse: {
             group: components["schemas"]["Group"];
             membership: components["schemas"]["GroupMembership"];
             /** @description The Group's currently open Season, including Judging Grace Period, or null when none exists. */
             activeSeason: components["schemas"]["Season"] | null;
-            recentStunts: components["schemas"]["PerformedStuntView"][];
+            recentJumps: components["schemas"]["PerformedJumpView"][];
             standings: components["schemas"]["StandingEntry"][];
         };
         GroupMembershipSummary: {
@@ -550,7 +553,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Group identity, the Player's Group Membership, current Season state, recent Stunts, and Standings. */
+            /** @description Group identity, the Player's Group Membership, current Season state, recent Jumps, and Standings. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -858,7 +861,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Stunt"];
+                    "application/json": components["schemas"]["Jump"];
                 };
             };
             /** @description Invalid Idea creation request. */
@@ -884,7 +887,7 @@ export interface operations {
             };
         };
     };
-    createPlannedStunt: {
+    createPlannedJump: {
         parameters: {
             query?: never;
             header?: never;
@@ -896,22 +899,22 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
-                    /** @description When true, the Planned Stunt is explicitly Off-Season even during an Active Season. */
+                    /** @description When true, the Planned Jump is explicitly Off-Season even during an Active Season. */
                     offSeason?: boolean;
                 };
             };
         };
         responses: {
-            /** @description The Planned Stunt, Season-linked by default during an Active Season. */
+            /** @description The Planned Jump, Season-linked by default during an Active Season. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Stunt"];
+                    "application/json": components["schemas"]["Jump"];
                 };
             };
-            /** @description Invalid Planned Stunt request. */
+            /** @description Invalid Planned Jump request. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -946,7 +949,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                stuntId: string;
+                jumpId: string;
             };
             cookie?: never;
         };
@@ -981,14 +984,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The signed-in Player is not the performer of this Planned Stunt. */
+            /** @description The signed-in Player is not the performer of this Planned Jump. */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Planned Stunt not found. */
+            /** @description Planned Jump not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1002,7 +1005,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                stuntId: string;
+                jumpId: string;
             };
             cookie?: never;
         };
@@ -1015,7 +1018,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Backend-owned Evidence record and the updated Performed Stunt. */
+            /** @description Backend-owned Evidence record and the updated Performed Jump. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1038,14 +1041,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The signed-in Player is not the performer of this Planned Stunt. */
+            /** @description The signed-in Player is not the performer of this Planned Jump. */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Planned Stunt or upload authorization not found. */
+            /** @description Planned Jump or upload authorization not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1059,7 +1062,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                stuntId: string;
+                jumpId: string;
             };
             cookie?: never;
         };
@@ -1069,7 +1072,7 @@ export interface operations {
                     difficulty: number;
                     transgression: number;
                     creativity: number;
-                    documentation: number;
+                    presentation: number;
                 };
             };
         };
@@ -1106,14 +1109,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The signed-in Player is not an eligible Judge for this Performed Stunt. */
+            /** @description The signed-in Player is not an eligible Judge for this Performed Jump. */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Performed Stunt not found. */
+            /** @description Performed Jump not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1134,7 +1137,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                stuntId: string;
+                jumpId: string;
             };
             cookie?: never;
         };
@@ -1178,7 +1181,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Visible Stunt not found. */
+            /** @description Visible Jump not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1200,13 +1203,13 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    resolution: "No Action" | "Disqualified Stunt" | "Removed Stunt";
+                    resolution: "No Action" | "Disqualified Jump" | "Removed Jump";
                     resolutionReason: string;
                 };
             };
         };
         responses: {
-            /** @description The updated Stunt and Dispute resolution state. */
+            /** @description The updated Jump and Dispute resolution state. */
             200: {
                 headers: {
                     [name: string]: unknown;
