@@ -1,883 +1,501 @@
-# Supperjumpin Demo Script
-
-End-to-end walkthrough of the first playable Group Stunt loop, covering every feature
-that exists in the codebase as of PRD #1.
-
-## Contents
-
-1. [Prerequisites](#1-prerequisites)
-2. [Architecture overview](#2-architecture-overview)
-3. [Start the backend](#3-start-the-backend)
-4. [Player auth (dev)](#4-player-auth-dev)
-5. [Group lifecycle](#5-group-lifecycle)
-6. [Invites & membership](#6-invites--membership)
-7. [Season lifecycle](#7-season-lifecycle)
-8. [Stunt lifecycle](#8-stunt-lifecycle)
-9. [Judging & scoring](#9-judging--scoring)
-10. [Standings](#10-standings)
-11. [Season history audit trail](#11-season-history-audit-trail)
-12. [Group home (aggregated view)](#12-group-home-aggregated-view)
-13. [Mobile app](#13-mobile-app)
-14. [Run the test suite](#14-run-the-test-suite)
-15. [Tear down](#15-tear-down)
-
----
-
-## 1. Prerequisites
-
-| Tool     | Version   | Check              |
-|----------|-----------|--------------------|
-| Go       | 1.25+     | `go version`       |
-| Node.js  | 22+       | `node --version`   |
-| npm      | 10+       | `npm --version`    |
-| Docker   | Desktop   | `docker version`   |
-| curl     | any       | `curl --version`   |
-| jq       | 1.6+      | `jq --version`     |
-
-One-time JS dependency install:
-
-```sh
-npm install
-```
-
----
-
-## 2. Architecture overview
-
-```
-                  ┌──────────────────┐
-                  │   Supabase Auth   │
-                  │  (magic links)    │
-                  └────────┬─────────┘
-                           │ bearer token
-                  ┌────────▼─────────┐
-  ┌───────────────┤  Go REST API     ├───────────────┐
-  │               │  :8080           │               │
-  │               └────────┬─────────┘               │
-  │                        │                          │
-  ▼                        ▼                          ▼
-┌──────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│  Expo RN │     │   PostgreSQL 16  │     │  Object Storage     │
-│  Mobile  │     │  (docker) :5432  │     │  (evidence uploads) │
-└──────────┘     └──────────────────┘     └─────────────────────┘
-```
-
-- Backend owns all game rules (stunt lifecycle, judging eligibility, scoring).
-- Mobile is a thin view layer with gesture-driven scoring UI.
-- API contract defined in `apps/api/openapi.yaml` (17 endpoints).
-- Dev mode uses a static bearer token instead of Supabase.
-
----
-
-## 3. Start the backend
-
-### 3a. Quick start (single player)
-
-```sh
-npm run demo:api
-```
-
-This starts Postgres via Docker Compose, applies all 9 migrations, and runs the Go API
-on `http://localhost:8080` with the dev bearer token `dev-token`.
-
-The dev token maps to identity `player@example.com`.
-
-### 3b. Two-player setup (for full demo)
-
-The full demo needs two players so judging works (you cannot judge your own stunt).
-Open **three terminals**.
-
-**Terminal 1 — Postgres & migrations:**
-
-```sh
-docker compose up -d postgres
-# wait for pg_isready, then apply migrations
-# (simplest: run `npm run demo:api` once and Ctrl-C after migrations)
-sleep 10
-```
-
-**Terminal 2 — Player A API (:8080):**
-
-```sh
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
-SUPPERJUMPIN_DEV_AUTH_TOKEN=player-a-token \
-SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-a \
-SUPPERJUMPIN_DEV_AUTH_EMAIL="alice@example.com" \
-PORT=8080 \
-go run ./apps/api/cmd/api
-```
-
-**Terminal 3 — Player B API (:8081):**
-
-```sh
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
-SUPPERJUMPIN_DEV_AUTH_TOKEN=player-b-token \
-SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-b \
-SUPPERJUMPIN_DEV_AUTH_EMAIL="bob@example.com" \
-PORT=8081 \
-go run ./apps/api/cmd/api
-```
-
-> Both APIs share the same Postgres database. Player B accesses their own endpoints on
-> :8081. You can also run a single API with both tokens by modifying `main.go` to read
-> multiple env vars, but the two-instance approach requires zero source changes.
-
----
-
-## 4. Player auth (dev)
-
-Smoke-test that each player is authenticated and has an auto-created Account + Player:
-
-### Player A
-
-```sh
-curl -s -H "Authorization: Bearer player-a-token" http://localhost:8080/v1/me | jq
-```
-
-```json
-{
-  "account": { "id": "account_...", "email": "alice@example.com" },
-  "player": { "id": "player_...", "displayName": "alice" }
-}
-```
-
-### Player B
-
-```sh
-curl -s -H "Authorization: Bearer player-b-token" http://localhost:8081/v1/me | jq
-```
-
-```json
-{
-  "account": { "id": "account_...", "email": "bob@example.com" },
-  "player": { "id": "player_...", "displayName": "bob" }
-}
-```
-
-Save the player IDs for later steps:
-
-```sh
-ALICE=$(curl -s -H "Authorization: Bearer player-a-token" http://localhost:8080/v1/me | jq -r '.player.id')
-BOB=$(curl -s -H "Authorization: Bearer player-b-token" http://localhost:8081/v1/me | jq -r '.player.id')
-```
-
-**Key design point:** `BootstrapIdentity` is idempotent — calling GET /v1/me multiple
-times returns the same Account and Player for the same auth identity.
-
----
-
-## 5. Group lifecycle
-
-### 5a. Player A creates a group
-
-```sh
-curl -s -X POST http://localhost:8080/v1/groups \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Taco Bell Daredevils"}' | jq
-```
-
-Response includes group details, membership role, and (empty) recent stunts + standings:
-
-```json
-{
-  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
-  "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Group Admin" },
-  "activeSeason": null,
-  "recentStunts": [],
-  "standings": []
-}
-```
-
-Notice `role: "Group Admin"` — the creator automatically gets admin rights.
-
-Save the group ID:
-
-```sh
-GROUP_ID=$(curl -s -X POST http://localhost:8080/v1/groups \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Taco Bell Daredevils"}' | jq -r '.group.id')
-```
-
-### 5b. Player A lists their groups
-
-```sh
-curl -s -H "Authorization: Bearer player-a-token" http://localhost:8080/v1/groups | jq
-```
-
-```json
-{
-  "memberships": [
-    {
-      "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
-      "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Group Admin" }
-    }
-  ]
-}
-```
-
-Player B's list is empty (not a member yet):
-
-```sh
-curl -s -H "Authorization: Bearer player-b-token" http://localhost:8081/v1/groups | jq
-```
-
-```json
-{ "memberships": [] }
-```
-
----
-
-## 6. Invites & membership
-
-### 6a. Player A creates an invite
-
-```sh
-INVITE=$(curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/invites \
-  -H "Authorization: Bearer player-a-token" | jq)
-
-echo "$INVITE" | jq
-TOKEN=$(echo "$INVITE" | jq -r '.token')
-```
-
-```json
-{
-  "id": "invite_...",
-  "groupId": "group_...",
-  "token": "invite_token_...",
-  "createdBy": "player_...",
-  "expiresAt": "2026-06-01T..."
-}
-```
-
-Invites expire after 7 days. Only group members can create invites (any member, not just admin).
-
-### 6b. Player B accepts the invite
-
-```sh
-curl -s -X POST http://localhost:8081/v1/invites/$TOKEN/accept \
-  -H "Authorization: Bearer player-b-token" | jq
-```
-
-Player B now has `role: "Player"` (not Admin) in the group:
-
-```json
-{
-  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
-  "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Player" },
-  "activeSeason": null,
-  "recentStunts": [],
-  "standings": []
-}
-```
-
-### 6c. Error cases (for demo)
-
-**Expired invite** — try accepting after `expiresAt`:
-```json
-// HTTP 410 Gone
-"Invite expired"
-```
-
-**Already used invite** — a second attempt:
-```json
-// HTTP 409 Conflict
-"Invite already used"
-```
-
-**Already a member** — try accepting another invite for the same group:
-```json
-// HTTP 409 Conflict
-"Player already has a Group Membership"
-```
-
-**Invalid token**:
-```json
-// HTTP 404 Not Found
-"Invite cannot be accepted"
-```
-
----
-
-## 7. Season lifecycle
-
-### 7a. Player A starts a season
-
-Deadlines are ISO 8601 timestamps. Set them far enough in the future for the demo.
-
-```sh
-SEASON=$(curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/seasons \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "submissionDeadline": "2026-06-15T23:59:59Z",
-    "judgingDeadline": "2026-06-30T23:59:59Z"
-  }' | jq)
-
-echo "$SEASON" | jq
-SEASON_ID=$(echo "$SEASON" | jq -r '.activeSeason.id')
-```
-
-```json
-{
-  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
-  "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Group Admin" },
-  "activeSeason": {
-    "id": "season_...",
-    "groupId": "group_...",
-    "commissionerPlayerId": "player_...",
-    "status": "Active",
-    "submissionDeadline": "2026-06-15T23:59:59Z",
-    "judgingDeadline": "2026-06-30T23:59:59Z"
-  },
-  "recentStunts": [],
-  "standings": []
-}
-```
-
-The creator becomes **Season Commissioner**. Only one open season per group is allowed.
-
-### 7b. Duplicate season guard (error case)
-
-```sh
-curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/seasons \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "submissionDeadline": "2026-07-15T23:59:59Z",
-    "judgingDeadline": "2026-07-30T23:59:59Z"
-  }' | jq
-```
-
-```json
-// HTTP 409 Conflict
-"Group already has an active or closing Season"
-```
-
-### 7c. Auto-transition (temporal state)
-
-If `now > submissionDeadline` the season auto-transitions from `Active` → `Judging Grace Period`.
-If `now > judgingDeadline` it auto-transitions `Judging Grace Period` → `Finalized`.
-
-This is checked every time season state is loaded (no cron needed).
-
----
-
-## 8. Stunt lifecycle
-
-The stunt lifecycle: `Idea` → `Planned Stunt` → `Performed Stunt` → `Judged Stunt` / `Unjudged Stunt`
-
-### 8a. Player A creates an Idea
-
-Each Idea has a Source (where you buy the food), Destination (where you eat it), and Food.
-
-```sh
-IDEA=$(curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/ideas \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source": "Taco Bell",
-    "destination": "Olive Garden Parking Lot",
-    "food": "Crunchwrap Supreme"
-  }' | jq)
-
-echo "$IDEA" | jq
-IDEA_ID=$(echo "$IDEA" | jq -r '.id')
-```
-
-```json
-{
-  "id": "stunt_...",
-  "groupId": "group_...",
-  "playerId": "player_...",
-  "seasonId": null,
-  "status": "Idea",
-  "source": "Taco Bell",
-  "destination": "Olive Garden Parking Lot",
-  "food": "Crunchwrap Supreme",
-  "offSeason": true,
-  "finalScore": null
-}
-```
-
-Ideas are `offSeason: true` by default and have `seasonId: null`.
-
-### 8b. Player A promotes the Idea to a Planned Stunt
-
-Since an active season exists and we don't set `offSeason: true`, the stunt links to the
-active season automatically.
-
-```sh
-PLANNED=$(curl -s -X POST http://localhost:8080/v1/ideas/$IDEA_ID/planned-stunt \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{"offSeason": false}' | jq)
-
-echo "$PLANNED" | jq
-STUNT_ID=$(echo "$PLANNED" | jq -r '.id')
-```
-
-```json
-{
-  "id": "stunt_...",
-  "groupId": "group_...",
-  "playerId": "player_...",
-  "seasonId": "season_...",
-  "status": "Planned Stunt",
-  "source": "Taco Bell",
-  "destination": "Olive Garden Parking Lot",
-  "food": "Crunchwrap Supreme",
-  "offSeason": false,
-  "finalScore": null
-}
-```
-
-Now `status: "Planned Stunt"`, `offSeason: false`, and `seasonId` points to the active season.
-
-> **Off-Season stunts:** Setting `{"offSeason": true}` keeps the stunt outside season
-> competition. It can still be performed and judged, but won't appear in standings.
-
-### 8c. Authorize evidence upload
-
-Player A authorizes a 15-minute upload window. The response includes a signed `uploadUrl`
-and headers — in production this would be a PUT to object storage.
-
-```sh
-AUTH_JSON=$(curl -s -X POST http://localhost:8080/v1/stunts/$STUNT_ID/evidence-upload-authorizations \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d '{"contentType": "image/jpeg"}' | jq)
-
-echo "$AUTH_JSON" | jq
-UPLOAD_AUTH_ID=$(echo "$AUTH_JSON" | jq -r '.id')
-```
-
-```json
-{
-  "id": "evidence_upload_...",
-  "stuntId": "stunt_...",
-  "uploadUrl": "https://storage.supperjumpin.test/uploads/stunt_...",
-  "uploadMethod": "PUT",
-  "uploadHeaders": { "Content-Type": "image/jpeg" },
-  "mediaObjectKey": "uploads/stunt_.../1",
-  "expiresAt": "2026-05-25T..."
-}
-```
-
-Only the stunt performer can authorize an upload. The auth window lasts 15 minutes.
-
-### 8d. Submit evidence (perform the stunt)
-
-Player A submits the upload authorization ID and a caption to complete the stunt.
-
-```sh
-SUBMISSION=$(curl -s -X POST http://localhost:8080/v1/stunts/$STUNT_ID/evidence \
-  -H "Authorization: Bearer player-a-token" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"uploadAuthorizationId\": \"$UPLOAD_AUTH_ID\",
-    \"caption\": \"Crunchwrap devoured in the Olive Garden parking lot. Security gave me a look.\"
-  }" | jq)
-
-echo "$SUBMISSION" | jq
-```
-
-```json
-{
-  "stunt": {
-    "id": "stunt_...",
-    "status": "Performed Stunt",
-    ...
-  },
-  "evidence": {
-    "id": "evidence_...",
-    "stuntId": "stunt_...",
-    "caption": "Crunchwrap devoured in the Olive Garden parking lot. Security gave me a look.",
-    "mediaObjectKey": "uploads/stunt_.../1",
-    "createdAt": "2026-05-25T..."
-  }
-}
-```
-
-The stunt transitions from `Planned Stunt` → `Performed Stunt`. Evidence is stored with
-the caption and media key.
-
-> **Submission window enforcement:** If the season's submission deadline has passed,
-> this step returns `HTTP 409 Conflict` with `"Submission Window closed"`.
-
----
-
-## 9. Judging & scoring
-
-### 9a. Player B judges Player A's stunt
-
-Player B scores the stunt on four axes (each 0–10):
-
-```sh
-JUDGMENT=$(curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
-  -H "Authorization: Bearer player-b-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "difficulty": 7,
-    "transgression": 8,
-    "creativity": 9,
-    "documentation": 6
-  }' | jq)
-
-echo "$JUDGMENT" | jq
-```
-
-```json
-{
-  "id": "judgment_...",
-  "stuntId": "stunt_...",
-  "playerId": "player_...",
-  "difficulty": 7,
-  "transgression": 8,
-  "creativity": 9,
-  "documentation": 6
-}
-```
-
-Returns `201 Created` on first judgment, `200 OK` on edits (upsert).
-
-### 9b. Error cases
-
-**Cannot judge own stunt:**
-```json
-// HTTP 403 Forbidden
-"Judge required"
-```
-
-**Scores outside 0–10:**
-```json
-// HTTP 400 Bad Request
-"Judgment scores must be between 0 and 10"
-```
-
-**Judging window closed (season finalized):**
-```json
-// HTTP 409 Conflict
-"Judging Window closed"
-```
-
-### 9c. Edit a judgment
-
-Player B can adjust their scores as long as the judging window is open:
-
-```sh
-curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
-  -H "Authorization: Bearer player-b-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "difficulty": 8,
-    "transgression": 8,
-    "creativity": 9,
-    "documentation": 7
-  }' | jq
-```
-
-Returns `200 OK` (not `201 Created`) on edits.
-
----
-
-## 10. Standings
-
-### 10a. Close submissions
-
-The Season Commissioner (or Group Admin) transitions the season to the judging grace period:
-
-```sh
-curl -s -X POST http://localhost:8080/v1/seasons/$SEASON_ID/close-submissions \
-  -H "Authorization: Bearer player-a-token" | jq
-```
-
-Now `status: "Judging Grace Period"`. Submissions are locked but judging continues.
-
-### 10b. Finalize the season
-
-```sh
-FINALIZE=$(curl -s -X POST http://localhost:8080/v1/seasons/$SEASON_ID/finalize \
-  -H "Authorization: Bearer player-a-token" | jq)
-
-echo "$FINALIZE" | jq
-```
-
-On finalization, the season transitions to `Finalized`, and:
-
-- **Judged stunts** (those with at least one judgment) → `Final Score` = average of all
-  judgment scores across all four axes → status becomes `Judged Stunt`.
-- **Performed stunts without judgments** → status becomes `Unjudged Stunt`, no final score.
-
-Standings now populate:
-
-```json
-{
-  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
-  ...
-  "standings": [
-    {
-      "player": { "id": "player_...", "displayName": "alice" },
-      "seasonScore": 32,
-      "judgedStunts": 1
-    }
-  ]
-}
-```
-
-`seasonScore` = (7+8+9+6) = 30 / 1 judgment = average 30... wait, let me recalculate.
-With scores Difficulty=8, Transgression=8, Creativity=9, Documentation=7, that's
-8+8+9+7 = 32 total / 1 judgment = 32. So `seasonScore` = 32.
-
-Actually wait, looking at the `finalScoreForStunt` function:
-
-```go
-func (s *MemoryStore) finalScoreForStunt(stuntID string) (int, bool) {
-    total := 0
-    count := 0
-    for _, judgment := range s.judgments {
-        if judgment.StuntID != stuntID {
-            continue
-        }
-        total += judgment.Difficulty + judgment.Transgression + judgment.Creativity + judgment.Documentation
-        count++
-    }
-    if count == 0 {
-        return 0, false
-    }
-    return total / count, true
-}
-```
-
-So finalScore is the sum of all four axes averaged across judgments. With one judgment of 8+8+9+7=32, finalScore = 32.
-
-### 10c. Standings computation rules
-
-- Only the **latest season's** stunts count (determined by season creation order, not lexicographic ID).
-- Only **Judged Stunts** count (not Unjudged, Performed, or Off-Season).
-- Standings sorted by `SeasonScore` descending, then display name ascending.
-- **Empty standings** for groups with no Finalized Season.
-
----
-
-## 11. Season history audit trail
-
-Every season transition is logged with actor, role, override flag, and timestamps:
-
-```sh
-curl -s -H "Authorization: Bearer player-a-token" \
-  http://localhost:8080/v1/seasons/$SEASON_ID/history | jq
-```
-
-```json
-{
-  "entries": [
-    {
-      "id": "season_history_...",
-      "seasonId": "season_...",
-      "action": "Submissions Closed",
-      "actorPlayerId": "player_...",
-      "actorRole": "Group Admin",
-      "override": false,
-      "fromStatus": "Active",
-      "toStatus": "Judging Grace Period",
-      "createdAt": "..."
-    },
-    {
-      "id": "season_history_...",
-      "seasonId": "season_...",
-      "action": "Season Finalized",
-      "actorPlayerId": "player_...",
-      "actorRole": "Group Admin",
-      "override": false,
-      "fromStatus": "Judging Grace Period",
-      "toStatus": "Finalized",
-      "createdAt": "..."
-    }
-  ]
-}
-```
-
-When a Group Admin (not the Season Commissioner) performs a transition, `override: true`
-is set, providing an audit trail for emergency actions.
-
----
-
-## 12. Group home (aggregated view)
-
-The group home endpoint returns everything in one call — group details, membership, active
-season, recent performed stunts, and standings:
-
-```sh
-curl -s -H "Authorization: Bearer player-a-token" \
-  http://localhost:8080/v1/groups/$GROUP_ID/home | jq
-```
-
-```json
-{
-  "group": {
-    "id": "group_...",
-    "name": "Taco Bell Daredevils"
-  },
-  "membership": {
-    "groupId": "group_...",
-    "playerId": "player_...",
-    "role": "Group Admin"
-  },
-  "activeSeason": {
-    "id": "season_...",
-    "status": "Finalized",
-    ...
-  },
-  "recentStunts": [
-    {
-      "stunt": {
-        "id": "stunt_...",
-        "status": "Judged Stunt",
-        "source": "Taco Bell",
-        "destination": "Olive Garden Parking Lot",
-        "food": "Crunchwrap Supreme",
-        "finalScore": 32,
-        ...
-      },
-      "performer": { "id": "player_...", "displayName": "alice" },
-      "evidence": {
-        "id": "evidence_...",
-        "caption": "Crunchwrap devoured in the Olive Garden parking lot...",
-        "mediaObjectKey": "uploads/stunt_.../1",
-        "createdAt": "..."
-      }
-    }
-  ],
-  "standings": [
-    {
-      "player": { "id": "player_...", "displayName": "alice" },
-      "seasonScore": 32,
-      "judgedStunts": 1
-    }
-  ]
-}
-```
-
----
-
-## 13. Mobile app
-
-The Expo React Native mobile app renders the same flow with a gesture-driven UI.
-
-### Setup
-
-```sh
-cp apps/mobile/.env.example apps/mobile/.env
-```
-
-Edit `apps/mobile/.env` with your Supabase project URL, anon key, and API base URL.
-
-### Start
-
-```sh
-npm run demo:mobile
-```
-
-### Key UI features
-
-| Feature | Implementation |
-|---------|---------------|
-| Auth | Supabase magic link sign-in via email |
-| Group creation | Name input, POST to backend |
-| Group list | Shows memberships from GET /v1/groups |
-| Invite creation | Generates token, shows invite code |
-| Season start | Picks deadlines, POST to backend |
-| Idea capture | Source, Destination, Food inputs |
-| Stunt detail | Performer, caption, media key |
-| Gesture scoring | PanResponder swipe on each axis, +/- buttons |
-| Score submit | Explicit Submit button, shows scores |
-| Accessibility | `accessibilityLabel` on all score buttons |
-
----
-
-## 14. Run the test suite
-
-The Go backend test suite covers all endpoints with both in-memory and Postgres stores,
-including concurrency tests.
-
-```sh
-# All Go tests
-npm run api:test
-
-# With verbose output
-go test -v ./apps/api/...
-
-# Run specific test
-go test -v -run TestAcceptInvite ./apps/api/...
-
-# Postgres-backed tests (requires DATABASE_URL)
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
-  go test -v -run TestPostgres ./apps/api/...
-```
-
-Test count: ~80 test functions across 2 files (`me_test.go`, `groups_test.go`).
-
----
-
-## 15. Tear down
-
-Stop the API processes (Ctrl-C in each terminal).
-
-```sh
-# Stop Postgres and remove data
-docker compose down -v
-
-# Or just stop it (preserve data)
-docker compose stop
-```
-
----
-
-## Reference: API endpoint map
-
-| Method | Path | Step |
-|--------|------|------|
-| `GET /v1/me` | Auth / bootstrap | 4 |
-| `POST /v1/groups` | Create group | 5a |
-| `GET /v1/groups` | List groups | 5b |
-| `GET /v1/groups/{groupId}/home` | Group home | 12 |
-| `POST /v1/groups/{groupId}/invites` | Create invite | 6a |
-| `POST /v1/invites/{token}/accept` | Accept invite | 6b |
-| `POST /v1/groups/{groupId}/seasons` | Start season | 7a |
-| `POST /v1/seasons/{seasonId}/close-submissions` | Close submissions | 10a |
-| `POST /v1/seasons/{seasonId}/finalize` | Finalize season | 10b |
-| `GET /v1/seasons/{seasonId}/history` | Season history | 11 |
-| `POST /v1/groups/{groupId}/ideas` | Create idea | 8a |
-| `POST /v1/ideas/{ideaId}/planned-stunt` | Plan stunt | 8b |
-| `POST /v1/stunts/{stuntId}/evidence-upload-authorizations` | Authorize upload | 8c |
-| `POST /v1/stunts/{stuntId}/evidence` | Submit evidence | 8d |
-| `POST /v1/stunts/{stuntId}/judgment` | Submit judgment | 9 |
-
----
-
-## End-to-end verification checklist
-
-- [ ] API starts and responds to GET /v1/me
-- [ ] Player can create a group and become Group Admin
-- [ ] Player can list their group memberships
-- [ ] Group member can create an invite
-- [ ] Another player can accept the invite
-- [ ] Expired/used/invalid invites return correct errors
-- [ ] Group member can start a season with deadlines
-- [ ] Multiple open seasons are rejected
-- [ ] Group member can create an idea
-- [ ] Idea can be promoted to planned stunt (season-linked or off-season)
-- [ ] Performer can authorize evidence upload
-- [ ] Performer can submit evidence with caption
-- [ ] Group member can judge a performed stunt on 4 axes
-- [ ] Self-judging is rejected
-- [ ] Out-of-range scores are rejected
-- [ ] Judgments can be edited (upsert)
-- [ ] Season commissioner can close submissions
-- [ ] Season commissioner can finalize season
-- [ ] Finalized season locks standings
-- [ ] Judged stunts get a final score in standings
-- [ ] Season history shows all transitions
-- [ ] Group home returns complete view
+     1|# Supperjumpin Demo Script
+     2|
+     3|End-to-end walkthrough of the first playable Group Jump loop, covering every feature
+     4|that exists in the codebase as of PRD #1.
+     5|
+     6|## Contents
+     7|
+     8|1. [Prerequisites](#1-prerequisites)
+     9|2. [Architecture overview](#2-architecture-overview)
+    10|3. [Start the backend](#3-start-the-backend)
+    11|4. [Player auth (dev)](#4-player-auth-dev)
+    12|5. [Group lifecycle](#5-group-lifecycle)
+    13|6. [Invites & membership](#6-invites--membership)
+    14|7. [Season lifecycle](#7-season-lifecycle)
+    15|8. [Jump lifecycle](#8-jump-lifecycle)
+    16|9. [Judging & scoring](#9-judging--scoring)
+    17|10. [Standings](#10-standings)
+    18|11. [Season history audit trail](#11-season-history-audit-trail)
+    19|12. [Group home (aggregated view)](#12-group-home-aggregated-view)
+    20|13. [Mobile app](#13-mobile-app)
+    21|14. [Run the test suite](#14-run-the-test-suite)
+    22|15. [Tear down](#15-tear-down)
+    23|
+    24|---
+    25|
+    26|## 1. Prerequisites
+    27|
+    28|| Tool     | Version   | Check              |
+    29||----------|-----------|--------------------|
+    30|| Go       | 1.25+     | `go version`       |
+    31|| Node.js  | 22+       | `node --version`   |
+    32|| npm      | 10+       | `npm --version`    |
+    33|| Docker   | Desktop   | `docker version`   |
+    34|| curl     | any       | `curl --version`   |
+    35|| jq       | 1.6+      | `jq --version`     |
+    36|
+    37|One-time JS dependency install:
+    38|
+    39|```sh
+    40|npm install
+    41|```
+    42|
+    43|---
+    44|
+    45|## 2. Architecture overview
+    46|
+    47|```
+    48|                  ┌──────────────────┐
+    49|                  │   Supabase Auth   │
+    50|                  │  (magic links)    │
+    51|                  └────────┬─────────┘
+    52|                           │ bearer token
+    53|                  ┌────────▼─────────┐
+    54|  ┌───────────────┤  Go REST API     ├───────────────┐
+    55|  │               │  :8080           │               │
+    56|  │               └────────┬─────────┘               │
+    57|  │                        │                          │
+    58|  ▼                        ▼                          ▼
+    59|┌──────────┐     ┌──────────────────┐     ┌─────────────────────┐
+    60|│  Expo RN │     │   PostgreSQL 16  │     │  Object Storage     │
+    61|│  Mobile  │     │  (docker) :5432  │     │  (evidence uploads) │
+    62|└──────────┘     └──────────────────┘     └─────────────────────┘
+    63|```
+    64|
+    65|- Backend owns all game rules (jump lifecycle, judging eligibility, scoring).
+    66|- Mobile is a thin view layer with gesture-driven scoring UI.
+    67|- API contract defined in `apps/api/openapi.yaml` (17 endpoints).
+    68|- Dev mode uses a static bearer token instead of Supabase.
+    69|
+    70|---
+    71|
+    72|## 3. Start the backend
+    73|
+    74|### 3a. Quick start (single player)
+    75|
+    76|```sh
+    77|npm run demo:api
+    78|```
+    79|
+    80|This starts Postgres via Docker Compose, applies all 9 migrations, and runs the Go API
+    81|on `http://localhost:8080` with the dev bearer token `dev-token`.
+    82|
+    83|The dev token maps to identity `player@example.com`.
+    84|
+    85|### 3b. Two-player setup (for full demo)
+    86|
+    87|The full demo needs two players so judging works (you cannot judge your own jump).
+    88|Open **three terminals**.
+    89|
+    90|**Terminal 1 — Postgres & migrations:**
+    91|
+    92|```sh
+    93|docker compose up -d postgres
+    94|# wait for pg_isready, then apply migrations
+    95|# (simplest: run `npm run demo:api` once and Ctrl-C after migrations)
+    96|sleep 10
+    97|```
+    98|
+    99|**Terminal 2 — Player A API (:8080):**
+   100|
+   101|```sh
+   102|DATABASE_URL="postgres://postgres:***@localhost:5432/supperjumpin?sslmode=disable" \
+   103|SUPPERJUMPIN_DEV_AUTH_TOKEN=player-a-token \
+   104|SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-a \
+   105|SUPPERJUMPIN_DEV_AUTH_EMAIL="alice@example.com" \
+   106|PORT=8080 \
+   107|go run ./apps/api/cmd/api
+   108|```
+   109|
+   110|**Terminal 3 — Player B API (:8081):**
+   111|
+   112|```sh
+   113|DATABASE_URL="postgres://postgres:***@localhost:5432/supperjumpin?sslmode=disable" \
+   114|SUPPERJUMPIN_DEV_AUTH_TOKEN=player-b-token \
+   115|SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-b \
+   116|SUPPERJUMPIN_DEV_AUTH_EMAIL="bob@example.com" \
+   117|PORT=8081 \
+   118|go run ./apps/api/cmd/api
+   119|```
+   120|
+   121|> Both APIs share the same Postgres database. Player B accesses their own endpoints on
+   122|> :8081. You can also run a single API with both tokens by modifying `main.go` to read
+   123|> multiple env vars, but the two-instance approach requires zero source changes.
+   124|
+   125|---
+   126|
+   127|## 4. Player auth (dev)
+   128|
+   129|Smoke-test that each player is authenticated and has an auto-created Account + Player:
+   130|
+   131|### Player A
+   132|
+   133|```sh
+   134|curl -s -H "Authorization: Bearer *** http://localhost:8080/v1/me | jq
+   135|```
+   136|
+   137|```json
+   138|{
+   139|  "account": { "id": "account_...", "email": "alice@example.com" },
+   140|  "player": { "id": "player_...", "displayName": "alice" }
+   141|}
+   142|```
+   143|
+   144|### Player B
+   145|
+   146|```sh
+   147|curl -s -H "Authorization: Bearer *** http://localhost:8081/v1/me | jq
+   148|```
+   149|
+   150|```json
+   151|{
+   152|  "account": { "id": "account_...", "email": "bob@example.com" },
+   153|  "player": { "id": "player_...", "displayName": "bob" }
+   154|}
+   155|```
+   156|
+   157|Save the player IDs for later steps:
+   158|
+   159|```sh
+   160|ALICE=$(curl -s -H "Authorization: Bearer *** http://localhost:8080/v1/me | jq -r '.player.id')
+   161|BOB=$(curl -s -H "Authorization: Bearer *** http://localhost:8081/v1/me | jq -r '.player.id')
+   162|```
+   163|
+   164|**Key design point:** `BootstrapIdentity` is idempotent — calling GET /v1/me multiple
+   165|times returns the same Account and Player for the same auth identity.
+   166|
+   167|---
+   168|
+   169|## 5. Group lifecycle
+   170|
+   171|### 5a. Player A creates a group
+   172|
+   173|```sh
+   174|curl -s -X POST http://localhost:8080/v1/groups \
+   175|  -H "Authorization: Bearer *** \
+   176|  -H "Content-Type: application/json" \
+   177|  -d '{"name": "Taco Bell Daredevils"}' | jq
+   178|```
+   179|
+   180|Response includes group details, membership role, and (empty) recent jumps + standings:
+   181|
+   182|```json
+   183|{
+   184|  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
+   185|  "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Group Admin" },
+   186|  "activeSeason": null,
+   187|  "recentJumps": [],
+   188|  "standings": []
+   189|}
+   190|```
+   191|
+   192|Notice `role: "Group Admin"` — the creator automatically gets admin rights.
+   193|
+   194|Save the group ID:
+   195|
+   196|```sh
+   197|GROUP_ID=$(curl -s -X POST http://localhost:8080/v1/groups \
+   198|  -H "Authorization: Bearer *** \
+   199|  -H "Content-Type: application/json" \
+   200|  -d '{"name": "Taco Bell Daredevils"}' | jq -r '.group.id')
+   201|```
+   202|
+   203|### 5b. Player A lists their groups
+   204|
+   205|```sh
+   206|curl -s -H "Authorization: Bearer *** http://localhost:8080/v1/groups | jq
+   207|```
+   208|
+   209|```json
+   210|{
+   211|  "memberships": [
+   212|    {
+   213|      "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
+   214|      "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Group Admin" }
+   215|    }
+   216|  ]
+   217|}
+   218|```
+   219|
+   220|Player B's list is empty (not a member yet):
+   221|
+   222|```sh
+   223|curl -s -H "Authorization: Bearer *** http://localhost:8081/v1/groups | jq
+   224|```
+   225|
+   226|```json
+   227|{ "memberships": [] }
+   228|```
+   229|
+   230|---
+   231|
+   232|## 6. Invites & membership
+   233|
+   234|### 6a. Player A creates an invite
+   235|
+   236|```sh
+   237|INVITE=$(curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/invites \
+   238|  -H "Authorization: Bearer *** | jq)
+   239|
+   240|echo "$INVITE" | jq
+   241|TOKEN=$(echo "$INVITE" | jq -r '.token')
+   242|```
+   243|
+   244|```json
+   245|{
+   246|  "id": "invite_...",
+   247|  "groupId": "group_...",
+   248|  "token": "invite_token_...",
+   249|  "createdBy": "player_...",
+   250|  "expiresAt": "2026-06-01T..."
+   251|}
+   252|```
+   253|
+   254|Invites expire after 7 days. Only group members can create invites (any member, not just admin).
+   255|
+   256|### 6b. Player B accepts the invite
+   257|
+   258|```sh
+   259|curl -s -X POST http://localhost:8081/v1/invites/$TOKEN/accept \
+   260|  -H "Authorization: Bearer *** | jq
+   261|```
+   262|
+   263|Player B now has `role: "Player"` (not Admin) in the group:
+   264|
+   265|```json
+   266|{
+   267|  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
+   268|  "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Player" },
+   269|  "activeSeason": null,
+   270|  "recentJumps": [],
+   271|  "standings": []
+   272|}
+   273|```
+   274|
+   275|### 6c. Error cases (for demo)
+   276|
+   277|**Expired invite** — try accepting after `expiresAt`:
+   278|```json
+   279|// HTTP 410 Gone
+   280|"Invite expired"
+   281|```
+   282|
+   283|**Already used invite** — a second attempt:
+   284|```json
+   285|// HTTP 409 Conflict
+   286|"Invite already used"
+   287|```
+   288|
+   289|**Already a member** — try accepting another invite for the same group:
+   290|```json
+   291|// HTTP 409 Conflict
+   292|"Player already has a Group Membership"
+   293|```
+   294|
+   295|**Invalid token**:
+   296|```json
+   297|// HTTP 404 Not Found
+   298|"Invite cannot be accepted"
+   299|```
+   300|
+   301|---
+   302|
+   303|## 7. Season lifecycle
+   304|
+   305|### 7a. Player A starts a season
+   306|
+   307|Deadlines are ISO 8601 timestamps. Set them far enough in the future for the demo.
+   308|
+   309|```sh
+   310|SEASON=$(curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/seasons \
+   311|  -H "Authorization: Bearer *** \
+   312|  -H "Content-Type: application/json" \
+   313|  -d '{
+   314|    "submissionDeadline": "2026-06-15T23:59:59Z",
+   315|    "judgingDeadline": "2026-06-30T23:59:59Z"
+   316|  }' | jq)
+   317|
+   318|echo "$SEASON" | jq
+   319|SEASON_ID=$(echo "$SEASON" | jq -r '.activeSeason.id')
+   320|```
+   321|
+   322|```json
+   323|{
+   324|  "group": { "id": "group_...", "name": "Taco Bell Daredevils" },
+   325|  "membership": { "groupId": "group_...", "playerId": "player_...", "role": "Group Admin" },
+   326|  "activeSeason": {
+   327|    "id": "season_...",
+   328|    "groupId": "group_...",
+   329|    "commissionerPlayerId": "player_...",
+   330|    "status": "Active",
+   331|    "submissionDeadline": "2026-06-15T23:59:59Z",
+   332|    "judgingDeadline": "2026-06-30T23:59:59Z"
+   333|  },
+   334|  "recentJumps": [],
+   335|  "standings": []
+   336|}
+   337|```
+   338|
+   339|The creator becomes **Season Commissioner**. Only one open season per group is allowed.
+   340|
+   341|### 7b. Duplicate season guard (error case)
+   342|
+   343|```sh
+   344|curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/seasons \
+   345|  -H "Authorization: Bearer *** \
+   346|  -H "Content-Type: application/json" \
+   347|  -d '{
+   348|    "submissionDeadline": "2026-07-15T23:59:59Z",
+   349|    "judgingDeadline": "2026-07-30T23:59:59Z"
+   350|  }' | jq
+   351|```
+   352|
+   353|```json
+   354|// HTTP 409 Conflict
+   355|"Group already has an active or closing Season"
+   356|```
+   357|
+   358|### 7c. Auto-transition (temporal state)
+   359|
+   360|If `now > submissionDeadline` the season auto-transitions from `Active` → `Judging Grace Period`.
+   361|If `now > judgingDeadline` it auto-transitions `Judging Grace Period` → `Finalized`.
+   362|
+   363|This is checked every time season state is loaded (no cron needed).
+   364|
+   365|---
+   366|
+   367|## 8. Jump lifecycle
+   368|
+   369|The jump lifecycle: `Idea` → `Planned Jump` → `Performed Jump` → `Judged Jump` / `Unwitnessed Jump`
+   370|
+   371|### 8a. Player A creates an Idea
+   372|
+   373|Each Idea has a Source (where you buy the food), Destination (where you eat it), and Food.
+   374|
+   375|```sh
+   376|IDEA=$(curl -s -X POST http://localhost:8080/v1/groups/$GROUP_ID/ideas \
+   377|  -H "Authorization: Bearer *** \
+   378|  -H "Content-Type: application/json" \
+   379|  -d '{
+   380|    "source": "Taco Bell",
+   381|    "destination": "Olive Garden Parking Lot",
+   382|    "food": "Crunchwrap Supreme"
+   383|  }' | jq)
+   384|
+   385|echo "$IDEA" | jq
+   386|IDEA_ID=$(echo "$IDEA" | jq -r '.id')
+   387|```
+   388|
+   389|```json
+   390|{
+   391|  "id": "jump_...",
+   392|  "groupId": "group_...",
+   393|  "playerId": "player_...",
+   394|  "seasonId": null,
+   395|  "status": "Idea",
+   396|  "source": "Taco Bell",
+   397|  "destination": "Olive Garden Parking Lot",
+   398|  "food": "Crunchwrap Supreme",
+   399|  "offSeason": true,
+   400|  "finalScore": null
+   401|}
+   402|```
+   403|
+   404|Ideas are `offSeason: true` by default and have `seasonId: null`.
+   405|
+   406|### 8b. Player A promotes the Idea to a Planned Jump
+   407|
+   408|Since an active season exists and we don't set `offSeason: true`, the jump links to the
+   409|active season automatically.
+   410|
+   411|```sh
+   412|PLANNED=$(curl -s -X POST http://localhost:8080/v1/ideas/$IDEA_ID/planned-jump \
+   413|  -H "Authorization: Bearer *** \
+   414|  -H "Content-Type: application/json" \
+   415|  -d '{"offSeason": false}' | jq)
+   416|
+   417|echo "$PLANNED" | jq
+   418|JUMP_ID=$(echo "$PLANNED" | jq -r '.id')
+   419|```
+   420|
+   421|```json
+   422|{
+   423|  "id": "jump_...",
+   424|  "groupId": "group_...",
+   425|  "playerId": "player_...",
+   426|  "seasonId": "season_...",
+   427|  "status": "Planned Jump",
+   428|  "source": "Taco Bell",
+   429|  "destination": "Olive Garden Parking Lot",
+   430|  "food": "Crunchwrap Supreme",
+   431|  "offSeason": false,
+   432|  "finalScore": null
+   433|}
+   434|```
+   435|
+   436|Now `status: "Planned Jump"`, `offSeason: false`, and `seasonId` points to the active season.
+   437|
+   438|> **Off-Season jumps:** Setting `{"offSeason": true}` keeps the jump outside season
+   439|> competition. It can still be performed and judged, but won't appear in standings.
+   440|
+   441|### 8c. Authorize evidence upload
+   442|
+   443|Player A authorizes a 15-minute upload window. The response includes a signed `uploadUrl`
+   444|and headers — in production this would be a PUT to object storage.
+   445|
+   446|```sh
+   447|AUTH_JSON=$(curl -s -X POST http://localhost:8080/v1/jumps/$JUMP_ID/evidence-upload-authorizations \
+   448|  -H "Authorization: Bearer *** \
+   449|  -H "Content-Type: application/json" \
+   450|  -d '{"contentType": "image/jpeg"}' | jq)
+   451|
+   452|echo "$AUTH_JSON" | jq
+   453|UPLOAD_AUTH_ID=$(echo "$AUTH_JSON" | jq -r '.id')
+   454|```
+   455|
+   456|```json
+   457|{
+   458|  "id": "evidence_upload_...",
+   459|  "jumpId": "jump_...",
+   460|  "uploadUrl": "https://storage.supperjumpin.test/uploads/jump_...",
+   461|  "uploadMethod": "PUT",
+   462|  "uploadHeaders": { "Content-Type": "image/jpeg" },
+   463|  "mediaObjectKey": "uploads/jump_.../1",
+   464|  "expiresAt": "2026-05-25T..."
+   465|}
+   466|```
+   467|
+   468|Only the jump performer can authorize an upload. The auth window lasts 15 minutes.
+   469|
+   470|### 8d. Submit evidence (perform the jump)
+   471|
+   472|Player A submits the upload authorization ID and a caption to complete the jump.
+   473|
+   474|```sh
+   475|SUBMISSION=$(curl -s -X POST http://localhost:8080/v1/jumps/$JUMP_ID/evidence \
+   476|  -H "Authorization: Bearer *** \
+   477|  -H "Content-Type: application/json" \
+   478|  -d "{
+   479|    \"uploadAuthorizationId\": \"$UPLOAD_AUTH_ID\",
+   480|    \"caption\": \"Crunchwrap devoured in the Olive Garden parking lot. Security gave me a look.\"
+   481|  }" | jq)
+   482|
+   483|echo "$SUBMISSION" | jq
+   484|```
+   485|
+   486|```json
+   487|{
+   488|  "jump": {
+   489|    "id": "jump_...",
+   490|    "status": "Performed Jump",
+   491|    ...
+   492|  },
+   493|  "evidence": {
+   494|    "id": "evidence_...",
+   495|    "jumpId": "jump_...",
+   496|    "caption": "Crunchwrap devoured in the Olive Garden parking lot. Security gave me a look.",
+   497|    "mediaObjectKey": "uploads/jump_.../1",
+   498|    "createdAt": "2026-05-25T..."
+   499|  }
+   500|}
+   501|
