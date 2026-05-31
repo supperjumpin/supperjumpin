@@ -3,11 +3,13 @@
 Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
 ## Conventions
+
 Every issue must satisfy all three requirements before it is considered ready:
 
 1. **Triage label** — Exactly one of the five canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 2. **Title prefix** — Signal the work type via the title prefix convention (`PRD:`, `Spike:`, `Docs:`, `Bug:`, or no prefix). See `docs/project-board.md`.
-3. **Project fields** — When added to the project board, set `Status`, `Priority`, `Area`, and `Size`. Keep `Status` accurate through the lifecycle. Field definitions are in `docs/project-board.md`.
+3. **Size and decomposition** — Set `Size` per the definitions in `docs/project-board.md`. If the size is L or XL (or M that is not a single coherent vertical slice), **do not mark it `ready-for-agent`**. Decompose it into XS/S sub-issues first using the [Decomposition Policy](docs/project-board.md#decomposition-policy) before applying `ready-for-agent` to individual sub-issues.
+4. **Project fields** — When added to the project board, set `Status`, `Priority`, `Area`, and `Size`. Keep `Status` accurate through the lifecycle. Field definitions are in `docs/project-board.md`.
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
