@@ -26,15 +26,16 @@ type Judgment struct {
 
 // JumpSnapshot is a read-only view of a Jump needed for game rules.
 type JumpSnapshot struct {
-	ID          string
-	GroupID     string
-	PlayerID    string
-	Status      string
-	SeasonID    *string
-	Source      string
-	Destination string
-	Food        string
-	FinalScore  *int
+	ID                  string
+	GroupID             string
+	PlayerID            string
+	Status              string
+	SeasonID            *string
+	Source              string
+	Destination         string
+	Food                string
+	FinalScore          *int
+	GracePeriodExpiresAt time.Time
 }
 
 // SeasonSnapshot is a read-only view of a Season needed for game rules.

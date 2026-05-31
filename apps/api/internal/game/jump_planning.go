@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"time"
 )
 
 // JumpRepository defines persistence operations for the jump planning flow.
@@ -20,6 +21,22 @@ type JumpRepository interface {
 	// UpdateJumpToPlanned atomically updates an Idea to Planned Jump status
 	// and associates it with the given season (nil for off-season).
 	UpdateJumpToPlanned(ctx context.Context, jumpID, playerID string, seasonID *string) (JumpSnapshot, error)
+	// InsertPerformedJump creates a new performed jump with initial evidence
+	// in a single operation. Returns the jump and evidence snapshots.
+	InsertPerformedJump(ctx context.Context, params InsertPerformedJumpParams) (JumpSnapshot, EvidenceSnapshot, error)
+}
+
+// InsertPerformedJumpParams bundles parameters for direct performed jump creation.
+type InsertPerformedJumpParams struct {
+	GroupID              string
+	PlayerID             string
+	Source               string
+	Destination          string
+	Food                 string
+	Caption              string
+	MediaObjectKey       string
+	GracePeriodExpiresAt time.Time
+	SeasonID             *string
 }
 
 // CreateIdeaInput bundles the parameters for creating an Idea.
@@ -117,4 +134,60 @@ func CreatePlannedJump(ctx context.Context, repo JumpRepository, input CreatePla
 	}
 
 	return CreatePlannedJumpResult{Jump: updated, Allowed: true}
+}
+
+// CreatePerformedJumpInput bundles the parameters for creating a performed jump directly.
+type CreatePerformedJumpInput struct {
+	PlayerID       string
+	Source         string
+	Destination    string
+	Food           string
+	Caption        string
+	MediaObjectKey string
+	GroupID        string // empty string for ungrouped jumps
+}
+
+// CreatePerformedJumpOutput is the outcome of creating a performed jump directly.
+type CreatePerformedJumpOutput struct {
+	Jump     JumpSnapshot
+	Evidence EvidenceSnapshot
+	Err      error
+}
+
+// CreatePerformedJump creates a performed jump directly, bypassing the
+// Idea/Planned/Evidence flow. No group membership check is performed.
+// When groupID is non-empty, it attempts to link to an active season.
+func CreatePerformedJump(ctx context.Context, repo JumpRepository, input CreatePerformedJumpInput, now time.Time) CreatePerformedJumpOutput {
+	gracePeriodExpiresAt := now.Add(10 * time.Minute).UTC()
+
+	var seasonID *string
+	if input.GroupID != "" {
+		season, err := repo.ActiveSeasonForGroup(ctx, input.GroupID)
+		if err != nil {
+			return CreatePerformedJumpOutput{Err: err}
+		}
+		if season.ID != "" {
+			seasonID = &season.ID
+		}
+	}
+
+	jump, evidence, err := repo.InsertPerformedJump(ctx, InsertPerformedJumpParams{
+		GroupID:              input.GroupID,
+		PlayerID:             input.PlayerID,
+		Source:               input.Source,
+		Destination:          input.Destination,
+		Food:                 input.Food,
+		Caption:              input.Caption,
+		MediaObjectKey:       input.MediaObjectKey,
+		GracePeriodExpiresAt: gracePeriodExpiresAt,
+		SeasonID:             seasonID,
+	})
+	if err != nil {
+		return CreatePerformedJumpOutput{Err: err}
+	}
+
+	return CreatePerformedJumpOutput{
+		Jump:     jump,
+		Evidence: evidence,
+	}
 }

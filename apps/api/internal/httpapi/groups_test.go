@@ -1634,6 +1634,255 @@ func TestPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing
 	}
 }
 
+func TestCreatePerformedJumpWithoutGroupIdIsOffSeason(t *testing.T) {
+	server := newGroupsTestServer()
+	createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var jump jumpBody
+	decodeResponse(t, rec, &jump)
+	if jump.SeasonID != nil {
+		t.Fatalf("expected null SeasonID when no groupId, got %v", *jump.SeasonID)
+	}
+	if !jump.OffSeason {
+		t.Fatalf("expected OffSeason true when no groupId")
+	}
+	if jump.GroupID != "" {
+		t.Fatalf("expected empty GroupID when no groupId, got %q", jump.GroupID)
+	}
+}
+
+func TestCreatePerformedJumpGracePeriodUsesInjectableClock(t *testing.T) {
+	now := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return now
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+		"groupId":        group.Group.ID,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var jump jumpBody
+	decodeResponse(t, rec, &jump)
+	expectedGrace := now.Add(10 * time.Minute)
+	if !jump.GracePeriodExpiresAt.Equal(expectedGrace) {
+		t.Fatalf("expected gracePeriodExpiresAt %v, got %v", expectedGrace, jump.GracePeriodExpiresAt)
+	}
+
+	store.SetClock(func() time.Time {
+		return now.Add(1 * time.Hour)
+	})
+	rec2 := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Waffle House",
+		"destination":    "movie theater",
+		"food":           "hash browns",
+		"caption":        "Hash browns at the movies.",
+		"mediaObjectKey": "uploads/test/2",
+		"groupId":        group.Group.ID,
+	})
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+	var jump2 jumpBody
+	decodeResponse(t, rec2, &jump2)
+	expectedGrace2 := now.Add(1*time.Hour + 10*time.Minute)
+	if !jump2.GracePeriodExpiresAt.Equal(expectedGrace2) {
+		t.Fatalf("expected gracePeriodExpiresAt %v, got %v", expectedGrace2, jump2.GracePeriodExpiresAt)
+	}
+}
+
+func TestCreatePerformedJumpLinksToActiveSeason(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC),
+	)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+		"groupId":        group.Group.ID,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var jump jumpBody
+	decodeResponse(t, rec, &jump)
+	if jump.SeasonID == nil || *jump.SeasonID != season.ActiveSeason.ID {
+		t.Fatalf("expected jump to be linked to active Season %q, got %v", season.ActiveSeason.ID, jump.SeasonID)
+	}
+	if jump.OffSeason {
+		t.Fatalf("expected OffSeason false when linked to active season")
+	}
+}
+
+func TestCreatePerformedJumpAppearsInGroupHome(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+		"groupId":        group.Group.ID,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var createdJump jumpBody
+	decodeResponse(t, rec, &createdJump)
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.RecentJumps) != 1 {
+		t.Fatalf("expected one recent Jump on Group home, got %d", len(home.RecentJumps))
+	}
+	recent := home.RecentJumps[0]
+	if recent.Jump.ID != createdJump.ID {
+		t.Fatalf("expected recent Jump to match created Jump, got %#v", recent)
+	}
+	if recent.Jump.Status != "Performed Jump" {
+		t.Fatalf("expected recent Jump status 'Performed Jump', got %q", recent.Jump.Status)
+	}
+	if recent.Evidence.MediaObjectKey != "uploads/test/1" {
+		t.Fatalf("expected evidence mediaObjectKey on recent Jump, got %q", recent.Evidence.MediaObjectKey)
+	}
+}
+
+func TestCreatePerformedJumpThenSelfJudgmentBlocked(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+		"groupId":        group.Group.ID,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var createdJump jumpBody
+	decodeResponse(t, rec, &createdJump)
+
+	judgeRec := doJSON(server, http.MethodPost, "/v1/jumps/"+createdJump.ID+"/judgment", "alice-token", map[string]int{
+		"difficulty":    4,
+		"transgression": 5,
+		"creativity":    3,
+		"presentation":  2,
+	})
+	if judgeRec.Code != http.StatusForbidden {
+		t.Fatalf("expected self-judgment status 403, got %d: %s", judgeRec.Code, judgeRec.Body.String())
+	}
+}
+
+func TestCreatePerformedJumpRejectsUnauthenticated(t *testing.T) {
+	server := newGroupsTestServer()
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+	})
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreatePerformedJumpRejectsMissingFields(t *testing.T) {
+	server := newGroupsTestServer()
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":  "Taco Bell",
+		"food":    "Crunchwrap",
+		"caption": "Test caption",
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreatePerformedJumpDirectly(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           "Crunchwrap",
+		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
+		"mediaObjectKey": "uploads/test/1",
+		"groupId":        group.Group.ID,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var jump jumpBody
+	decodeResponse(t, rec, &jump)
+	if jump.ID == "" {
+		t.Fatalf("expected created Jump to have an id")
+	}
+	if jump.Status != "Performed Jump" {
+		t.Fatalf("expected Jump status 'Performed Jump', got %q", jump.Status)
+	}
+	if jump.Source != "Taco Bell" || jump.Destination != "Olive Garden parking lot" || jump.Food != "Crunchwrap" {
+		t.Fatalf("expected Source, Destination, and Food from request, got %#v", jump)
+	}
+	if jump.GroupID != group.Group.ID {
+		t.Fatalf("expected Jump GroupID %q, got %q", group.Group.ID, jump.GroupID)
+	}
+	if jump.PlayerID == "" {
+		t.Fatalf("expected Jump to have a PlayerID")
+	}
+	if !jump.OffSeason {
+		t.Fatalf("expected OffSeason true when group has no active season")
+	}
+	if jump.SeasonID != nil {
+		t.Fatalf("expected no SeasonID when no active season, got %v", *jump.SeasonID)
+	}
+	if jump.GracePeriodExpiresAt.IsZero() {
+		t.Fatalf("expected gracePeriodExpiresAt to be set")
+	}
+}
+
 func newGroupsTestServer() http.Handler {
 	return newGroupsTestServerWithPersistence(httpapi.NewMemoryStore())
 }
@@ -1780,16 +2029,17 @@ type groupHomeBody struct {
 
 type performedJumpViewBody struct {
 	Jump struct {
-		ID          string  `json:"id"`
-		GroupID     string  `json:"groupId"`
-		PlayerID    string  `json:"playerId"`
-		SeasonID    *string `json:"seasonId"`
-		Status      string  `json:"status"`
-		Source      string  `json:"source"`
-		Destination string  `json:"destination"`
-		Food        string  `json:"food"`
-		OffSeason   bool    `json:"offSeason"`
-		FinalScore  *int    `json:"finalScore"`
+		ID                  string    `json:"id"`
+		GroupID             string    `json:"groupId"`
+		PlayerID            string    `json:"playerId"`
+		SeasonID            *string   `json:"seasonId"`
+		Status              string    `json:"status"`
+		Source              string    `json:"source"`
+		Destination         string    `json:"destination"`
+		Food                string    `json:"food"`
+		OffSeason           bool      `json:"offSeason"`
+		FinalScore          *int      `json:"finalScore"`
+		GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
 	} `json:"jump"`
 	Performer struct {
 		ID          string `json:"id"`
@@ -1893,16 +2143,17 @@ type inviteBody struct {
 }
 
 type jumpBody struct {
-	ID          string  `json:"id"`
-	GroupID     string  `json:"groupId"`
-	PlayerID    string  `json:"playerId"`
-	SeasonID    *string `json:"seasonId"`
-	Status      string  `json:"status"`
-	Source      string  `json:"source"`
-	Destination string  `json:"destination"`
-	Food        string  `json:"food"`
-	OffSeason   bool    `json:"offSeason"`
-	FinalScore  *int    `json:"finalScore"`
+	ID                  string    `json:"id"`
+	GroupID             string    `json:"groupId"`
+	PlayerID            string    `json:"playerId"`
+	SeasonID            *string   `json:"seasonId"`
+	Status              string    `json:"status"`
+	Source              string    `json:"source"`
+	Destination         string    `json:"destination"`
+	Food                string    `json:"food"`
+	OffSeason           bool      `json:"offSeason"`
+	FinalScore          *int      `json:"finalScore"`
+	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
 }
 
 type standingBody struct {

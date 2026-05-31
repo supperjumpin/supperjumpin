@@ -18,6 +18,10 @@ This project is pre-MVP. Existing code has no compatibility guarantees — it is
 
 **This does not mean lowering the bar on main.** `main` must always build and pass tests. The flexibility is about not carrying dead code or preserving interfaces for hypothetical consumers; it is not about shipping broken code.
 
+### Schema changes (pre-stable DB)
+
+There is no persistent database yet — all schema lives in `apps/api/db/migrations/*.sql`. Fold any column additions, nullable changes, or constraint relaxations into the existing migration file that creates the affected table. Do not create standalone migration files. Once the user says the DB is stable, use numbered migration files normally.
+
 ### Worktrees
 
 Create issue worktrees under `worktrees/issue-<number>` inside this repository checkout. Do not create sibling worktrees outside the repo unless the user explicitly asks, because external paths may trigger OpenCode permission prompts.

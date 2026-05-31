@@ -321,6 +321,47 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, planned)
 	})
+	mux.HandleFunc("POST /v1/jumps", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			Source         string  `json:"source"`
+			Destination    string  `json:"destination"`
+			Food           string  `json:"food"`
+			Caption        string  `json:"caption"`
+			MediaObjectKey string  `json:"mediaObjectKey"`
+			GroupID        *string `json:"groupId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		source := strings.TrimSpace(request.Source)
+		destination := strings.TrimSpace(request.Destination)
+		food := strings.TrimSpace(request.Food)
+		caption := strings.TrimSpace(request.Caption)
+		mediaObjectKey := strings.TrimSpace(request.MediaObjectKey)
+		if source == "" || destination == "" || food == "" || caption == "" || mediaObjectKey == "" {
+			http.Error(w, "Source, Destination, Food, Caption, and mediaObjectKey are required", http.StatusBadRequest)
+			return
+		}
+
+		groupID := ""
+		if request.GroupID != nil {
+			groupID = strings.TrimSpace(*request.GroupID)
+		}
+
+		jump, err := createPerformedJump(r.Context(), config.DB, profile.Player, source, destination, food, caption, mediaObjectKey, groupID)
+		if err != nil {
+			http.Error(w, "create Performed Jump", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, jump)
+	})
 	mux.HandleFunc("POST /v1/jumps/{jumpID}/evidence-upload-authorizations", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
