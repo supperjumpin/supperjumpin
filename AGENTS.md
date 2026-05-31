@@ -1,27 +1,116 @@
-## Agent skills
+# PROJECT KNOWLEDGE BASE
 
-### Issue tracker
+**Generated:** 2026-05-31 20:56:02 UTC
+**Commit:** 87510f3
+**Branch:** ben/agents-md-update
 
-Issues and PRDs are tracked in GitHub Issues for `supperjumpin/supperjumpin`. See `docs/agents/issue-tracker.md`.
+## OVERVIEW
 
-### Triage labels
+Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generated TypeScript client (`packages/api-client`). Single product context monorepo — domain language lives in root `CONTEXT.md` and ADRs in `docs/adr/`.
 
-Use the default five-label triage vocabulary. See `docs/agents/triage-labels.md`.
+## STRUCTURE
 
-### Domain docs
+```
+.
+├── apps/
+│   ├── api/              # Go backend (see apps/api/AGENTS.md)
+│   └── mobile/           # Expo React Native (see apps/mobile/AGENTS.md)
+├── packages/
+│   └── api-client/       # Generated TS client (see packages/api-client/AGENTS.md)
+├── docs/
+│   ├── adr/              # Architecture Decision Records
+│   ├── agents/           # Agent-specific docs (issue tracker, triage labels)
+│   └── design/           # Product/UX/technical design docs
+├── scripts/              # demo-api.mjs (Postgres + migrations + Go API)
+├── worktrees/            # In-repo Git worktrees (e.g., issue-<number>)
+├── .agents/ / .claude/   # Agent skills (mattpocock/skills, see skills-lock.json)
+├── .work-issue/          # Work-issue skill operator config
+├── CONTEXT.md            # Authoritative domain language dictionary
+└── AGENTS.md             # This file
+```
 
-This is a single product context monorepo: read root `CONTEXT.md` and root `docs/adr/` when present. See `docs/agents/domain.md`.
+## WHERE TO LOOK
 
-### Pre-MVP compatibility stance
+| Task | Location | Notes |
+|------|----------|-------|
+| Understand game rules | `apps/api/internal/game/` | Pure functions, no HTTP/DB imports |
+| Add/modify API endpoint | `apps/api/internal/httpapi/server.go` | Routes + handler closures |
+| Change API contract | `apps/api/openapi.yaml` → regenerate client | CI enforces sync |
+| Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
+| Mobile UI changes | `apps/mobile/App.tsx` | Single-file prototype shell |
+| Check CI pipeline | `.github/workflows/ci.yml` | Go 1.25.2, Node 22 |
+| Domain terminology | `CONTEXT.md` | "Jump" not "Stunt", "Player" not "User" |
 
-This project is pre-MVP. Existing code has no compatibility guarantees — it is safe to delete or rewrite anything that does not serve the current goal. Do not preserve code for backward compatibility unless doing so costs less than deleting it. Once the system matures past MVP, compatibility promises will tighten; until then, treat the codebase as disposable.
+## CONVENTIONS
 
-**This does not mean lowering the bar on main.** `main` must always build and pass tests. The flexibility is about not carrying dead code or preserving interfaces for hypothetical consumers; it is not about shipping broken code.
+- **Hexagonal architecture**: Domain logic in `internal/game/` (pure functions, injected repo interfaces). Transport in `internal/httpapi/` (routing, JSON, DTO conversion). Domain must never import `net/http` or `database/sql`.
+- **Repository-per-flow**: Each `game/*.go` defines its own small repository interface (e.g., `JudgmentRepository`). Both `MemoryStore` and `PostgresStore` implement the composed `Persistence` interface.
+- **Result pattern**: Domain functions return `XxxResult{Allowed, Created, Err}` structs. `Allowed=false` maps to HTTP 403.
+- **Snapshot pattern**: Read-only views use `XxxSnapshot` structs (e.g., `JumpSnapshot`, `SeasonSnapshot`).
+- **Stable IDs**: `stableID(kind, value)` generates SHA256-based deterministic IDs, not UUIDs.
+- **Clock injection**: `func() time.Time` is injected for testability (e.g., `MemoryStore` accepts `now`).
+- **Pre-stable migrations**: Fold schema changes into existing migration files. Do not create standalone numbered migrations until DB is declared stable.
+- **OpenAPI sync gate**: CI runs `generate:api-client` then `git diff --exit-code`. Any OpenAPI change without regeneration breaks CI.
+- **Hand-rolled mocks**: Go tests use inline `mock*Repo` structs with function fields. No testify/mock or gomock.
+- **Co-located tests**: `*_test.go` alongside source. Node tests use `node --test` with `*.test.mjs`.
 
-### Schema changes (pre-stable DB)
+## ANTI-PATTERNS (THIS PROJECT)
 
-There is no persistent database yet — all schema lives in `apps/api/db/migrations/*.sql`. Fold any column additions, nullable changes, or constraint relaxations into the existing migration file that creates the affected table. Do not create standalone migration files. Once the user says the DB is stable, use numbered migration files normally.
+- Putting business logic in HTTP handlers (`server.go`). All rules belong in `internal/game/`.
+- Hand-writing API client types instead of generating from `openapi.yaml`.
+- Using "Stunt", "User", or "Vote" instead of "Jump", "Player", "Judgment" (see CONTEXT.md avoid lists).
+- Creating standalone DB migration files before DB stability.
+- Adding ESLint/Prettier/golangci-lint configs without team discussion — none exist today; minimal tooling is the current stance.
+- Using domain-forbidden synonyms in code, comments, or error messages.
 
-### Worktrees
+## UNIQUE STYLES
 
-Create issue worktrees under `worktrees/issue-<number>` inside this repository checkout. Do not create sibling worktrees outside the repo unless the user explicitly asks, because external paths may trigger OpenCode permission prompts.
+- **Agent-native repo scaffolding**: `.agents/`, `.claude/`, `.work-issue/`, `skills-lock.json`, `opencode.json` are first-class project infrastructure, not afterthoughts.
+
+## TRANSITIONAL STATE
+
+These are known compromises that exist for pre-MVP speed but should converge toward better patterns. When you resolve one in a PR, remove its row from this table.
+
+| Current state | Why it exists | Converge when |
+|---|---|---|
+| Single-file `App.tsx` (~550 lines, no router, no state lib) | Pre-MVP speed; not enough UI surface to justify splitting | There are 2+ screens or 3+ distinct UI sections → split into files + add React Navigation |
+| Custom migration runner in `scripts/demo-api.mjs` (psql exec + hand-rolled schema_migrations table) | Quick early setup before choosing a migration tool | DB is declared stable → adopt golang-migrate or dbmate |
+| sqlc configured (`sqlc.yaml`) but no generated output (`internal/db/` doesn't exist) | Early configuration that was never wired in | PostgresStore query surface justifies it → generate sqlc code and wire it in |
+
+## MAINTENANCE CONTRACT
+
+These files are maintained by convention, not automation. Follow these rules in every PR:
+
+- **Update in the same PR**: If your PR changes something documented in any AGENTS.md — a convention, pattern, file location, or transitional state — update that AGENTS.md in the same PR. Do not leave stale docs.
+- **Remove resolved transitional states**: If your PR resolves one of the transitional state items above, delete its row from the table.
+- **Open a new AGENTS.md on new boundaries**: When you add a new package (`packages/foo`) or app (`apps/foo`), create a corresponding AGENTS.md. 30-80 lines, reference the parent AGENTS.md, never repeat parent content.
+- **Minimal effort rule**: Updating AGENTS.md should add at most 2-3 minutes per PR. If it's taking longer, the file is too verbose — trim it.
+
+## COMMANDS
+
+```sh
+# Development
+npm run demo:api          # Docker Compose Postgres + apply migrations + run API on :8080
+npm run api:dev           # Run API against existing DB (skip Postgres setup)
+npm run demo:mobile       # expo start (needs .env from .env.example)
+make demo-api             # alias for npm run demo:api
+
+# Testing
+npm run api:test          # go test ./apps/api/...
+npm test                  # npm workspace tests (api-client only)
+npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
+
+# API client regeneration
+npm run generate:api-client  # openapi-typescript → packages/api-client/src/generated.d.ts
+```
+
+## NOTES
+
+- `DATABASE_URL` is mandatory — API refuses to start without it.
+- Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
+- Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`.
+- Postgres-backed tests exist behind `SUPPERJUMPIN_TEST_DATABASE_URL`; they skip if unset.
+- No production deployment configs (Dockerfile, K8s, Terraform) exist in this repo.
+- Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`). See `docs/agents/issue-tracker.md`.
+- Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
+- Agent skills evaluated from `.agents/skills/` and `.claude/skills/` (lockfile: `skills-lock.json`).
