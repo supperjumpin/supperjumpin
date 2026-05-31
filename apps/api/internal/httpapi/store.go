@@ -928,7 +928,7 @@ func (s *MemoryStore) JumpByID(ctx context.Context, jumpID string) (game.JumpSna
 	return jumpToSnapshot(jump), true, nil
 }
 
-func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, difficulty, transgression, creativity, documentation int) (game.Judgment, bool, error) {
+func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, difficulty, transgression, creativity, presentation int) (game.Judgment, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -941,7 +941,7 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID strin
 		Difficulty:    difficulty,
 		Transgression: transgression,
 		Creativity:    creativity,
-		Presentation:  documentation,
+		Presentation:  presentation,
 	}
 	s.judgments[key] = httpJudgment
 	return game.Judgment{

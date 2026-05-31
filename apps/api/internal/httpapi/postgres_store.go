@@ -297,8 +297,7 @@ WITH upsert AS (
     difficulty = EXCLUDED.difficulty,
     transgression = EXCLUDED.transgression,
     creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation,
-    updated_at = now()
+    presentation = EXCLUDED.presentation
   RETURNING (xmax = 0) AS created
 )
 SELECT created FROM upsert`, judgmentID, jumpID, playerID, difficulty, transgression, creativity, presentation).Scan(&created)

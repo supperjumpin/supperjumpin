@@ -1,13 +1,12 @@
 -- name: CreateJudgment :exec
-INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 ON CONFLICT (jump_id, player_id) 
 DO UPDATE SET 
     difficulty = EXCLUDED.difficulty,
     transgression = EXCLUDED.transgression,
     creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation,
-    updated_at = now();
+    presentation = EXCLUDED.presentation;
 
 -- name: GetJudgment :one
 SELECT * FROM judgments
