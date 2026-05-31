@@ -16,7 +16,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | DB schema | `db/migrations/*.sql` | 9 numbered migrations; pre-stable: fold changes into existing |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
-| sqlc config | `sqlc.yaml` | Configured but unused — no `internal/db/` output yet |
+| sqlc config | `sqlc.yaml` | Configured and generating into `internal/db/` |
 
 ## CONVENTIONS
 

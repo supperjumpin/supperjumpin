@@ -75,8 +75,6 @@ These are known compromises that exist for pre-MVP speed but should converge tow
 |---|---|---|
 | Single-file `App.tsx` (~550 lines, no router, no state lib) | Pre-MVP speed; not enough UI surface to justify splitting | There are 2+ screens or 3+ distinct UI sections → split into files + add React Navigation |
 | Custom migration runner in `scripts/demo-api.mjs` (psql exec + hand-rolled schema_migrations table) | Quick early setup before choosing a migration tool | DB is declared stable → adopt golang-migrate or dbmate |
-| sqlc configured (`sqlc.yaml`) but no generated output (`internal/db/` doesn't exist) | Early configuration that was never wired in | PostgresStore query surface justifies it → generate sqlc code and wire it in |
-
 ## MAINTENANCE CONTRACT
 
 These files are maintained by convention, not automation. Follow these rules in every PR:
