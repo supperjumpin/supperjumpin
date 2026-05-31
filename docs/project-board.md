@@ -23,12 +23,12 @@ https://github.com/orgs/supperjumpin/projects/1
 - `Auth` — Authentication, account management
 - `Infra` — Deployment, CI/CD, hosting, Docker
 
-**Size** — Implementation effort, AI-calibrated:
-- `XS` — Quick fix, single file. ~15–30 min.
-- `S` — Self-contained feature. ~1–2 hours.
-- `M` — Crosses a couple layers. ~3–5 hours.
-- `L` — Would take a whole focused day.
-- `XL` — Needs decomposition. Run the PRD → issues breakdown flow below.
+**Size** — Implementation effort, AI-calibrated. Sizes also determine decomposition policy (see [Decomposition Policy](#decomposition-policy) below):
+- `XS` — One small code/doc change, one PR. ~15–30 min.
+- `S` — One vertical implementation issue, agent-ready. ~1–2 hours.
+- `M` — Crosses a couple layers. ~3–5 hours. **Allowed only if it is one coherent vertical slice with a single acceptance path.** Otherwise split.
+- `L` — Would take a whole focused day. **Always split before implementation.**
+- `XL` — Needs decomposition. Run the PRD → issues breakdown flow below. **Never assigned directly.**
 
 ## Title Prefixes
 
@@ -81,3 +81,23 @@ For each PRD breakdown:
 - Add explicit blocker relationships between sub-issues when one cannot start before another lands.
 - Assign each issue to the current operator by default.
 - Set every custom project field before reporting completion.
+
+## Decomposition Policy
+
+Sizes determine when an issue must be decomposed into smaller sub-issues before implementation. The rules are:
+
+| Size | Decomposition requirement | `ready-for-agent` eligible? |
+|------|--------------------------|-----------------------------|
+| XS   | None — one PR, one issue | Yes |
+| S    | None — one vertical slice, already agent-ready | Yes |
+| M    | **Allowed only if one coherent vertical slice with a single acceptance path.** If the issue touches multiple subsystems, has independent sub-tasks, or has more than one acceptance path, split it. | Yes, if it passes the coherence test |
+| L    | **Always split before implementation.** Break into XS/S sub-issues with explicit dependency ordering. | No — decompose first |
+| XL   | **Never assigned directly.** Must flow through the PRD breakdown workflow. | No — decompose first |
+
+**Guidance for agents breaking down L/XL issues:**
+
+1. Identify the thin, independently testable vertical slices — each should produce a meaningful increment even if later slices are delayed.
+2. Order slices by dependency: foundational changes first (schema, core logic), then progressive feature layers.
+3. Each sub-issue must be XS or S by the definitions above. If a sub-issue comes out M, split it again.
+4. Set blocker relationships (`Blocked by`) between sub-issues so the board shows the dependency chain.
+5. Only apply `ready-for-agent` to sub-issues that individually pass the size test. Decompose the parent issue; assign and label the children.
