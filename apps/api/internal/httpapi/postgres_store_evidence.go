@@ -6,43 +6,37 @@ import (
 	"errors"
 	"time"
 
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 // game.EvidenceRepository adapter methods for PostgresStore
 
 func (s *PostgresStore) PlannedJump(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
-	var snap game.JumpSnapshot
-	var seasonID sql.NullString
-	var gracePeriodExpiresAt sql.NullTime
-	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at
-FROM jumps
-WHERE id = $1`, jumpID).Scan(
-		&snap.ID,
-		&snap.GroupID,
-		&snap.PlayerID,
-		&seasonID,
-		&snap.Status,
-		&snap.Source,
-		&snap.Destination,
-		&snap.Food,
-		&gracePeriodExpiresAt,
-	)
+	jump, err := s.queries.GetJump(ctx, jumpID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
 	}
 	if err != nil {
 		return game.JumpSnapshot{}, false, err
 	}
+	snap := game.JumpSnapshot{
+		ID:          jump.ID,
+		GroupID:     jump.GroupID.String,
+		PlayerID:    jump.PlayerID,
+		Status:      jump.Status,
+		Source:      jump.Source,
+		Destination: jump.Destination,
+		Food:        jump.Food,
+	}
 	if snap.Status != "Planned Jump" {
 		return game.JumpSnapshot{}, false, nil
 	}
-	if seasonID.Valid {
-		snap.SeasonID = &seasonID.String
+	if jump.SeasonID.Valid {
+		snap.SeasonID = &jump.SeasonID.String
 	}
-	if gracePeriodExpiresAt.Valid {
-		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
+	if jump.GracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = jump.GracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
@@ -53,6 +47,7 @@ func (s *PostgresStore) CreateAuthorization(ctx context.Context, jumpID, playerI
 		return game.AuthorizationSnapshot{}, err
 	}
 	defer tx.Rollback()
+	qtx := s.queries.WithTx(tx)
 
 	now := time.Now()
 	id, err := randomToken("evidence_upload")
@@ -64,11 +59,14 @@ func (s *PostgresStore) CreateAuthorization(ctx context.Context, jumpID, playerI
 		return game.AuthorizationSnapshot{}, err
 	}
 	expiresAt := now.Add(15 * time.Minute).UTC()
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO evidence_upload_authorizations (id, jump_id, player_id, content_type, media_object_key, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)`,
-		id, jumpID, playerID, contentType, mediaObjectKey, expiresAt,
-	); err != nil {
+	if _, err := qtx.InsertEvidenceUploadAuthorization(ctx, db.InsertEvidenceUploadAuthorizationParams{
+		ID:             id,
+		JumpID:         jumpID,
+		PlayerID:       playerID,
+		ContentType:    contentType,
+		MediaObjectKey: mediaObjectKey,
+		ExpiresAt:      expiresAt,
+	}); err != nil {
 		return game.AuthorizationSnapshot{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -88,43 +86,39 @@ func (s *PostgresStore) ClaimAndAdvance(ctx context.Context, authorizationID, ju
 		return game.EvidenceCreateResult{}, err
 	}
 	defer tx.Rollback()
+	qtx := s.queries.WithTx(tx)
 
-	var authMediaObjectKey string
-	var authExpiresAt time.Time
-	var foundPlayerID string
-	err = tx.QueryRowContext(ctx, `
-SELECT id, player_id, media_object_key, expires_at
-FROM evidence_upload_authorizations
-WHERE id = $1 AND jump_id = $2 FOR UPDATE`, authorizationID, jumpID).Scan(
-		&authorizationID, &foundPlayerID, &authMediaObjectKey, &authExpiresAt,
-	)
+	auth, err := qtx.GetEvidenceUploadAuthorizationForUpdate(ctx, db.GetEvidenceUploadAuthorizationForUpdateParams{
+		ID:     authorizationID,
+		JumpID: jumpID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.EvidenceCreateResult{}, game.ErrEvidenceUploadAuthorizationNotFound
 	}
 	if err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
-	if foundPlayerID != playerID || time.Now().After(authExpiresAt) {
+	if auth.PlayerID != playerID || time.Now().After(auth.ExpiresAt) {
 		return game.EvidenceCreateResult{}, game.ErrEvidenceUploadAuthorizationNotFound
 	}
 
 	evidenceID := stableID("evidence", jumpID+":"+authorizationID)
 	now := time.Now().UTC()
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO evidences (id, jump_id, player_id, upload_authorization_id, caption, media_object_key, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		evidenceID, jumpID, playerID, authorizationID, caption, authMediaObjectKey, now,
-	); err != nil {
+	if err := qtx.InsertEvidence(ctx, db.InsertEvidenceParams{
+		ID:                    evidenceID,
+		JumpID:                jumpID,
+		PlayerID:              playerID,
+		UploadAuthorizationID: sql.NullString{String: authorizationID, Valid: true},
+		Caption:               caption,
+		MediaObjectKey:        auth.MediaObjectKey,
+		CreatedAt:             now,
+	}); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `
-UPDATE jumps
-SET status = 'Performed Jump'
-WHERE id = $1 AND status = 'Planned Jump'`, jumpID,
-	); err != nil {
+	if err := qtx.AdoptJumpToSeason(ctx, jumpID); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM evidence_upload_authorizations WHERE id = $1`, authorizationID); err != nil {
+	if err := qtx.DeleteEvidenceUploadAuthorization(ctx, authorizationID); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -132,6 +126,6 @@ WHERE id = $1 AND status = 'Planned Jump'`, jumpID,
 	}
 	return game.EvidenceCreateResult{
 		EvidenceID:     evidenceID,
-		MediaObjectKey: authMediaObjectKey,
+		MediaObjectKey: auth.MediaObjectKey,
 	}, nil
 }

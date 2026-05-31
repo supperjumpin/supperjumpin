@@ -7,45 +7,51 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 // game.SeasonRepository adapter methods for PostgresStore
 
 func (s *PostgresStore) OpenSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
-	var snap game.SeasonSnapshot
-	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
-FROM seasons
-WHERE group_id = $1 AND status IN ('Active', 'Judging Grace Period')
-LIMIT 1`, groupID).Scan(
-		&snap.ID, &snap.GroupID, &snap.CommissionerPlayerID, &snap.Status, &snap.SubmissionDeadline, &snap.JudgingDeadline)
+	season, err := s.queries.GetOpenSeasonForGroup(ctx, groupID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.SeasonSnapshot{}, nil
 	}
 	if err != nil {
 		return game.SeasonSnapshot{}, err
 	}
-	return snap, nil
+	return game.SeasonSnapshot{
+		ID:                   season.ID,
+		GroupID:              season.GroupID,
+		CommissionerPlayerID: season.CommissionerPlayerID,
+		Status:               season.Status,
+		SubmissionDeadline:   season.SubmissionDeadline,
+		JudgingDeadline:      season.JudgingDeadline,
+	}, nil
 }
 
 func (s *PostgresStore) InsertSeason(ctx context.Context, groupID, commissionerPlayerID string, submissionDeadline, judgingDeadline time.Time) (game.SeasonSnapshot, error) {
-	var count int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM seasons`).Scan(&count); err != nil {
+	count, err := s.queries.CountSeasons(ctx)
+	if err != nil {
 		return game.SeasonSnapshot{}, err
 	}
 	season := Season{
-		ID:                   stableID("season", groupID+":"+strconv.Itoa(count+1)),
+		ID:                   stableID("season", groupID+":"+strconv.FormatInt(count+1, 10)),
 		GroupID:              groupID,
 		CommissionerPlayerID: commissionerPlayerID,
 		Status:               "Active",
 		SubmissionDeadline:   submissionDeadline.UTC(),
 		JudgingDeadline:      judgingDeadline.UTC(),
 	}
-	_, err := s.db.ExecContext(ctx, `
-INSERT INTO seasons (id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline)
-VALUES ($1, $2, $3, $4, $5, $6)`, season.ID, season.GroupID, season.CommissionerPlayerID, season.Status, season.SubmissionDeadline, season.JudgingDeadline)
-	if err != nil {
+	if err := s.queries.InsertSeason(ctx, db.InsertSeasonParams{
+		ID:                   season.ID,
+		GroupID:              season.GroupID,
+		CommissionerPlayerID: season.CommissionerPlayerID,
+		Status:               season.Status,
+		SubmissionDeadline:   season.SubmissionDeadline,
+		JudgingDeadline:      season.JudgingDeadline,
+	}); err != nil {
 		return game.SeasonSnapshot{}, err
 	}
 	return game.SeasonSnapshot{
@@ -65,143 +71,149 @@ func (s *PostgresStore) UpdateSeasonStatus(ctx context.Context, seasonID, action
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, `UPDATE seasons SET status = $2 WHERE id = $1`, seasonID, toStatus); err != nil {
+	qtx := s.queries.WithTx(tx)
+	historyID, err := randomToken("season_history")
+	if err != nil {
 		return err
 	}
-	if err := insertSeasonHistoryEntry(ctx, tx, seasonID, action, actorPlayerID, actorRole, override, fromStatus, toStatus); err != nil {
+
+	if err := qtx.UpdateSeasonStatus(ctx, db.UpdateSeasonStatusParams{ID: seasonID, Status: toStatus}); err != nil {
+		return err
+	}
+	if err := qtx.InsertSeasonHistoryEntry(ctx, db.InsertSeasonHistoryEntryParams{
+		ID:            historyID,
+		SeasonID:      seasonID,
+		Action:        action,
+		ActorPlayerID: actorPlayerID,
+		ActorRole:     actorRole,
+		Override:      override,
+		FromStatus:    fromStatus,
+		ToStatus:      toStatus,
+	}); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 func (s *PostgresStore) JumpsForSeason(ctx context.Context, seasonID string) ([]game.JumpSnapshot, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
-FROM jumps
-WHERE season_id = $1`, seasonID)
+	rows, err := s.queries.ListJumpsForSeason(ctx, sql.NullString{String: seasonID, Valid: true})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var result []game.JumpSnapshot
-	for rows.Next() {
-		var snap game.JumpSnapshot
-		var sid sql.NullString
-		var gracePeriodExpiresAt sql.NullTime
-		if err := rows.Scan(&snap.ID, &snap.GroupID, &snap.PlayerID, &sid, &snap.Status, &snap.Source, &snap.Destination, &snap.Food, &snap.FinalScore, &gracePeriodExpiresAt); err != nil {
-			return nil, err
+	for _, row := range rows {
+		groupID := ""
+		if row.GroupID.Valid {
+			groupID = row.GroupID.String
 		}
-		if sid.Valid {
-			snap.SeasonID = &sid.String
+		var seasonID *string
+		if row.SeasonID.Valid {
+			seasonID = &row.SeasonID.String
 		}
-		if gracePeriodExpiresAt.Valid {
-			snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
+		var finalScore *int
+		if row.FinalScore.Valid {
+			score := int(row.FinalScore.Int32)
+			finalScore = &score
 		}
-		result = append(result, snap)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+		var gracePeriodExpiresAt time.Time
+		if row.GracePeriodExpiresAt.Valid {
+			gracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
+		}
+		result = append(result, game.JumpSnapshot{
+			ID:                   row.ID,
+			GroupID:              groupID,
+			PlayerID:             row.PlayerID,
+			SeasonID:             seasonID,
+			Status:               row.Status,
+			Source:               row.Source,
+			Destination:          row.Destination,
+			Food:                 row.Food,
+			FinalScore:           finalScore,
+			GracePeriodExpiresAt: gracePeriodExpiresAt,
+		})
 	}
 	return result, nil
 }
 
 func (s *PostgresStore) JudgmentsForJump(ctx context.Context, jumpID string) ([]game.Judgment, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
-FROM judgments
-WHERE jump_id = $1`, jumpID)
+	rows, err := s.queries.ListJudgmentsForJump(ctx, jumpID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var result []game.Judgment
-	for rows.Next() {
-		var j game.Judgment
-		if err := rows.Scan(&j.ID, &j.JumpID, &j.PlayerID, &j.Difficulty, &j.Transgression, &j.Creativity, &j.Presentation); err != nil {
-			return nil, err
-		}
-		result = append(result, j)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	for _, row := range rows {
+		result = append(result, game.Judgment{
+			ID:           row.ID,
+			JumpID:       row.JumpID,
+			PlayerID:     row.PlayerID,
+			Difficulty:   int(row.Difficulty),
+			Transgression: int(row.Transgression),
+			Creativity:   int(row.Creativity),
+			Presentation: int(row.Presentation),
+		})
 	}
 	return result, nil
 }
 
 func (s *PostgresStore) UpdateJumpFinalization(ctx context.Context, jumpID string, status string, finalScore *int) error {
-	_, err := s.db.ExecContext(ctx, `
-UPDATE jumps
-SET status = $2, final_score = $3
-WHERE id = $1`, jumpID, status, finalScore)
-	return err
+	finalScoreParam := sql.NullInt32{}
+	if finalScore != nil {
+		finalScoreParam = sql.NullInt32{Int32: int32(*finalScore), Valid: true}
+	}
+	return s.queries.UpdateJumpFinalization(ctx, db.UpdateJumpFinalizationParams{ID: jumpID, Status: status, FinalScore: finalScoreParam})
 }
 
 func (s *PostgresStore) LatestSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
-	var snap game.SeasonSnapshot
-	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, commissioner_player_id, status, submission_deadline, judging_deadline
-FROM seasons
-WHERE group_id = $1
-ORDER BY created_at DESC
-LIMIT 1`, groupID).Scan(
-		&snap.ID, &snap.GroupID, &snap.CommissionerPlayerID, &snap.Status, &snap.SubmissionDeadline, &snap.JudgingDeadline)
+	season, err := s.queries.GetLatestSeasonForGroup(ctx, groupID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.SeasonSnapshot{}, nil
 	}
 	if err != nil {
 		return game.SeasonSnapshot{}, err
 	}
-	return snap, nil
+	return game.SeasonSnapshot{
+		ID:                   season.ID,
+		GroupID:              season.GroupID,
+		CommissionerPlayerID: season.CommissionerPlayerID,
+		Status:               season.Status,
+		SubmissionDeadline:   season.SubmissionDeadline,
+		JudgingDeadline:      season.JudgingDeadline,
+	}, nil
 }
 
 func (s *PostgresStore) GroupPlayers(ctx context.Context, groupID string) ([]game.PlayerSnapshot, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT players.id, players.display_name
-FROM group_memberships
-JOIN players ON players.id = group_memberships.player_id
-WHERE group_memberships.group_id = $1`, groupID)
+	rows, err := s.queries.GetGroupPlayers(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var result []game.PlayerSnapshot
-	for rows.Next() {
-		var p game.PlayerSnapshot
-		if err := rows.Scan(&p.ID, &p.DisplayName); err != nil {
-			return nil, err
-		}
-		result = append(result, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	for _, row := range rows {
+		result = append(result, game.PlayerSnapshot{ID: row.ID, DisplayName: row.DisplayName})
 	}
 	return result, nil
 }
 
 func (s *PostgresStore) SeasonHistoryEntries(ctx context.Context, seasonID string) ([]game.SeasonHistoryEntry, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT id, season_id, action, actor_player_id, actor_role, override, from_status, to_status
-FROM season_history
-WHERE season_id = $1
-ORDER BY created_at ASC, id ASC`, seasonID)
+	rows, err := s.queries.ListSeasonHistoryEntries(ctx, seasonID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	entries := []game.SeasonHistoryEntry{}
-	for rows.Next() {
-		var entry game.SeasonHistoryEntry
-		if err := rows.Scan(&entry.ID, &entry.SeasonID, &entry.Action, &entry.ActorPlayerID, &entry.ActorRole, &entry.Override, &entry.FromStatus, &entry.ToStatus); err != nil {
-			return nil, err
-		}
-		entries = append(entries, entry)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	for _, row := range rows {
+		entries = append(entries, game.SeasonHistoryEntry{
+			ID:            row.ID,
+			SeasonID:      row.SeasonID,
+			Action:        row.Action,
+			ActorPlayerID: row.ActorPlayerID,
+			ActorRole:     row.ActorRole,
+			Override:      row.Override,
+			FromStatus:    row.FromStatus,
+			ToStatus:      row.ToStatus,
+		})
 	}
 	return entries, nil
 }

@@ -6,41 +6,40 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 // game.DisputeRepository adapter methods for PostgresStore
 
 func (s *PostgresStore) JumpByID(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
-	var snap game.JumpSnapshot
-	var seasonID sql.NullString
-	var gracePeriodExpiresAt sql.NullTime
-	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
-FROM jumps
-WHERE id = $1`, jumpID).Scan(
-		&snap.ID,
-		&snap.GroupID,
-		&snap.PlayerID,
-		&seasonID,
-		&snap.Status,
-		&snap.Source,
-		&snap.Destination,
-		&snap.Food,
-		&snap.FinalScore,
-		&gracePeriodExpiresAt,
-	)
+	jump, err := s.queries.GetJump(ctx, jumpID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
 	}
 	if err != nil {
 		return game.JumpSnapshot{}, false, err
 	}
-	if seasonID.Valid {
-		snap.SeasonID = &seasonID.String
+	snap := game.JumpSnapshot{
+		ID:     jump.ID,
+		Status: jump.Status,
+		Source: jump.Source,
+		Destination: jump.Destination,
+		Food:   jump.Food,
 	}
-	if gracePeriodExpiresAt.Valid {
-		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
+	if jump.GroupID.Valid {
+		snap.GroupID = jump.GroupID.String
+	}
+	snap.PlayerID = jump.PlayerID
+	if jump.SeasonID.Valid {
+		snap.SeasonID = &jump.SeasonID.String
+	}
+	if jump.FinalScore.Valid {
+		score := int(jump.FinalScore.Int32)
+		snap.FinalScore = &score
+	}
+	if jump.GracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = jump.GracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
@@ -51,22 +50,28 @@ func (s *PostgresStore) InsertDispute(ctx context.Context, jumpID, raisedByPlaye
 		return game.DisputeSnapshot{}, err
 	}
 	defer tx.Rollback()
+	qtx := s.queries.WithTx(tx)
 
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM disputes WHERE jump_id = $1`, jumpID).Scan(&count); err != nil {
+	count, err := qtx.CountDisputesForJump(ctx, jumpID)
+	if err != nil {
 		return game.DisputeSnapshot{}, err
 	}
 	dispute := Dispute{
-		ID:               stableID("dispute", jumpID+":"+raisedByPlayerID+":"+strconv.Itoa(count+1)),
+		ID:               stableID("dispute", jumpID+":"+raisedByPlayerID+":"+strconv.FormatInt(count+1, 10)),
 		JumpID:           jumpID,
 		RaisedByPlayerID: raisedByPlayerID,
 		Concern:          concern,
 		Details:          details,
 		Status:           "Open",
 	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO disputes (id, jump_id, raised_by_player_id, concern, details, status)
-VALUES ($1, $2, $3, $4, $5, $6)`, dispute.ID, dispute.JumpID, dispute.RaisedByPlayerID, dispute.Concern, dispute.Details, dispute.Status); err != nil {
+	if err := qtx.InsertDispute(ctx, db.InsertDisputeParams{
+		ID:               dispute.ID,
+		JumpID:           dispute.JumpID,
+		RaisedByPlayerID: dispute.RaisedByPlayerID,
+		Concern:          dispute.Concern,
+		Details:          dispute.Details,
+		Status:           dispute.Status,
+	}); err != nil {
 		return game.DisputeSnapshot{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -76,33 +81,69 @@ VALUES ($1, $2, $3, $4, $5, $6)`, dispute.ID, dispute.JumpID, dispute.RaisedByPl
 }
 
 func (s *PostgresStore) Dispute(ctx context.Context, disputeID string) (game.DisputeSnapshot, error) {
-	dispute, err := disputeInDB(ctx, s.db, disputeID)
+	row, err := s.queries.GetDispute(ctx, disputeID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return game.DisputeSnapshot{}, nil
 		}
 		return game.DisputeSnapshot{}, err
 	}
-	return disputeToSnapshot(dispute), nil
+	snap := game.DisputeSnapshot{
+		ID:               row.ID,
+		JumpID:           row.JumpID,
+		RaisedByPlayerID: row.RaisedByPlayerID,
+		Concern:          row.Concern,
+		Details:          row.Details,
+		Status:           row.Status,
+	}
+	if row.Resolution.Valid {
+		resolution := row.Resolution.String
+		snap.Resolution = &resolution
+	}
+	if row.ResolutionReason.Valid {
+		resolutionReason := row.ResolutionReason.String
+		snap.ResolutionReason = &resolutionReason
+	}
+	if row.ResolvedByPlayerID.Valid {
+		resolvedByPlayerID := row.ResolvedByPlayerID.String
+		snap.ResolvedByPlayerID = &resolvedByPlayerID
+	}
+	if row.OverrideResolution.Valid {
+		overrideResolution := row.OverrideResolution.String
+		snap.OverrideResolution = &overrideResolution
+	}
+	if row.OverrideReason.Valid {
+		overrideReason := row.OverrideReason.String
+		snap.OverrideReason = &overrideReason
+	}
+	if row.OverrideByPlayerID.Valid {
+		overrideByPlayerID := row.OverrideByPlayerID.String
+		snap.OverrideByPlayerID = &overrideByPlayerID
+	}
+	return snap, nil
 }
 
 func (s *PostgresStore) UpdateDisputeResolution(ctx context.Context, disputeID, resolution, resolutionReason, resolvedByPlayerID string) error {
-	_, err := s.db.ExecContext(ctx, `
-UPDATE disputes
-SET status = 'Resolved', resolution = $2, resolution_reason = $3, resolved_by_player_id = $4
-WHERE id = $1`, disputeID, resolution, resolutionReason, resolvedByPlayerID)
-	return err
+	return s.queries.UpdateDisputeResolution(ctx, db.UpdateDisputeResolutionParams{
+		ID:                 disputeID,
+		Resolution:         sql.NullString{String: resolution, Valid: true},
+		ResolutionReason:   sql.NullString{String: resolutionReason, Valid: true},
+		ResolvedByPlayerID: sql.NullString{String: resolvedByPlayerID, Valid: true},
+	})
 }
 
 func (s *PostgresStore) UpdateDisputeOverride(ctx context.Context, disputeID, overrideResolution, overrideReason, overrideByPlayerID string) error {
-	_, err := s.db.ExecContext(ctx, `
-UPDATE disputes
-SET status = 'Overridden', override_resolution = $2, override_reason = $3, override_by_player_id = $4
-WHERE id = $1`, disputeID, overrideResolution, overrideReason, overrideByPlayerID)
-	return err
+	return s.queries.UpdateDisputeOverride(ctx, db.UpdateDisputeOverrideParams{
+		ID:                 disputeID,
+		OverrideResolution: sql.NullString{String: overrideResolution, Valid: true},
+		OverrideReason:     sql.NullString{String: overrideReason, Valid: true},
+		OverrideByPlayerID: sql.NullString{String: overrideByPlayerID, Valid: true},
+	})
 }
 
 func (s *PostgresStore) UpdateJumpStatusAfterDispute(ctx context.Context, jumpID, status string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE jumps SET status = $2, final_score = NULL WHERE id = $1`, jumpID, status)
-	return err
+	return s.queries.UpdateJumpStatusAfterDispute(ctx, db.UpdateJumpStatusAfterDisputeParams{
+		ID:     jumpID,
+		Status: status,
+	})
 }

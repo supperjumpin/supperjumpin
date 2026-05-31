@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
@@ -18,14 +19,15 @@ func (s *PostgresStore) InsertIdea(ctx context.Context, groupID, playerID, sourc
 		if err != nil {
 			return game.JumpSnapshot{}, err
 		}
-		result, err := s.db.ExecContext(ctx, `
-INSERT INTO jumps (id, group_id, player_id, status, source, destination, food)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT DO NOTHING`, id, groupID, playerID, "Idea", source, destination, food)
-		if err != nil {
-			return game.JumpSnapshot{}, err
-		}
-		rows, err := result.RowsAffected()
+		rows, err := s.queries.InsertIdea(ctx, db.InsertIdeaParams{
+			ID:          id,
+			GroupID:     sql.NullString{String: groupID, Valid: true},
+			PlayerID:    playerID,
+			Status:      "Idea",
+			Source:      source,
+			Destination: destination,
+			Food:        food,
+		})
 		if err != nil {
 			return game.JumpSnapshot{}, err
 		}
@@ -48,77 +50,73 @@ ON CONFLICT DO NOTHING`, id, groupID, playerID, "Idea", source, destination, foo
 }
 
 func (s *PostgresStore) Idea(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
-	var snap game.JumpSnapshot
-	var seasonID sql.NullString
-	var gracePeriodExpiresAt sql.NullTime
-	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at
-FROM jumps
-WHERE id = $1`, jumpID).Scan(
-		&snap.ID,
-		&snap.GroupID,
-		&snap.PlayerID,
-		&seasonID,
-		&snap.Status,
-		&snap.Source,
-		&snap.Destination,
-		&snap.Food,
-		&gracePeriodExpiresAt,
-	)
+	row, err := s.queries.GetJump(ctx, jumpID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
 	}
 	if err != nil {
 		return game.JumpSnapshot{}, false, err
 	}
-	if seasonID.Valid {
-		snap.SeasonID = &seasonID.String
+	snap := game.JumpSnapshot{
+		ID:          row.ID,
+		PlayerID:    row.PlayerID,
+		Status:      row.Status,
+		Source:      row.Source,
+		Destination: row.Destination,
+		Food:        row.Food,
 	}
-	if gracePeriodExpiresAt.Valid {
-		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
+	if row.GroupID.Valid {
+		snap.GroupID = row.GroupID.String
+	}
+	if row.SeasonID.Valid {
+		snap.SeasonID = &row.SeasonID.String
+	}
+	if row.GracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
 
 func (s *PostgresStore) ActiveSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
-	season, err := s.activeSeasonForGroup(ctx, groupID)
+	season, err := s.queries.GetActiveSeasonForGroup(ctx, groupID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.SeasonSnapshot{}, nil
+	}
 	if err != nil {
 		return game.SeasonSnapshot{}, err
 	}
-	if season == nil {
-		return game.SeasonSnapshot{}, nil
-	}
-	return game.SeasonSnapshot{ID: season.ID, Status: "Active"}, nil
+	return game.SeasonSnapshot{ID: season.ID, Status: season.Status}, nil
 }
 
 func (s *PostgresStore) UpdateJumpToPlanned(ctx context.Context, jumpID, playerID string, seasonID *string) (game.JumpSnapshot, error) {
-	var snap game.JumpSnapshot
-	var resultSeasonID sql.NullString
-	var gracePeriodExpiresAt sql.NullTime
-	err := s.db.QueryRowContext(ctx, `
-UPDATE jumps
-SET status = 'Planned Jump', season_id = $2
-WHERE id = $1
-  AND status = 'Idea'
-RETURNING id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at`, jumpID, seasonID).Scan(
-		&snap.ID,
-		&snap.GroupID,
-		&snap.PlayerID,
-		&resultSeasonID,
-		&snap.Status,
-		&snap.Source,
-		&snap.Destination,
-		&snap.Food,
-		&gracePeriodExpiresAt,
-	)
+	_ = playerID
+	seasonParam := sql.NullString{}
+	if seasonID != nil {
+		seasonParam = sql.NullString{String: *seasonID, Valid: true}
+	}
+	row, err := s.queries.UpdateJumpToPlanned(ctx, db.UpdateJumpToPlannedParams{
+		ID:       jumpID,
+		SeasonID: seasonParam,
+	})
 	if err != nil {
 		return game.JumpSnapshot{}, err
 	}
-	if resultSeasonID.Valid {
-		snap.SeasonID = &resultSeasonID.String
+	snap := game.JumpSnapshot{
+		ID:          row.ID,
+		PlayerID:    row.PlayerID,
+		Status:      row.Status,
+		Source:      row.Source,
+		Destination: row.Destination,
+		Food:        row.Food,
 	}
-	if gracePeriodExpiresAt.Valid {
-		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
+	if row.GroupID.Valid {
+		snap.GroupID = row.GroupID.String
+	}
+	if row.SeasonID.Valid {
+		snap.SeasonID = &row.SeasonID.String
+	}
+	if row.GracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
 	}
 	return snap, nil
 }
@@ -151,11 +149,16 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 
 	evidenceID := stableID("evidence", jumpID+":"+params.MediaObjectKey)
 	now := time.Now().UTC()
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO evidences (id, jump_id, player_id, caption, media_object_key, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)`,
-		evidenceID, jumpID, params.PlayerID, params.Caption, params.MediaObjectKey, now,
-	); err != nil {
+	qtx := s.queries.WithTx(tx)
+	if err := qtx.InsertEvidence(ctx, db.InsertEvidenceParams{
+		ID:                    evidenceID,
+		JumpID:                jumpID,
+		PlayerID:              params.PlayerID,
+		UploadAuthorizationID: sql.NullString{},
+		Caption:               params.Caption,
+		MediaObjectKey:        params.MediaObjectKey,
+		CreatedAt:             now,
+	}); err != nil {
 		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
 	}
 
