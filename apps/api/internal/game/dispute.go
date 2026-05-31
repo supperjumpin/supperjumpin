@@ -13,7 +13,7 @@ var (
 
 type DisputeSnapshot struct {
 	ID                 string
-	StuntID            string
+	JumpID            string
 	RaisedByPlayerID   string
 	Concern            string
 	Details            string
@@ -27,19 +27,19 @@ type DisputeSnapshot struct {
 }
 
 type DisputeRepository interface {
-	StuntByID(ctx context.Context, stuntID string) (StuntSnapshot, bool, error)
+	JumpByID(ctx context.Context, jumpID string) (JumpSnapshot, bool, error)
 	Season(ctx context.Context, seasonID string) (SeasonSnapshot, error)
 	GroupMembership(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
-	InsertDispute(ctx context.Context, stuntID, raisedByPlayerID, concern, details string) (DisputeSnapshot, error)
+	InsertDispute(ctx context.Context, jumpID, raisedByPlayerID, concern, details string) (DisputeSnapshot, error)
 	Dispute(ctx context.Context, disputeID string) (DisputeSnapshot, error)
 	UpdateDisputeResolution(ctx context.Context, disputeID, resolution, resolutionReason, resolvedByPlayerID string) error
 	UpdateDisputeOverride(ctx context.Context, disputeID, overrideResolution, overrideReason, overrideByPlayerID string) error
-	UpdateStuntStatusAfterDispute(ctx context.Context, stuntID, status string) error
+	UpdateJumpStatusAfterDispute(ctx context.Context, jumpID, status string) error
 }
 
 type CreateDisputeInput struct {
 	PlayerID string
-	StuntID  string
+	JumpID  string
 	Concern  string
 	Details  string
 }
@@ -59,7 +59,7 @@ type ResolveDisputeInput struct {
 
 type ResolveDisputeResult struct {
 	Dispute DisputeSnapshot
-	Stunt   StuntSnapshot
+	Jump    JumpSnapshot
 	Allowed bool
 	Err     error
 }
@@ -69,15 +69,15 @@ func CreateDispute(ctx context.Context, repo DisputeRepository, input CreateDisp
 		return CreateDisputeResult{Err: ErrInvalidDisputeConcern}
 	}
 
-	stunt, ok, err := repo.StuntByID(ctx, input.StuntID)
+	jump, ok, err := repo.JumpByID(ctx, input.JumpID)
 	if err != nil {
 		return CreateDisputeResult{Err: err}
 	}
-	if !ok || !disputableStuntStatus(stunt.Status) {
-		return CreateDisputeResult{Err: ErrStuntNotFound}
+	if !ok || !disputableJumpStatus(jump.Status) {
+		return CreateDisputeResult{Err: ErrJumpNotFound}
 	}
 
-	_, ok, err = repo.GroupMembership(ctx, input.PlayerID, stunt.GroupID)
+	_, ok, err = repo.GroupMembership(ctx, input.PlayerID, jump.GroupID)
 	if err != nil {
 		return CreateDisputeResult{Err: err}
 	}
@@ -85,7 +85,7 @@ func CreateDispute(ctx context.Context, repo DisputeRepository, input CreateDisp
 		return CreateDisputeResult{Allowed: false}
 	}
 
-	dispute, err := repo.InsertDispute(ctx, input.StuntID, input.PlayerID, input.Concern, input.Details)
+	dispute, err := repo.InsertDispute(ctx, input.JumpID, input.PlayerID, input.Concern, input.Details)
 	if err != nil {
 		return CreateDisputeResult{Err: err}
 	}
@@ -106,15 +106,15 @@ func ResolveDispute(ctx context.Context, repo DisputeRepository, input ResolveDi
 		return ResolveDisputeResult{Err: ErrDisputeNotFound}
 	}
 
-	stunt, ok, err := repo.StuntByID(ctx, dispute.StuntID)
+	jump, ok, err := repo.JumpByID(ctx, dispute.JumpID)
 	if err != nil {
 		return ResolveDisputeResult{Err: err}
 	}
 	if !ok {
-		return ResolveDisputeResult{Err: ErrStuntNotFound}
+		return ResolveDisputeResult{Err: ErrJumpNotFound}
 	}
 
-	membership, ok, err := repo.GroupMembership(ctx, input.PlayerID, stunt.GroupID)
+	membership, ok, err := repo.GroupMembership(ctx, input.PlayerID, jump.GroupID)
 	if err != nil {
 		return ResolveDisputeResult{Err: err}
 	}
@@ -123,15 +123,15 @@ func ResolveDispute(ctx context.Context, repo DisputeRepository, input ResolveDi
 	}
 
 	if dispute.Status == "Open" {
-		if stunt.SeasonID == nil {
-			if membership.Role != "Group Admin" || input.Resolution == "Disqualified Stunt" {
+		if jump.SeasonID == nil {
+			if membership.Role != "Group Admin" || input.Resolution == "Disqualified Jump" {
 				return ResolveDisputeResult{Allowed: false}
 			}
 		} else {
-			if input.Resolution == "Removed Stunt" {
+			if input.Resolution == "Removed Jump" {
 				return ResolveDisputeResult{Allowed: false}
 			}
-			season, err := repo.Season(ctx, *stunt.SeasonID)
+			season, err := repo.Season(ctx, *jump.SeasonID)
 			if err != nil {
 				return ResolveDisputeResult{Err: err}
 			}
@@ -164,15 +164,15 @@ func ResolveDispute(ctx context.Context, repo DisputeRepository, input ResolveDi
 		effectiveResolution = ""
 	}
 	if effectiveResolution != "" {
-		stunt = applyDisputeResolutionToStunt(stunt, effectiveResolution)
-		if err := repo.UpdateStuntStatusAfterDispute(ctx, stunt.ID, stunt.Status); err != nil {
+		jump = applyDisputeResolutionToJump(jump, effectiveResolution)
+		if err := repo.UpdateJumpStatusAfterDispute(ctx, jump.ID, jump.Status); err != nil {
 			return ResolveDisputeResult{Err: err}
 		}
 	}
 
 	return ResolveDisputeResult{
 		Dispute: dispute,
-		Stunt:   stunt,
+		Jump:    jump,
 		Allowed: true,
 	}
 }
@@ -188,25 +188,25 @@ func validDisputeConcern(concern string) bool {
 
 func validDisputeResolution(resolution string) bool {
 	switch resolution {
-	case "No Action", "Disqualified Stunt", "Removed Stunt":
+	case "No Action", "Disqualified Jump", "Removed Jump":
 		return true
 	default:
 		return false
 	}
 }
 
-func disputableStuntStatus(status string) bool {
-	return status == "Performed Stunt" || status == "Judged Stunt" || status == "Unjudged Stunt" || status == "Disqualified Stunt"
+func disputableJumpStatus(status string) bool {
+	return status == "Performed Jump" || status == "Judged Jump" || status == "Unjudged Jump" || status == "Disqualified Jump"
 }
 
-func applyDisputeResolutionToStunt(stunt StuntSnapshot, resolution string) StuntSnapshot {
+func applyDisputeResolutionToJump(jump JumpSnapshot, resolution string) JumpSnapshot {
 	switch resolution {
-	case "Disqualified Stunt":
-		stunt.Status = "Disqualified Stunt"
-		stunt.FinalScore = nil
-	case "Removed Stunt":
-		stunt.Status = "Removed Stunt"
-		stunt.FinalScore = nil
+	case "Disqualified Jump":
+		jump.Status = "Disqualified Jump"
+		jump.FinalScore = nil
+	case "Removed Jump":
+		jump.Status = "Removed Jump"
+		jump.FinalScore = nil
 	}
-	return stunt
+	return jump
 }

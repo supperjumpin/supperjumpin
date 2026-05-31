@@ -8,24 +8,24 @@ import (
 
 var (
 	ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
-	ErrStuntNotFound        = errors.New("Stunt not found")
+	ErrJumpNotFound        = errors.New("Jump not found")
 	ErrJudgingWindowClosed  = errors.New("Judging Window closed")
 	ErrForbidden            = errors.New("Judge must be a different Player than the performer")
 )
 
-// Judgment holds submitted scores for a Performed Stunt.
+// Judgment holds submitted scores for a Performed Jump.
 type Judgment struct {
 	ID            string
-	StuntID       string
+	JumpID       string
 	PlayerID      string
 	Difficulty    int
 	Transgression int
 	Creativity    int
-	Documentation int
+	Presentation int
 }
 
-// StuntSnapshot is a read-only view of a Stunt needed for game rules.
-type StuntSnapshot struct {
+// JumpSnapshot is a read-only view of a Jump needed for game rules.
+type JumpSnapshot struct {
 	ID          string
 	GroupID     string
 	PlayerID    string
@@ -54,27 +54,27 @@ type MembershipSnapshot struct {
 
 // JudgmentRepository defines persistence operations for the judgment flow.
 type JudgmentRepository interface {
-	// Stunt returns the Stunt for the given ID. The ok bool is true only when
-	// the stunt exists and is in a visible performed status.
-	Stunt(ctx context.Context, stuntID string) (StuntSnapshot, bool, error)
+	// Jump returns the Jump for the given ID. The ok bool is true only when
+	// the jump exists and is in a visible performed status.
+	Jump(ctx context.Context, jumpID string) (JumpSnapshot, bool, error)
 	// Season returns the Season for the given ID.
 	Season(ctx context.Context, seasonID string) (SeasonSnapshot, error)
 	// GroupMembership returns the membership for a player in a group.
 	// ok is false when there is no membership.
 	GroupMembership(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
-	// UpsertJudgment creates or updates a judgment for a given stunt and judge.
+	// UpsertJudgment creates or updates a judgment for a given jump and judge.
 	// Returns true when the judgment was created (not updated).
-	UpsertJudgment(ctx context.Context, stuntID, playerID string, difficulty, transgression, creativity, documentation int) (Judgment, bool, error)
+	UpsertJudgment(ctx context.Context, jumpID, playerID string, difficulty, transgression, creativity, presentation int) (Judgment, bool, error)
 }
 
 // JudgmentInput bundles the parameters for a judgment submission.
 type JudgmentInput struct {
-	StuntID       string
+	JumpID       string
 	JudgePlayerID string
 	Difficulty    int
 	Transgression int
 	Creativity    int
-	Documentation int
+	Presentation int
 }
 
 // JudgmentResult is the outcome of a judgment submission.
@@ -91,41 +91,41 @@ type JudgmentResult struct {
 //   - Allowed = true and Created = true on first-time valid judgment
 //   - Allowed = true and Created = false on edit of an existing judgment
 //   - Allowed = false on self-judging (returns nil judgment, caller maps to 403)
-//   - Err set for invalid input, stunt not found, or closed judging window
+//   - Err set for invalid input, jump not found, or closed judging window
 func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input JudgmentInput, now time.Time) JudgmentResult {
 	// 1. Validate scores
-	if !validScore(input.Difficulty) || !validScore(input.Transgression) || !validScore(input.Creativity) || !validScore(input.Documentation) {
+	if !validScore(input.Difficulty) || !validScore(input.Transgression) || !validScore(input.Creativity) || !validScore(input.Presentation) {
 		return JudgmentResult{Err: ErrInvalidJudgmentScore}
 	}
 
-	// 2. Look up the stunt
-	stunt, ok, err := repo.Stunt(ctx, input.StuntID)
+	// 2. Look up the jump
+	jump, ok, err := repo.Jump(ctx, input.JumpID)
 	if err != nil {
 		return JudgmentResult{Err: err}
 	}
 	if !ok {
-		return JudgmentResult{Err: ErrStuntNotFound}
+		return JudgmentResult{Err: ErrJumpNotFound}
 	}
 
-	// 3. Stunt must be in "Performed Stunt" status to accept judgments.
+	// 3. Jump must be in "Performed Jump" status to accept judgments.
 	//    If it's any other visible status (Judged, Unjudged, Disqualified), window is closed.
-	if stunt.Status != "Performed Stunt" {
+	if jump.Status != "Performed Jump" {
 		return JudgmentResult{Err: ErrJudgingWindowClosed}
 	}
 
-	// 4. Judge must be a member of the stunt's group and not the performer
-	membership, ok, err := repo.GroupMembership(ctx, input.JudgePlayerID, stunt.GroupID)
+	// 4. Judge must be a member of the jump's group and not the performer
+	membership, ok, err := repo.GroupMembership(ctx, input.JudgePlayerID, jump.GroupID)
 	if err != nil {
 		return JudgmentResult{Err: err}
 	}
-	if !ok || stunt.PlayerID == input.JudgePlayerID {
+	if !ok || jump.PlayerID == input.JudgePlayerID {
 		return JudgmentResult{Allowed: false}
 	}
 	_ = membership // role not needed for judgment, reserved for future
 
 	// 5. Check judging window
-	if stunt.SeasonID != nil {
-		season, err := repo.Season(ctx, *stunt.SeasonID)
+	if jump.SeasonID != nil {
+		season, err := repo.Season(ctx, *jump.SeasonID)
 		if err != nil {
 			return JudgmentResult{Err: err}
 		}
@@ -135,7 +135,7 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 	}
 
 	// 6. Persist the judgment (upsert)
-	judgment, created, err := repo.UpsertJudgment(ctx, input.StuntID, input.JudgePlayerID, input.Difficulty, input.Transgression, input.Creativity, input.Documentation)
+	judgment, created, err := repo.UpsertJudgment(ctx, input.JumpID, input.JudgePlayerID, input.Difficulty, input.Transgression, input.Creativity, input.Presentation)
 	if err != nil {
 		return JudgmentResult{Err: err}
 	}

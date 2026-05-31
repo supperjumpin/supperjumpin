@@ -234,7 +234,7 @@ func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -328,7 +328,7 @@ func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePerio
 	}
 }
 
-func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedStunts(t *testing.T) {
+func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -337,7 +337,7 @@ func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedStunts
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
 	if closeRec.Code != http.StatusOK {
@@ -359,7 +359,7 @@ func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 
 	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
@@ -400,7 +400,7 @@ func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
 		t.Fatalf("expected Alice to join Group before starting Season, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	season := startSeason(t, server, "alice-token", group.Group.ID)
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "bob-token", nil)
 	if closeRec.Code != http.StatusOK {
@@ -437,7 +437,7 @@ func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedStuntDuringActiveSeason(t *testing.T) {
+func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -466,7 +466,7 @@ func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedStuntDuringActiveSeason(t 
 	var planned jumpBody
 	decodeResponse(t, planRec, &planned)
 	if planned.ID != idea.ID || planned.Status != "Planned Jump" {
-		t.Fatalf("expected same Stunt to become a Planned Jump, got %#v", planned)
+		t.Fatalf("expected same Jump to become a Planned Jump, got %#v", planned)
 	}
 	if planned.GroupID != group.Group.ID {
 		t.Fatalf("expected Planned Jump to belong to exactly one Group %q, got %q", group.Group.ID, planned.GroupID)
@@ -479,7 +479,7 @@ func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedStuntDuringActiveSeason(t 
 	}
 }
 
-func TestPlannedStuntCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
+func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	startSeason(t, server, "alice-token", group.Group.ID)
@@ -492,11 +492,11 @@ func TestPlannedStuntCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
 	var planned jumpBody
 	decodeResponse(t, planRec, &planned)
 	if planned.SeasonID != nil || !planned.OffSeason {
-		t.Fatalf("expected explicit Off-Season Stunt, got %#v", planned)
+		t.Fatalf("expected explicit Off-Season Jump, got %#v", planned)
 	}
 }
 
-func TestPlannedStuntIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
+func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
@@ -508,11 +508,11 @@ func TestPlannedStuntIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
 	var planned jumpBody
 	decodeResponse(t, planRec, &planned)
 	if planned.SeasonID != nil || !planned.OffSeason {
-		t.Fatalf("expected Off-Season Stunt without Active Season, got %#v", planned)
+		t.Fatalf("expected Off-Season Jump without Active Season, got %#v", planned)
 	}
 }
 
-func TestPlannedStuntPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
+func TestPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	createGroup(t, server, "bob-token", "Side Judges")
@@ -564,7 +564,7 @@ func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
 	}
 }
 
-func TestAuthorizedEvidenceSubmissionPerformsStuntAndOwnsMediaObjectKey(t *testing.T) {
+func TestAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
@@ -597,13 +597,13 @@ func TestAuthorizedEvidenceSubmissionPerformsStuntAndOwnsMediaObjectKey(t *testi
 	}
 	recent := home.RecentJumps[0]
 	if recent.Jump.ID != planned.ID || recent.Jump.Status != "Performed Jump" {
-		t.Fatalf("expected recent Performed Jump to match the submitted Stunt, got %#v", recent)
+		t.Fatalf("expected recent Performed Jump to match the submitted Jump, got %#v", recent)
 	}
 	if recent.Performer.DisplayName != "alice" {
-		t.Fatalf("expected performer display name on recent Stunt, got %#v", recent.Performer)
+		t.Fatalf("expected performer display name on recent Jump, got %#v", recent.Performer)
 	}
 	if recent.Evidence.Caption != "Crunchwrap successfully smuggled into the parking lot." {
-		t.Fatalf("expected recent Stunt evidence caption, got %#v", recent.Evidence)
+		t.Fatalf("expected recent Jump evidence caption, got %#v", recent.Evidence)
 	}
 }
 
@@ -631,7 +631,7 @@ func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
+func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -639,7 +639,7 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
 		"difficulty":    4,
@@ -664,7 +664,7 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCanRaiseDisputeOnVisiblePerformedStunt(t *testing.T) {
+func TestGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -672,7 +672,7 @@ func TestGroupMemberCanRaiseDisputeOnVisiblePerformedStunt(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/disputes", "bob-token", map[string]string{
 		"concern": "House Rules",
@@ -685,7 +685,7 @@ func TestGroupMemberCanRaiseDisputeOnVisiblePerformedStunt(t *testing.T) {
 	var dispute disputeBody
 	decodeResponse(t, rec, &dispute)
 	if dispute.ID == "" || dispute.JumpID != performed.Jump.ID {
-		t.Fatalf("expected created Dispute for visible Stunt, got %#v", dispute)
+		t.Fatalf("expected created Dispute for visible Jump, got %#v", dispute)
 	}
 	if dispute.RaisedByPlayerID == performed.Jump.PlayerID {
 		t.Fatalf("expected different Group member to raise Dispute, got %#v", dispute)
@@ -711,7 +711,7 @@ func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before raising Disputes, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	for _, concern := range []string{"House Rules", "Credibility", "Source", "Destination", "Food", "duplicate", "other"} {
 		t.Run(concern, func(t *testing.T) {
@@ -726,10 +726,10 @@ func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
 	}
 }
 
-func TestPerformerCannotJudgeTheirOwnPerformedStunt(t *testing.T) {
+func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "alice-token", map[string]int{
 		"difficulty":    4,
@@ -750,7 +750,7 @@ func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	created := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 	updated := submitJudgment(t, server, "bob-token", performed.Jump.ID, 6, 7, 8, 9, http.StatusOK)
@@ -771,7 +771,7 @@ func TestJudgmentScoresMustStayInRange(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
 		"difficulty":    11,
@@ -792,7 +792,7 @@ func TestJudgmentRequiresAllScoreFields(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
 		"difficulty":    0,
@@ -814,7 +814,7 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	created := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 	store.SetSeasonStatus(season.ActiveSeason.ID, "Finalized")
@@ -867,7 +867,7 @@ func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -879,7 +879,7 @@ func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 		t.Fatalf("expected Finalized Season to no longer be active, got %#v", home.ActiveSeason)
 	}
 	if len(home.RecentJumps) != 1 {
-		t.Fatalf("expected judged Stunt to remain visible, got %#v", home.RecentJumps)
+		t.Fatalf("expected judged Jump to remain visible, got %#v", home.RecentJumps)
 	}
 	if home.RecentJumps[0].Jump.Status != "Judged Jump" || home.RecentJumps[0].Jump.FinalScore == nil || *home.RecentJumps[0].Jump.FinalScore != 14 {
 		t.Fatalf("expected closed Performed Jump to receive Final Score 14, got %#v", home.RecentJumps[0].Jump)
@@ -902,7 +902,7 @@ func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 	}
 }
 
-func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandings(t *testing.T) {
+func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStandings(t *testing.T) {
 	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
@@ -921,7 +921,7 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandin
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -929,7 +929,7 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandin
 	})
 	before := getGroupHome(t, server, "alice-token", group.Group.ID)
 	if len(before.Standings) != 1 {
-		t.Fatalf("expected judged Stunt to reach Standings before Dispute resolution, got %#v", before.Standings)
+		t.Fatalf("expected judged Jump to reach Standings before Dispute resolution, got %#v", before.Standings)
 	}
 
 	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "Credibility", "The receipt timestamp does not match the Caption.")
@@ -944,7 +944,7 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandin
 	var resolution disputeResolutionBody
 	decodeResponse(t, resolutionRec, &resolution)
 	if resolution.Jump.Status != "Disqualified Jump" {
-		t.Fatalf("expected resolved Stunt to become Disqualified Jump, got %#v", resolution)
+		t.Fatalf("expected resolved Jump to become Disqualified Jump, got %#v", resolution)
 	}
 	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Disqualified Jump" {
 		t.Fatalf("expected resolved Dispute to record disqualification, got %#v", resolution.Dispute)
@@ -962,7 +962,7 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandin
 	}
 }
 
-func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonStuntsFromStandings(t *testing.T) {
+func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings(t *testing.T) {
 	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
@@ -982,7 +982,7 @@ func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonStuntsFromStanding
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 
-	unjudged := performStunt(t, server, "alice-token", group.Group.ID)
+	unjudged := performJump(t, server, "alice-token", group.Group.ID)
 	offSeasonIdea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
 	offSeasonPlanned := createPlannedJump(t, server, "alice-token", offSeasonIdea.ID, true)
 	offSeasonAuthorization := authorizeEvidenceUpload(t, server, "alice-token", offSeasonPlanned.ID, "image/jpeg")
@@ -1000,22 +1000,22 @@ func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonStuntsFromStanding
 	})
 
 	home := getGroupHome(t, server, "alice-token", group.Group.ID)
-	stuntsByID := map[string]jumpBody{}
+	jumpsByID := map[string]jumpBody{}
 	for _, recent := range home.RecentJumps {
-		stuntsByID[recent.Jump.ID] = recent.Jump
+		jumpsByID[recent.Jump.ID] = recent.Jump
 	}
-	if stuntsByID[unjudged.Jump.ID].Status != "Unjudged Jump" || stuntsByID[unjudged.Jump.ID].FinalScore != nil {
-		t.Fatalf("expected Season-linked Stunt without Judgments to be Unjudged, got %#v", stuntsByID[unjudged.Jump.ID])
+	if jumpsByID[unjudged.Jump.ID].Status != "Unjudged Jump" || jumpsByID[unjudged.Jump.ID].FinalScore != nil {
+		t.Fatalf("expected Season-linked Jump without Judgments to be Unjudged, got %#v", jumpsByID[unjudged.Jump.ID])
 	}
-	if stuntsByID[offSeasonPlanned.ID].Status != "Performed Jump" || stuntsByID[offSeasonPlanned.ID].FinalScore != nil {
-		t.Fatalf("expected Off-Season Stunt to remain outside Season scoring, got %#v", stuntsByID[offSeasonPlanned.ID])
+	if jumpsByID[offSeasonPlanned.ID].Status != "Performed Jump" || jumpsByID[offSeasonPlanned.ID].FinalScore != nil {
+		t.Fatalf("expected Off-Season Jump to remain outside Season scoring, got %#v", jumpsByID[offSeasonPlanned.ID])
 	}
 	if len(home.Standings) != 0 {
 		t.Fatalf("expected Off-Season Judgment and Unjudged Jump not to affect Standings, got %#v", home.Standings)
 	}
 }
 
-func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibility(t *testing.T) {
+func TestGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility(t *testing.T) {
 	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
@@ -1039,7 +1039,7 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibilit
 		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
 	)
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "other", "Identifiable bystander appears in the photo.")
 
 	resolveRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
@@ -1052,7 +1052,7 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibilit
 
 	overrideRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "carol-token", map[string]string{
 		"resolution":       "Removed Jump",
-		"resolutionReason": "Serious privacy violation requires hiding the Stunt.",
+		"resolutionReason": "Serious privacy violation requires hiding the Jump.",
 	})
 	if overrideRec.Code != http.StatusOK {
 		t.Fatalf("expected Group Admin override status 200, got %d: %s", overrideRec.Code, overrideRec.Body.String())
@@ -1061,7 +1061,7 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibilit
 	var override disputeResolutionBody
 	decodeResponse(t, overrideRec, &override)
 	if override.Jump.Status != "Removed Jump" {
-		t.Fatalf("expected Group Admin override to remove Stunt, got %#v", override)
+		t.Fatalf("expected Group Admin override to remove Jump, got %#v", override)
 	}
 	if override.Dispute.Status != "Overridden" || override.Dispute.OverrideResolution == nil || *override.Dispute.OverrideResolution != "Removed Jump" {
 		t.Fatalf("expected override to remain visible on Dispute, got %#v", override.Dispute)
@@ -1073,7 +1073,7 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveStuntFromNormalVisibilit
 	}
 }
 
-func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
+func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -1081,15 +1081,15 @@ func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	if performed.Jump.SeasonID != nil || !performed.Jump.OffSeason {
-		t.Fatalf("expected Off-Season Stunt, got %#v", performed.Jump)
+		t.Fatalf("expected Off-Season Jump, got %#v", performed.Jump)
 	}
 	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "House Rules", "This should be removed from normal Group visibility.")
 
 	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
 		"resolution":       "Removed Jump",
-		"resolutionReason": "Off-Season Stunt contains a serious privacy issue.",
+		"resolutionReason": "Off-Season Jump contains a serious privacy issue.",
 	})
 	if resolutionRec.Code != http.StatusOK {
 		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
@@ -1098,7 +1098,7 @@ func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
 	var resolution disputeResolutionBody
 	decodeResponse(t, resolutionRec, &resolution)
 	if resolution.Jump.Status != "Removed Jump" {
-		t.Fatalf("expected Group Admin to remove Off-Season Stunt, got %#v", resolution)
+		t.Fatalf("expected Group Admin to remove Off-Season Jump, got %#v", resolution)
 	}
 	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Jump" {
 		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
@@ -1106,7 +1106,7 @@ func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
 
 	home := getGroupHome(t, server, "bob-token", group.Group.ID)
 	if len(home.RecentJumps) != 0 {
-		t.Fatalf("expected Removed Off-Season Stunt hidden from normal Group visibility, got %#v", home.RecentJumps)
+		t.Fatalf("expected Removed Off-Season Jump hidden from normal Group visibility, got %#v", home.RecentJumps)
 	}
 }
 
@@ -1136,7 +1136,7 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 			currentTime.Add(time.Hour),
 			currentTime.Add(2*time.Hour),
 		)
-		performed := performStunt(t, server, "alice-token", group.Group.ID)
+		performed := performJump(t, server, "alice-token", group.Group.ID)
 		score := seasonNumber
 		submitJudgment(t, server, "bob-token", performed.Jump.ID, score, 0, 0, 0, http.StatusCreated)
 		currentTime = currentTime.Add(3 * time.Hour)
@@ -1165,7 +1165,7 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	}
 }
 
-func TestIdeaAndPlannedStuntRequireGroupMembership(t *testing.T) {
+func TestIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
 	server := newGroupsTestServer()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Burger King", "bowling alley", "Whopper")
@@ -1401,7 +1401,7 @@ func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
 
 	db, err := sql.Open("pgx", databaseURL)
@@ -1471,7 +1471,7 @@ func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *test
 	}
 }
 
-func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testing.T) {
+func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1485,15 +1485,15 @@ func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testi
 	if acceptRec.Code != http.StatusOK {
 		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
-	performed := performStunt(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
 	if performed.Jump.SeasonID != nil || !performed.Jump.OffSeason {
-		t.Fatalf("expected Off-Season Stunt, got %#v", performed.Jump)
+		t.Fatalf("expected Off-Season Jump, got %#v", performed.Jump)
 	}
 	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "House Rules", "This should be removed from normal Group visibility.")
 
 	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
 		"resolution":       "Removed Jump",
-		"resolutionReason": "Off-Season Stunt contains a serious privacy issue.",
+		"resolutionReason": "Off-Season Jump contains a serious privacy issue.",
 	})
 	if resolutionRec.Code != http.StatusOK {
 		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
@@ -1502,7 +1502,7 @@ func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testi
 	var resolution disputeResolutionBody
 	decodeResponse(t, resolutionRec, &resolution)
 	if resolution.Jump.Status != "Removed Jump" {
-		t.Fatalf("expected Group Admin to remove Off-Season Stunt, got %#v", resolution)
+		t.Fatalf("expected Group Admin to remove Off-Season Jump, got %#v", resolution)
 	}
 	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Jump" {
 		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
@@ -1510,7 +1510,7 @@ func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveStunt(t *testi
 
 	home := getGroupHome(t, server, "bob-token", group.Group.ID)
 	if len(home.RecentJumps) != 0 {
-		t.Fatalf("expected Removed Off-Season Stunt hidden from normal Group visibility, got %#v", home.RecentJumps)
+		t.Fatalf("expected Removed Off-Season Jump hidden from normal Group visibility, got %#v", home.RecentJumps)
 	}
 }
 
@@ -1599,12 +1599,12 @@ func TestPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
 	}
 }
 
-func TestPostgresConcurrentPlannedStuntCreationOnlyTransitionsIdeaOnce(t *testing.T) {
+func TestPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
 	}
-	installSlowStuntUpdateTrigger(t, databaseURL)
+	installSlowJumpUpdateTrigger(t, databaseURL)
 
 	store := newPostgresTestStore(t, databaseURL)
 	server := newGroupsTestServerWithStore(store)
@@ -1702,7 +1702,7 @@ DROP FUNCTION IF EXISTS supperjumpin_test_slow_season_insert();`); err != nil {
 	})
 }
 
-func installSlowStuntUpdateTrigger(t *testing.T, databaseURL string) {
+func installSlowJumpUpdateTrigger(t *testing.T, databaseURL string) {
 	t.Helper()
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -1714,24 +1714,24 @@ func installSlowStuntUpdateTrigger(t *testing.T, databaseURL string) {
 		}
 	})
 	if _, err := db.ExecContext(context.Background(), `
-CREATE OR REPLACE FUNCTION supperjumpin_test_slow_stunt_update()
+CREATE OR REPLACE FUNCTION supperjumpin_test_slow_jump_update()
 RETURNS trigger AS $$
 BEGIN
   PERFORM pg_sleep(0.2);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
-CREATE TRIGGER supperjumpin_test_slow_stunt_update
-BEFORE UPDATE ON stunts
-FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_stunt_update();`); err != nil {
-		t.Fatalf("install slow Stunt update trigger: %v", err)
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_jump_update ON jumps;
+CREATE TRIGGER supperjumpin_test_slow_jump_update
+BEFORE UPDATE ON jumps
+FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_jump_update();`); err != nil {
+		t.Fatalf("install slow Jump update trigger: %v", err)
 	}
 	t.Cleanup(func() {
 		if _, err := db.ExecContext(context.Background(), `
-DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
-DROP FUNCTION IF EXISTS supperjumpin_test_slow_stunt_update();`); err != nil {
-			t.Fatalf("remove slow Stunt update trigger: %v", err)
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_jump_update ON jumps;
+DROP FUNCTION IF EXISTS supperjumpin_test_slow_jump_update();`); err != nil {
+			t.Fatalf("remove slow Jump update trigger: %v", err)
 		}
 	})
 }
@@ -2010,7 +2010,7 @@ func authorizeEvidenceUpload(t *testing.T, server http.Handler, token string, ju
 	return authorization
 }
 
-func performStunt(t *testing.T, server http.Handler, token string, groupID string) evidenceSubmissionBody {
+func performJump(t *testing.T, server http.Handler, token string, groupID string) evidenceSubmissionBody {
 	t.Helper()
 	idea := createIdea(t, server, token, groupID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
 	planned := createPlannedJump(t, server, token, idea.ID, false)
