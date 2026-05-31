@@ -3,7 +3,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -40,9 +39,17 @@ func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIden
 		return MeResponse{}, err
 	}
 	defer tx.Rollback()
-	profile, err := getProfileByAuthIdentity(ctx, tx, identity.Provider, identity.Subject)
+	qtx := s.queries.WithTx(tx)
+
+	profile, err := qtx.GetProfileByAuthIdentity(ctx, db.GetProfileByAuthIdentityParams{
+		Provider: identity.Provider,
+		Subject:  identity.Subject,
+	})
 	if err == nil {
-		return profile, tx.Commit()
+		return MeResponse{
+			Account: Account{ID: profile.ID, Email: profile.Email},
+			Player:  Player{ID: profile.ID_2, DisplayName: profile.DisplayName},
+		}, tx.Commit()
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return MeResponse{}, err
@@ -50,22 +57,19 @@ func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIden
 	key := identity.Provider + ":" + identity.Subject
 	account := Account{ID: stableID("account", key), Email: identity.Email}
 	player := Player{ID: stableID("player", account.ID), DisplayName: displayName(identity.Email)}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO accounts (id, email)
-VALUES ($1, $2)
-ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email`, account.ID, account.Email); err != nil {
+	if err := qtx.UpsertAccount(ctx, db.UpsertAccountParams{
+		ID: account.ID, Email: account.Email,
+	}); err != nil {
 		return MeResponse{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO auth_identities (provider, subject, account_id)
-VALUES ($1, $2, $3)
-ON CONFLICT (provider, subject) DO NOTHING`, identity.Provider, identity.Subject, account.ID); err != nil {
+	if err := qtx.InsertAuthIdentity(ctx, db.InsertAuthIdentityParams{
+		Provider: identity.Provider, Subject: identity.Subject, AccountID: account.ID,
+	}); err != nil {
 		return MeResponse{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO players (id, account_id, display_name)
-VALUES ($1, $2, $3)
-ON CONFLICT (id) DO NOTHING`, player.ID, account.ID, player.DisplayName); err != nil {
+	if err := qtx.InsertPlayer(ctx, db.InsertPlayerParams{
+		ID: player.ID, AccountID: account.ID, DisplayName: player.DisplayName,
+	}); err != nil {
 		return MeResponse{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -325,26 +329,6 @@ LIMIT 1`, groupID).Scan(
 		return nil, err
 	}
 	return &season, nil
-}
-func getProfileByAuthIdentity(ctx context.Context, tx *sql.Tx, provider string, subject string) (MeResponse, error) {
-	var profile MeResponse
-	if err := tx.QueryRowContext(ctx, `
-SELECT accounts.id, accounts.email, players.id, players.display_name
-FROM accounts
-JOIN auth_identities ON auth_identities.account_id = accounts.id
-JOIN players ON players.account_id = accounts.id
-WHERE auth_identities.provider = $1 AND auth_identities.subject = $2`, provider, subject).Scan(
-		&profile.Account.ID,
-		&profile.Account.Email,
-		&profile.Player.ID,
-		&profile.Player.DisplayName,
-	); err != nil {
-		return MeResponse{}, err
-	}
-	if profile.Account.ID == "" || profile.Player.ID == "" {
-		return MeResponse{}, fmt.Errorf("incomplete profile for auth identity")
-	}
-	return profile, nil
 }
 // jumpViewQueryer is satisfied by *sql.DB and *sql.Tx for querying jump views.
 type jumpViewQueryer interface {
