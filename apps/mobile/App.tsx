@@ -194,7 +194,7 @@ export default function App() {
       return;
     }
     setIsJudging(true);
-    setGestureScores({ difficulty: 2, transgression: 2, creativity: 2, documentation: 2 });
+    setGestureScores({ difficulty: 3, transgression: 3, creativity: 3, documentation: 3 });
     setSelectedStunt(stunt);
     setStatus("Use gestures or buttons to set scores. Swipe up/down on each factor.");
   }
@@ -206,7 +206,7 @@ export default function App() {
   }
 
   function clearGestureScores() {
-    setGestureScores({ difficulty: 2, transgression: 2, creativity: 2, documentation: 2 });
+    setGestureScores({ difficulty: 3, transgression: 3, creativity: 3, documentation: 3 });
     setStatus("Gesture scores cleared. Start fresh.");
   }
 
