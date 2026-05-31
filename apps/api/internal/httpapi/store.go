@@ -28,7 +28,7 @@ var ErrJudgingWindowClosed = errors.New("Judging Window closed")
 
 var ErrSubmissionWindowClosed = errors.New("Submission Window closed")
 
-var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
+var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 1 and 4")
 
 var ErrInvalidDisputeConcern = errors.New("Dispute concern must be House Rules, Credibility, Source, Destination, Food, duplicate, or other")
 

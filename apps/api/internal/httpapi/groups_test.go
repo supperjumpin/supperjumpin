@@ -235,7 +235,7 @@ func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
-	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
@@ -250,7 +250,7 @@ func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	if len(accepted.Standings) != 1 {
 		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
 	}
-	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedStunts != 1 {
+	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 12 || accepted.Standings[0].JudgedStunts != 1 {
 		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
 	}
 }
@@ -344,7 +344,7 @@ func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedStunts
 		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
 	}
 
-	judgment := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	judgment := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 	if judgment.StuntID != performed.Stunt.ID || judgment.PlayerID == performed.Stunt.PlayerID {
 		t.Fatalf("expected eligible Judge to score existing Performed Stunt during Judging Grace Period, got %#v", judgment)
 	}
@@ -360,7 +360,7 @@ func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
-	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
 	if closeRec.Code != http.StatusOK {
@@ -376,15 +376,15 @@ func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 	if finalized.ActiveSeason != nil {
 		t.Fatalf("expected Finalized Season to no longer be open, got %#v", finalized.ActiveSeason)
 	}
-	if len(finalized.Standings) != 1 || finalized.Standings[0].SeasonScore != 14 || finalized.Standings[0].JudgedStunts != 1 {
+	if len(finalized.Standings) != 1 || finalized.Standings[0].SeasonScore != 12 || finalized.Standings[0].JudgedStunts != 1 {
 		t.Fatalf("expected locked Standings with Alice on 14 from one Judged Stunt, got %#v", finalized.Standings)
 	}
 
 	editRec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
-		"difficulty":    10,
-		"transgression": 10,
-		"creativity":    10,
-		"documentation": 10,
+		"difficulty":    4,
+		"transgression": 4,
+		"creativity":    4,
+		"documentation": 4,
 	})
 	if editRec.Code != http.StatusConflict {
 		t.Fatalf("expected Finalized Season to lock remaining Judging Windows, got %d: %s", editRec.Code, editRec.Body.String())
@@ -643,7 +643,7 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
 
 	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
 		"difficulty":    4,
-		"transgression": 5,
+		"transgression": 3,
 		"creativity":    3,
 		"documentation": 2,
 	})
@@ -659,7 +659,7 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedStunt(t *testing.T) {
 	if judgment.PlayerID == performed.Stunt.PlayerID {
 		t.Fatalf("expected Judge to be a different Player than performer, got %#v", judgment)
 	}
-	if judgment.Difficulty != 4 || judgment.Transgression != 5 || judgment.Creativity != 3 || judgment.Documentation != 2 {
+	if judgment.Difficulty != 4 || judgment.Transgression != 3 || judgment.Creativity != 3 || judgment.Documentation != 2 {
 		t.Fatalf("expected four submitted Judgment scores, got %#v", judgment)
 	}
 }
@@ -733,7 +733,7 @@ func TestPerformerCannotJudgeTheirOwnPerformedStunt(t *testing.T) {
 
 	rec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "alice-token", map[string]int{
 		"difficulty":    4,
-		"transgression": 5,
+		"transgression": 3,
 		"creativity":    3,
 		"documentation": 2,
 	})
@@ -752,13 +752,13 @@ func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
 
-	created := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
-	updated := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 6, 7, 8, 9, http.StatusOK)
+	created := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
+	updated := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 2, 3, 4, 4, http.StatusOK)
 
 	if updated.ID != created.ID || updated.StuntID != created.StuntID || updated.PlayerID != created.PlayerID {
 		t.Fatalf("expected edited Judgment to keep identity, created %#v updated %#v", created, updated)
 	}
-	if updated.Difficulty != 6 || updated.Transgression != 7 || updated.Creativity != 8 || updated.Documentation != 9 {
+	if updated.Difficulty != 2 || updated.Transgression != 3 || updated.Creativity != 4 || updated.Documentation != 4 {
 		t.Fatalf("expected edited Judgment scores, got %#v", updated)
 	}
 }
@@ -816,14 +816,14 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
 
-	created := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	created := submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 	store.SetSeasonStatus(season.ActiveSeason.ID, "Finalized")
 
 	editRec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
-		"difficulty":    6,
-		"transgression": 7,
-		"creativity":    8,
-		"documentation": 9,
+		"difficulty":    2,
+		"transgression": 3,
+		"creativity":    4,
+		"documentation": 4,
 	})
 	if editRec.Code != http.StatusConflict {
 		t.Fatalf("expected closed Judging Window edit status 409, got %d: %s", editRec.Code, editRec.Body.String())
@@ -843,7 +843,7 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 		t.Fatalf("expected closed Judging Window create status 409, got %d: %s", createRec.Code, createRec.Body.String())
 	}
 
-	if created.Difficulty != 4 || created.Transgression != 5 || created.Creativity != 3 || created.Documentation != 2 {
+	if created.Difficulty != 4 || created.Transgression != 3 || created.Creativity != 3 || created.Documentation != 2 {
 		t.Fatalf("expected original Judgment to exist before closed-window attempts, got %#v", created)
 	}
 }
@@ -868,7 +868,7 @@ func TestFinalizedSeasonScoresJudgedStuntsAndLocksStandings(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
-	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
@@ -881,21 +881,21 @@ func TestFinalizedSeasonScoresJudgedStuntsAndLocksStandings(t *testing.T) {
 	if len(home.RecentStunts) != 1 {
 		t.Fatalf("expected judged Stunt to remain visible, got %#v", home.RecentStunts)
 	}
-	if home.RecentStunts[0].Stunt.Status != "Judged Stunt" || home.RecentStunts[0].Stunt.FinalScore == nil || *home.RecentStunts[0].Stunt.FinalScore != 14 {
-		t.Fatalf("expected closed Performed Stunt to receive Final Score 14, got %#v", home.RecentStunts[0].Stunt)
+	if home.RecentStunts[0].Stunt.Status != "Judged Stunt" || home.RecentStunts[0].Stunt.FinalScore == nil || *home.RecentStunts[0].Stunt.FinalScore != 12 {
+		t.Fatalf("expected closed Performed Stunt to receive Final Score 12, got %#v", home.RecentStunts[0].Stunt)
 	}
 	if len(home.Standings) != 1 {
 		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
 	}
-	if home.Standings[0].Player.ID != group.Membership.PlayerID || home.Standings[0].SeasonScore != 14 || home.Standings[0].JudgedStunts != 1 {
-		t.Fatalf("expected Alice to lead with Season Score 14 from one Judged Stunt, got %#v", home.Standings[0])
+	if home.Standings[0].Player.ID != group.Membership.PlayerID || home.Standings[0].SeasonScore != 12 || home.Standings[0].JudgedStunts != 1 {
+		t.Fatalf("expected Alice to lead with Season Score 12 from one Judged Stunt, got %#v", home.Standings[0])
 	}
 
 	editRec := doJSON(server, http.MethodPost, "/v1/stunts/"+performed.Stunt.ID+"/judgment", "bob-token", map[string]int{
-		"difficulty":    10,
-		"transgression": 10,
-		"creativity":    10,
-		"documentation": 10,
+		"difficulty":    4,
+		"transgression": 4,
+		"creativity":    4,
+		"documentation": 4,
 	})
 	if editRec.Code != http.StatusConflict {
 		t.Fatalf("expected Finalized Season to lock Judgment edits, got %d: %s", editRec.Code, editRec.Body.String())
@@ -922,7 +922,7 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedStuntAndExcludeItFromStandin
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
-	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
@@ -993,7 +993,7 @@ func TestFinalizedSeasonMarksUnjudgedStuntsAndExcludesOffSeasonStuntsFromStandin
 	if offSeasonRec.Code != http.StatusCreated {
 		t.Fatalf("expected Off-Season Evidence status 201, got %d: %s", offSeasonRec.Code, offSeasonRec.Body.String())
 	}
-	submitJudgment(t, server, "bob-token", offSeasonPlanned.ID, 10, 10, 10, 10, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", offSeasonPlanned.ID, 4, 4, 4, 4, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
@@ -1137,12 +1137,12 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 			currentTime.Add(2*time.Hour),
 		)
 		performed := performStunt(t, server, "alice-token", group.Group.ID)
-		score := seasonNumber
-		submitJudgment(t, server, "bob-token", performed.Stunt.ID, score, 0, 0, 0, http.StatusCreated)
+		score := (seasonNumber-1)%4 + 1
+		submitJudgment(t, server, "bob-token", performed.Stunt.ID, score, 1, 1, 1, http.StatusCreated)
 		currentTime = currentTime.Add(3 * time.Hour)
 		getGroupHome(t, server, "alice-token", group.Group.ID)
 
-		latestScore = score
+		latestScore = score + 3
 		if maxID == "" || season.ActiveSeason.ID > maxID {
 			maxID = season.ActiveSeason.ID
 			maxIDSeasonNumber = seasonNumber
@@ -1402,7 +1402,7 @@ func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performStunt(t, server, "alice-token", group.Group.ID)
-	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 5, 3, 2, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.Stunt.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -1429,7 +1429,7 @@ WHERE id = $1`, season.ActiveSeason.ID); err != nil {
 	if len(accepted.Standings) != 1 {
 		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
 	}
-	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedStunts != 1 {
+	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 12 || accepted.Standings[0].JudgedStunts != 1 {
 		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
 	}
 }

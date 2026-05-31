@@ -406,20 +406,20 @@ paths:
               properties:
                 difficulty:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 transgression:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 creativity:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 documentation:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
       responses:
         "200":
           description: The edited Judgment.
@@ -727,20 +727,20 @@ components:
           type: string
         difficulty:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         transgression:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         creativity:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         documentation:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
     PerformedStuntView:
       type: object
       required: [stunt, performer, evidence, disputes]

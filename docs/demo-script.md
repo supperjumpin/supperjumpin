@@ -553,7 +553,7 @@ Returns `201 Created` on first judgment, `200 OK` on edits (upsert).
 **Scores outside 0–10:**
 ```json
 // HTTP 400 Bad Request
-"Judgment scores must be between 0 and 10"
+"Judgment scores must be between 1 and 4"
 ```
 
 **Judging window closed (season finalized):**

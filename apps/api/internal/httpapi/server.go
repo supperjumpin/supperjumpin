@@ -441,7 +441,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if errors.Is(err, ErrInvalidJudgmentScore) {
-			http.Error(w, "Judgment scores must be between 0 and 10", http.StatusBadRequest)
+			http.Error(w, "Judgment scores must be between 1 and 4", http.StatusBadRequest)
 			return
 		}
 		if err != nil {

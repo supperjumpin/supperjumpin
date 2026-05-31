@@ -39,3 +39,7 @@ worktrees/
 # OpenCode / OMO directories
 .omo/
 .opencode/
+
+# Untracked project scratch files
+conclave_repo/
+docs/issues/
