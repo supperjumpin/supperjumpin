@@ -43,3 +43,6 @@ jobs:
 
       - name: Run Go tests
         run: go test ./apps/api/...
+
+      - name: Verify sqlc generated code is fresh
+        run: npm run sqlc:generate && git diff --exit-code
