@@ -5,22 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
+
 type PostgresStore struct {
-	db *sql.DB
+	db      *sql.DB
+	queries *db.Queries
 }
+
 func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, error) {
-	db, err := sql.Open("pgx", databaseURL)
+	d, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		return nil, err
 	}
-	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+	if err := d.PingContext(ctx); err != nil {
+		d.Close()
 		return nil, err
 	}
-	return &PostgresStore{db: db}, nil
+	return &PostgresStore{
+		db:      d,
+		queries: db.New(d),
+	}, nil
 }
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
