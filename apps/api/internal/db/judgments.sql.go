@@ -10,18 +10,18 @@ import (
 	"database/sql"
 )
 
-const createJudgment = `-- name: CreateJudgment :exec
-INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
-ON CONFLICT (jump_id, player_id) 
-DO UPDATE SET 
-    difficulty = EXCLUDED.difficulty,
-    transgression = EXCLUDED.transgression,
-    creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation
+const getJudgment = `-- name: GetJudgment :one
+SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+FROM judgments
+WHERE jump_id = $1 AND player_id = $2
 `
 
-type CreateJudgmentParams struct {
+type GetJudgmentParams struct {
+	JumpID   string
+	PlayerID string
+}
+
+type GetJudgmentRow struct {
 	ID            string
 	JumpID        string
 	PlayerID      string
@@ -31,32 +31,9 @@ type CreateJudgmentParams struct {
 	Presentation  int32
 }
 
-func (q *Queries) CreateJudgment(ctx context.Context, arg CreateJudgmentParams) error {
-	_, err := q.db.ExecContext(ctx, createJudgment,
-		arg.ID,
-		arg.JumpID,
-		arg.PlayerID,
-		arg.Difficulty,
-		arg.Transgression,
-		arg.Creativity,
-		arg.Presentation,
-	)
-	return err
-}
-
-const getJudgment = `-- name: GetJudgment :one
-SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation, created_at FROM judgments
-WHERE jump_id = $1 AND player_id = $2
-`
-
-type GetJudgmentParams struct {
-	JumpID   string
-	PlayerID string
-}
-
-func (q *Queries) GetJudgment(ctx context.Context, arg GetJudgmentParams) (Judgment, error) {
+func (q *Queries) GetJudgment(ctx context.Context, arg GetJudgmentParams) (GetJudgmentRow, error) {
 	row := q.db.QueryRowContext(ctx, getJudgment, arg.JumpID, arg.PlayerID)
-	var i Judgment
+	var i GetJudgmentRow
 	err := row.Scan(
 		&i.ID,
 		&i.JumpID,
@@ -65,15 +42,61 @@ func (q *Queries) GetJudgment(ctx context.Context, arg GetJudgmentParams) (Judgm
 		&i.Transgression,
 		&i.Creativity,
 		&i.Presentation,
-		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listJudgmentsForJump = `-- name: ListJudgmentsForJump :many
+SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+FROM judgments
+WHERE jump_id = $1
+`
+
+type ListJudgmentsForJumpRow struct {
+	ID            string
+	JumpID        string
+	PlayerID      string
+	Difficulty    int32
+	Transgression int32
+	Creativity    int32
+	Presentation  int32
+}
+
+func (q *Queries) ListJudgmentsForJump(ctx context.Context, jumpID string) ([]ListJudgmentsForJumpRow, error) {
+	rows, err := q.db.QueryContext(ctx, listJudgmentsForJump, jumpID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListJudgmentsForJumpRow
+	for rows.Next() {
+		var i ListJudgmentsForJumpRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.JumpID,
+			&i.PlayerID,
+			&i.Difficulty,
+			&i.Transgression,
+			&i.Creativity,
+			&i.Presentation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listJumpsForJudging = `-- name: ListJumpsForJudging :many
 SELECT j.id, j.player_id, j.source, j.destination, j.food
 FROM jumps j
-WHERE j.group_id = $1 
+WHERE j.group_id = $1
   AND j.status = 'Performed Jump'
   AND j.player_id != $2
   AND NOT EXISTS (
@@ -123,4 +146,43 @@ func (q *Queries) ListJumpsForJudging(ctx context.Context, arg ListJumpsForJudgi
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertJudgment = `-- name: UpsertJudgment :one
+WITH upsert AS (
+  INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation)
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
+  ON CONFLICT (jump_id, player_id) DO UPDATE SET
+    difficulty = EXCLUDED.difficulty,
+    transgression = EXCLUDED.transgression,
+    creativity = EXCLUDED.creativity,
+    presentation = EXCLUDED.presentation
+  RETURNING (xmax = 0) AS created
+)
+SELECT created FROM upsert
+`
+
+type UpsertJudgmentParams struct {
+	ID            string
+	JumpID        string
+	PlayerID      string
+	Difficulty    int32
+	Transgression int32
+	Creativity    int32
+	Presentation  int32
+}
+
+func (q *Queries) UpsertJudgment(ctx context.Context, arg UpsertJudgmentParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, upsertJudgment,
+		arg.ID,
+		arg.JumpID,
+		arg.PlayerID,
+		arg.Difficulty,
+		arg.Transgression,
+		arg.Creativity,
+		arg.Presentation,
+	)
+	var created bool
+	err := row.Scan(&created)
+	return created, err
 }

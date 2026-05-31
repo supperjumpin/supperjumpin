@@ -51,3 +51,85 @@ func (q *Queries) GetPlayerByAccountID(ctx context.Context, accountID string) (G
 	err := row.Scan(&i.ID, &i.AccountID, &i.DisplayName)
 	return i, err
 }
+
+const getProfileByAuthIdentity = `-- name: GetProfileByAuthIdentity :one
+SELECT accounts.id, accounts.email, players.id, players.display_name
+FROM accounts
+JOIN auth_identities ON auth_identities.account_id = accounts.id
+JOIN players ON players.account_id = accounts.id
+WHERE auth_identities.provider = $1 AND auth_identities.subject = $2
+`
+
+type GetProfileByAuthIdentityParams struct {
+	Provider string
+	Subject  string
+}
+
+type GetProfileByAuthIdentityRow struct {
+	ID          string
+	Email       string
+	ID_2        string
+	DisplayName string
+}
+
+func (q *Queries) GetProfileByAuthIdentity(ctx context.Context, arg GetProfileByAuthIdentityParams) (GetProfileByAuthIdentityRow, error) {
+	row := q.db.QueryRowContext(ctx, getProfileByAuthIdentity, arg.Provider, arg.Subject)
+	var i GetProfileByAuthIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.ID_2,
+		&i.DisplayName,
+	)
+	return i, err
+}
+
+const insertAuthIdentity = `-- name: InsertAuthIdentity :exec
+INSERT INTO auth_identities (provider, subject, account_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (provider, subject) DO NOTHING
+`
+
+type InsertAuthIdentityParams struct {
+	Provider  string
+	Subject   string
+	AccountID string
+}
+
+func (q *Queries) InsertAuthIdentity(ctx context.Context, arg InsertAuthIdentityParams) error {
+	_, err := q.db.ExecContext(ctx, insertAuthIdentity, arg.Provider, arg.Subject, arg.AccountID)
+	return err
+}
+
+const insertPlayer = `-- name: InsertPlayer :exec
+INSERT INTO players (id, account_id, display_name)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO NOTHING
+`
+
+type InsertPlayerParams struct {
+	ID          string
+	AccountID   string
+	DisplayName string
+}
+
+func (q *Queries) InsertPlayer(ctx context.Context, arg InsertPlayerParams) error {
+	_, err := q.db.ExecContext(ctx, insertPlayer, arg.ID, arg.AccountID, arg.DisplayName)
+	return err
+}
+
+const upsertAccount = `-- name: UpsertAccount :exec
+INSERT INTO accounts (id, email)
+VALUES ($1, $2)
+ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email
+`
+
+type UpsertAccountParams struct {
+	ID    string
+	Email string
+}
+
+func (q *Queries) UpsertAccount(ctx context.Context, arg UpsertAccountParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAccount, arg.ID, arg.Email)
+	return err
+}
