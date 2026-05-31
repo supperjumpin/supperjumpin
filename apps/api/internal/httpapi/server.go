@@ -290,7 +290,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, idea)
 	})
-	mux.HandleFunc("POST /v1/ideas/{ideaID}/planned-stunt", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /v1/ideas/{ideaID}/planned-jump", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
@@ -306,7 +306,7 @@ func NewServer(config ServerConfig) http.Handler {
 			}
 		}
 		planned, ok, err := createPlannedStunt(r.Context(), config.DB, profile.Player, r.PathValue("ideaID"), request.OffSeason)
-		if errors.Is(err, ErrStuntNotFound) {
+		if errors.Is(err, ErrJumpNotFound) {
 			http.Error(w, "Idea not found", http.StatusNotFound)
 			return
 		}
@@ -321,7 +321,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, planned)
 	})
-	mux.HandleFunc("POST /v1/stunts/{stuntID}/evidence-upload-authorizations", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/evidence-upload-authorizations", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
@@ -340,9 +340,9 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		authorization, ok, err := authorizeEvidenceUpload(r.Context(), config.DB, profile.Player, r.PathValue("stuntID"), contentType)
-		if errors.Is(err, ErrStuntNotFound) {
-			http.Error(w, "Planned Stunt not found", http.StatusNotFound)
+		authorization, ok, err := authorizeEvidenceUpload(r.Context(), config.DB, profile.Player, r.PathValue("jumpID"), contentType)
+		if errors.Is(err, ErrJumpNotFound) {
+			http.Error(w, "Planned Jump not found", http.StatusNotFound)
 			return
 		}
 		if err != nil {
@@ -356,7 +356,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, authorization)
 	})
-	mux.HandleFunc("POST /v1/stunts/{stuntID}/evidence", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/evidence", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
@@ -377,9 +377,9 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		submission, ok, err := submitEvidence(r.Context(), config.DB, profile.Player, r.PathValue("stuntID"), uploadAuthorizationID, caption)
-		if errors.Is(err, ErrStuntNotFound) {
-			http.Error(w, "Planned Stunt not found", http.StatusNotFound)
+		submission, ok, err := submitEvidence(r.Context(), config.DB, profile.Player, r.PathValue("jumpID"), uploadAuthorizationID, caption)
+		if errors.Is(err, ErrJumpNotFound) {
+			http.Error(w, "Planned Jump not found", http.StatusNotFound)
 			return
 		}
 		if errors.Is(err, ErrEvidenceUploadAuthorizationNotFound) {
@@ -401,7 +401,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, submission)
 	})
-	mux.HandleFunc("POST /v1/stunts/{stuntID}/judgment", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/judgment", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
@@ -411,14 +411,14 @@ func NewServer(config ServerConfig) http.Handler {
 			Difficulty    *int `json:"difficulty"`
 			Transgression *int `json:"transgression"`
 			Creativity    *int `json:"creativity"`
-			Documentation *int `json:"documentation"`
+			Presentation  *int `json:"presentation"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		if request.Difficulty == nil || request.Transgression == nil || request.Creativity == nil || request.Documentation == nil {
-			http.Error(w, "difficulty, transgression, creativity, and documentation are required", http.StatusBadRequest)
+		if request.Difficulty == nil || request.Transgression == nil || request.Creativity == nil || request.Presentation == nil {
+			http.Error(w, "difficulty, transgression, creativity, and presentation are required", http.StatusBadRequest)
 			return
 		}
 
@@ -426,14 +426,14 @@ func NewServer(config ServerConfig) http.Handler {
 			r.Context(),
 			config.DB,
 			profile.Player,
-			r.PathValue("stuntID"),
+			r.PathValue("jumpID"),
 			*request.Difficulty,
 			*request.Transgression,
 			*request.Creativity,
-			*request.Documentation,
+			*request.Presentation,
 		)
-		if errors.Is(err, ErrStuntNotFound) {
-			http.Error(w, "Performed Stunt not found", http.StatusNotFound)
+		if errors.Is(err, ErrJumpNotFound) {
+			http.Error(w, "Performed Jump not found", http.StatusNotFound)
 			return
 		}
 		if errors.Is(err, ErrJudgingWindowClosed) {
@@ -459,7 +459,7 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 		writeJSON(w, status, judgment)
 	})
-	mux.HandleFunc("POST /v1/stunts/{stuntID}/disputes", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/disputes", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
@@ -480,9 +480,9 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		dispute, ok, err := createDispute(r.Context(), config.DB, profile.Player, r.PathValue("stuntID"), concern, details)
-		if errors.Is(err, ErrStuntNotFound) {
-			http.Error(w, "Visible Stunt not found", http.StatusNotFound)
+		dispute, ok, err := createDispute(r.Context(), config.DB, profile.Player, r.PathValue("jumpID"), concern, details)
+		if errors.Is(err, ErrJumpNotFound) {
+			http.Error(w, "Visible Jump not found", http.StatusNotFound)
 			return
 		}
 		if errors.Is(err, ErrInvalidDisputeConcern) {

@@ -6,8 +6,8 @@ import type {
   Judgment,
   ListGroupsResponse,
   MeResponse,
-  PerformedStuntView,
-  Stunt,
+  PerformedJumpView,
+  Jump,
 } from "./generated";
 
 export type {
@@ -23,10 +23,10 @@ export type {
   Judgment,
   ListGroupsResponse,
   MeResponse,
-  PerformedStuntView,
+  PerformedJumpView,
   Player,
   Season,
-  Stunt,
+  Jump,
 } from "./generated";
 
 export function getMe(args: {
@@ -84,20 +84,20 @@ export function createIdea(args: {
   destination: string;
   food: string;
   fetchImpl?: typeof fetch;
-}): Promise<Stunt>;
+}): Promise<Jump>;
 
-export function createPlannedStunt(args: {
+export function createPlannedJump(args: {
   baseUrl: string;
   accessToken: string;
   ideaId: string;
   offSeason?: boolean;
   fetchImpl?: typeof fetch;
-}): Promise<Stunt>;
+}): Promise<Jump>;
 
 export function authorizeEvidenceUpload(args: {
   baseUrl: string;
   accessToken: string;
-  stuntId: string;
+  jumpId: string;
   contentType: string;
   fetchImpl?: typeof fetch;
 }): Promise<EvidenceUploadAuthorization>;
@@ -105,7 +105,7 @@ export function authorizeEvidenceUpload(args: {
 export function submitEvidence(args: {
   baseUrl: string;
   accessToken: string;
-  stuntId: string;
+  jumpId: string;
   uploadAuthorizationId: string;
   caption: string;
   fetchImpl?: typeof fetch;
@@ -114,10 +114,10 @@ export function submitEvidence(args: {
 export function submitJudgment(args: {
   baseUrl: string;
   accessToken: string;
-  stuntId: string;
+  jumpId: string;
   difficulty: number;
   transgression: number;
   creativity: number;
-  documentation: number;
+  presentation: number;
   fetchImpl?: typeof fetch;
 }): Promise<Judgment>;

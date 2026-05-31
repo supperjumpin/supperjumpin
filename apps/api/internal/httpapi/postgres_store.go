@@ -585,7 +585,7 @@ func (s *PostgresStore) InsertDispute(ctx context.Context, stuntID, raisedByPlay
 	}
 	dispute := Dispute{
 		ID:               stableID("dispute", stuntID+":"+raisedByPlayerID+":"+strconv.Itoa(count+1)),
-		StuntID:          stuntID,
+		JumpID:           stuntID,
 		RaisedByPlayerID: raisedByPlayerID,
 		Concern:          concern,
 		Details:          details,
@@ -593,7 +593,7 @@ func (s *PostgresStore) InsertDispute(ctx context.Context, stuntID, raisedByPlay
 	}
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO disputes (id, stunt_id, raised_by_player_id, concern, details, status)
-VALUES ($1, $2, $3, $4, $5, $6)`, dispute.ID, dispute.StuntID, dispute.RaisedByPlayerID, dispute.Concern, dispute.Details, dispute.Status); err != nil {
+VALUES ($1, $2, $3, $4, $5, $6)`, dispute.ID, dispute.JumpID, dispute.RaisedByPlayerID, dispute.Concern, dispute.Details, dispute.Status); err != nil {
 		return game.DisputeSnapshot{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -1106,7 +1106,7 @@ type stuntViewQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedStuntView, error) {
+func recentPerformedStuntsForGroupQuery(ctx context.Context, queryer stuntViewQueryer, groupID string) ([]PerformedJumpView, error) {
 	rows, err := queryer.QueryContext(ctx, `
 SELECT stunts.id, stunts.group_id, stunts.player_id, stunts.season_id, stunts.status, stunts.source, stunts.destination, stunts.food, stunts.final_score,
        evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
@@ -1121,9 +1121,9 @@ ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 	}
 	defer rows.Close()
 
-	performed := []PerformedStuntView{}
+	performed := []PerformedJumpView{}
 	for rows.Next() {
-		var stunt Stunt
+		var stunt Jump
 		var seasonID sql.NullString
 		var evidence Evidence
 		var performer Player
@@ -1156,7 +1156,7 @@ ORDER BY evidences.created_at DESC, stunts.id DESC`, groupID)
 		if err != nil {
 			return nil, err
 		}
-		performed = append(performed, PerformedStuntView{Stunt: stunt, Performer: performer, Evidence: evidence, Disputes: disputes})
+		performed = append(performed, PerformedJumpView{Jump: jumpForResponse(stunt), Performer: performer, Evidence: evidence, Disputes: disputes})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1188,7 +1188,7 @@ ORDER BY created_at ASC, id ASC`, stuntID)
 		var overrideByPlayerID sql.NullString
 		if err := rows.Scan(
 			&dispute.ID,
-			&dispute.StuntID,
+			&dispute.JumpID,
 			&dispute.RaisedByPlayerID,
 			&dispute.Concern,
 			&dispute.Details,
@@ -1243,7 +1243,7 @@ SELECT id, stunt_id, raised_by_player_id, concern, details, status,
 FROM disputes
 WHERE id = $1`, disputeID).Scan(
 		&dispute.ID,
-		&dispute.StuntID,
+		&dispute.JumpID,
 		&dispute.RaisedByPlayerID,
 		&dispute.Concern,
 		&dispute.Details,
