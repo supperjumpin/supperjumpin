@@ -34,7 +34,10 @@ type ServerConfig struct {
 
 func NewServer(config ServerConfig) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/me", func(w http.ResponseWriter, r *http.Request) {
+	// Liveness check for load balancers - intentionally unauthenticated
+	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
