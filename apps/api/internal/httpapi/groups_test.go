@@ -1,501 +1,2052 @@
-     1|     1|     1|     1|package httpapi_test
-     2|     2|     2|     2|
-     3|     3|     3|     3|import (
-     4|     4|     4|     4|	"bytes"
-     5|     5|     5|     5|	"context"
-     6|     6|     6|     6|	"database/sql"
-     7|     7|     7|     7|	"encoding/json"
-     8|     8|     8|     8|	"net/http"
-     9|     9|     9|     9|	"net/http/httptest"
-    10|    10|    10|    10|	"os"
-    11|    11|    11|    11|	"sort"
-    12|    12|    12|    12|	"sync"
-    13|    13|    13|    13|	"testing"
-    14|    14|    14|    14|	"time"
-    15|    15|    15|    15|
-    16|    16|    16|    16|	_ "github.com/jackc/pgx/v5/stdlib"
-    17|    17|    17|    17|
-    18|    18|    18|    18|	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
-    19|    19|    19|    19|)
-    20|    20|    20|    20|
-    21|    21|    21|    21|func TestCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.T) {
-    22|    22|    22|    22|	server := newGroupsTestServer()
-    23|    23|    23|    23|
-    24|    24|    24|    24|	createRec := doJSON(server, http.MethodPost, "/v1/groups", "alice-token", map[string]string{"name": "Breakfast Crew"})
-    25|    25|    25|    25|	if createRec.Code != http.StatusCreated {
-    26|    26|    26|    26|		t.Fatalf("expected status 201, got %d: %s", createRec.Code, createRec.Body.String())
-    27|    27|    27|    27|	}
-    28|    28|    28|    28|
-    29|    29|    29|    29|	var created struct {
-    30|    30|    30|    30|		Group struct {
-    31|    31|    31|    31|			ID   string `json:"id"`
-    32|    32|    32|    32|			Name string `json:"name"`
-    33|    33|    33|    33|		} `json:"group"`
-    34|    34|    34|    34|		Membership struct {
-    35|    35|    35|    35|			PlayerID string `json:"playerId"`
-    36|    36|    36|    36|			Role     string `json:"role"`
-    37|    37|    37|    37|		} `json:"membership"`
-    38|    38|    38|    38|		ActiveSeason any   `json:"activeSeason"`
-    39|    39|    39|    39|		RecentJumps []any `json:"recentJumps"`
-    40|    40|    40|    40|		Standings    []any `json:"standings"`
-    41|    41|    41|    41|	}
-    42|    42|    42|    42|	decodeResponse(t, createRec, &created)
-    43|    43|    43|    43|
-    44|    44|    44|    44|	if created.Group.ID == "" {
-    45|    45|    45|    45|		t.Fatalf("expected created Group to have an id")
-    46|    46|    46|    46|	}
-    47|    47|    47|    47|	if created.Group.Name != "Breakfast Crew" {
-    48|    48|    48|    48|		t.Fatalf("expected Group name from request, got %q", created.Group.Name)
-    49|    49|    49|    49|	}
-    50|    50|    50|    50|	if created.Membership.PlayerID == "" {
-    51|    51|    51|    51|		t.Fatalf("expected Group Membership to identify the Player")
-    52|    52|    52|    52|	}
-    53|    53|    53|    53|	if created.Membership.Role != "Group Admin" {
-    54|    54|    54|    54|		t.Fatalf("expected creator to become Group Admin, got %q", created.Membership.Role)
-    55|    55|    55|    55|	}
-    56|    56|    56|    56|	if created.ActiveSeason != nil {
-    57|    57|    57|    57|		t.Fatalf("expected no Active Season, got %#v", created.ActiveSeason)
-    58|    58|    58|    58|	}
-    59|    59|    59|    59|	if len(created.RecentJumps) != 0 {
-    60|    60|    60|    60|		t.Fatalf("expected no recent Jumps, got %#v", created.RecentJumps)
-    61|    61|    61|    61|	}
-    62|    62|    62|    62|	if len(created.Standings) != 0 {
-    63|    63|    63|    63|		t.Fatalf("expected empty Standings, got %#v", created.Standings)
-    64|    64|    64|    64|	}
-    65|    65|    65|    65|
-    66|    66|    66|    66|	homeRec := doJSON(server, http.MethodGet, "/v1/groups/"+created.Group.ID+"/home", "alice-token", nil)
-    67|    67|    67|    67|	if homeRec.Code != http.StatusOK {
-    68|    68|    68|    68|		t.Fatalf("expected status 200, got %d: %s", homeRec.Code, homeRec.Body.String())
-    69|    69|    69|    69|	}
-    70|    70|    70|    70|	var home struct {
-    71|    71|    71|    71|		Group struct {
-    72|    72|    72|    72|			ID string `json:"id"`
-    73|    73|    73|    73|		} `json:"group"`
-    74|    74|    74|    74|		Membership struct {
-    75|    75|    75|    75|			Role string `json:"role"`
-    76|    76|    76|    76|		} `json:"membership"`
-    77|    77|    77|    77|	}
-    78|    78|    78|    78|	decodeResponse(t, homeRec, &home)
-    79|    79|    79|    79|	if home.Group.ID != created.Group.ID || home.Membership.Role != "Group Admin" {
-    80|    80|    80|    80|		t.Fatalf("expected backend Group home for created Group, got %#v", home)
-    81|    81|    81|    81|	}
-    82|    82|    82|    82|}
-    83|    83|    83|    83|
-    84|    84|    84|    84|func TestSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
-    85|    85|    85|    85|	server := newGroupsTestServer()
-    86|    86|    86|    86|
-    87|    87|    87|    87|	breakfast := createGroup(t, server, "alice-token", "Breakfast Crew")
-    88|    88|    88|    88|	dinner := createGroup(t, server, "alice-token", "Dinner Weirdos")
-    89|    89|    89|    89|
-    90|    90|    90|    90|	listRec := doJSON(server, http.MethodGet, "/v1/groups", "alice-token", nil)
-    91|    91|    91|    91|	if listRec.Code != http.StatusOK {
-    92|    92|    92|    92|		t.Fatalf("expected status 200, got %d: %s", listRec.Code, listRec.Body.String())
-    93|    93|    93|    93|	}
-    94|    94|    94|    94|	var list struct {
-    95|    95|    95|    95|		Memberships []struct {
-    96|    96|    96|    96|			Group struct {
-    97|    97|    97|    97|				ID   string `json:"id"`
-    98|    98|    98|    98|				Name string `json:"name"`
-    99|    99|    99|    99|			} `json:"group"`
-   100|   100|   100|   100|			Membership struct {
-   101|   101|   101|   101|				Role string `json:"role"`
-   102|   102|   102|   102|			} `json:"membership"`
-   103|   103|   103|   103|		} `json:"memberships"`
-   104|   104|   104|   104|	}
-   105|   105|   105|   105|	decodeResponse(t, listRec, &list)
-   106|   106|   106|   106|	if len(list.Memberships) != 2 {
-   107|   107|   107|   107|		t.Fatalf("expected two Group Memberships, got %#v", list.Memberships)
-   108|   108|   108|   108|	}
-   109|   109|   109|   109|
-   110|   110|   110|   110|	breakfastHome := getGroupHome(t, server, "alice-token", breakfast.Group.ID)
-   111|   111|   111|   111|	dinnerHome := getGroupHome(t, server, "alice-token", dinner.Group.ID)
-   112|   112|   112|   112|	if breakfastHome.Group.Name != "Breakfast Crew" {
-   113|   113|   113|   113|		t.Fatalf("expected switched Group home for Breakfast Crew, got %#v", breakfastHome.Group)
-   114|   114|   114|   114|	}
-   115|   115|   115|   115|	if dinnerHome.Group.Name != "Dinner Weirdos" {
-   116|   116|   116|   116|		t.Fatalf("expected switched Group home for Dinner Weirdos, got %#v", dinnerHome.Group)
-   117|   117|   117|   117|	}
-   118|   118|   118|   118|}
-   119|   119|   119|   119|
-   120|   120|   120|   120|func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
-   121|   121|   121|   121|	server := newGroupsTestServer()
-   122|   122|   122|   122|	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
-   123|   123|   123|   123|
-   124|   124|   124|   124|	rec := doJSON(server, http.MethodGet, "/v1/groups/"+aliceGroup.Group.ID+"/home", "bob-token", nil)
-   125|   125|   125|   125|	if rec.Code != http.StatusForbidden {
-   126|   126|   126|   126|		t.Fatalf("expected status 403, got %d: %s", rec.Code, rec.Body.String())
-   127|   127|   127|   127|	}
-   128|   128|   128|   128|}
-   129|   129|   129|   129|
-   130|   130|   130|   130|func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory(t *testing.T) {
-   131|   131|   131|   131|	server := newGroupsTestServer()
-   132|   132|   132|   132|	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
-   133|   133|   133|   133|	bobExistingGroup := createGroup(t, server, "bob-token", "Dinner Weirdos")
-   134|   134|   134|   134|
-   135|   135|   135|   135|	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
-   136|   136|   136|   136|	if invite.ID == "" || invite.GroupID != aliceGroup.Group.ID || invite.Token == "" {
-   137|   137|   137|   137|		t.Fatalf("expected Invite for Alice's Group, got %#v", invite)
-   138|   138|   138|   138|	}
-   139|   139|   139|   139|
-   140|   140|   140|   140|	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   141|   141|   141|   141|	if acceptRec.Code != http.StatusOK {
-   142|   142|   142|   142|		t.Fatalf("expected status 200, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-   143|   143|   143|   143|	}
-   144|   144|   144|   144|	var accepted groupHomeBody
-   145|   145|   145|   145|	decodeResponse(t, acceptRec, &accepted)
-   146|   146|   146|   146|	if accepted.Group.ID != aliceGroup.Group.ID || accepted.Membership.Role != "Player" {
-   147|   147|   147|   147|		t.Fatalf("expected Bob to join Alice's Group as Player, got %#v", accepted)
-   148|   148|   148|   148|	}
-   149|   149|   149|   149|
-   150|   150|   150|   150|	joinedHome := getGroupHome(t, server, "bob-token", aliceGroup.Group.ID)
-   151|   151|   151|   151|	if joinedHome.Group.Name != "Breakfast Crew" || joinedHome.Membership.Role != "Player" {
-   152|   152|   152|   152|		t.Fatalf("expected Bob to open invited Group home, got %#v", joinedHome)
-   153|   153|   153|   153|	}
-   154|   154|   154|   154|	stillOwnHome := getGroupHome(t, server, "bob-token", bobExistingGroup.Group.ID)
-   155|   155|   155|   155|	if stillOwnHome.Group.Name != "Dinner Weirdos" || stillOwnHome.Membership.Role != "Group Admin" {
-   156|   156|   156|   156|		t.Fatalf("expected Bob's existing play history to remain, got %#v", stillOwnHome)
-   157|   157|   157|   157|	}
-   158|   158|   158|   158|}
-   159|   159|   159|   159|
-   160|   160|   160|   160|func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
-   161|   161|   161|   161|	server := newGroupsTestServer()
-   162|   162|   162|   162|	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
-   163|   163|   163|   163|	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
-   164|   164|   164|   164|
-   165|   165|   165|   165|	first := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   166|   166|   166|   166|	if first.Code != http.StatusOK {
-   167|   167|   167|   167|		t.Fatalf("expected first accept status 200, got %d: %s", first.Code, first.Body.String())
-   168|   168|   168|   168|	}
-   169|   169|   169|   169|
-   170|   170|   170|   170|	second := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "carol-token", nil)
-   171|   171|   171|   171|	if second.Code != http.StatusConflict {
-   172|   172|   172|   172|		t.Fatalf("expected already-used Invite status 409, got %d: %s", second.Code, second.Body.String())
-   173|   173|   173|   173|	}
-   174|   174|   174|   174|}
-   175|   175|   175|   175|
-   176|   176|   176|   176|func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) {
-   177|   177|   177|   177|	server := newGroupsTestServer()
-   178|   178|   178|   178|	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
-   179|   179|   179|   179|	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
-   180|   180|   180|   180|
-   181|   181|   181|   181|	aliceAccept := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
-   182|   182|   182|   182|	if aliceAccept.Code != http.StatusConflict {
-   183|   183|   183|   183|		t.Fatalf("expected existing member Invite accept status 409, got %d: %s", aliceAccept.Code, aliceAccept.Body.String())
-   184|   184|   184|   184|	}
-   185|   185|   185|   185|
-   186|   186|   186|   186|	bobAccept := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   187|   187|   187|   187|	if bobAccept.Code != http.StatusOK {
-   188|   188|   188|   188|		t.Fatalf("expected Invite to remain usable for Bob, got %d: %s", bobAccept.Code, bobAccept.Body.String())
-   189|   189|   189|   189|	}
-   190|   190|   190|   190|}
-   191|   191|   191|   191|
-   192|   192|   192|   192|func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
-   193|   193|   193|   193|	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
-   194|   194|   194|   194|		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-   195|   195|   195|   195|	})
-   196|   196|   196|   196|	server := newGroupsTestServerWithStore(store)
-   197|   197|   197|   197|	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
-   198|   198|   198|   198|	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
-   199|   199|   199|   199|
-   200|   200|   200|   200|	store.SetClock(func() time.Time {
-   201|   201|   201|   201|		return time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
-   202|   202|   202|   202|	})
-   203|   203|   203|   203|	rec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   204|   204|   204|   204|	if rec.Code != http.StatusGone {
-   205|   205|   205|   205|		t.Fatalf("expected expired Invite status 410, got %d: %s", rec.Code, rec.Body.String())
-   206|   206|   206|   206|	}
-   207|   207|   207|   207|}
-   208|   208|   208|   208|
-   209|   209|   209|   209|func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
-   210|   210|   210|   210|	server := newGroupsTestServer()
-   211|   211|   211|   211|
-   212|   212|   212|   212|	rec := doJSON(server, http.MethodPost, "/v1/invites/not-a-real-invite/accept", "bob-token", nil)
-   213|   213|   213|   213|	if rec.Code != http.StatusNotFound {
-   214|   214|   214|   214|		t.Fatalf("expected invalid Invite status 404, got %d: %s", rec.Code, rec.Body.String())
-   215|   215|   215|   215|	}
-   216|   216|   216|   216|}
-   217|   217|   217|   217|
-   218|   218|   218|   218|func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
-   219|   219|   219|   219|	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
-   220|   220|   220|   220|		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-   221|   221|   221|   221|	})
-   222|   222|   222|   222|	server := newGroupsTestServerWithStore(store)
-   223|   223|   223|   223|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   224|   224|   224|   224|	startSeasonWithDeadlines(
-   225|   225|   225|   225|		t,
-   226|   226|   226|   226|		server,
-   227|   227|   227|   227|		"alice-token",
-   228|   228|   228|   228|		group.Group.ID,
-   229|   229|   229|   229|		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
-   230|   230|   230|   230|		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
-   231|   231|   231|   231|	)
-   232|   232|   232|   232|	invite := createInvite(t, server, "alice-token", group.Group.ID)
-   233|   233|   233|   233|	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   234|   234|   234|   234|	if acceptRec.Code != http.StatusOK {
-   235|   235|   235|   235|		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-   236|   236|   236|   236|	}
-   237|   237|   237|   237|	performed := performJump(t, server, "alice-token", group.Group.ID)
-   238|   238|   238|   238|	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
-   239|   239|   239|   239|
-   240|   240|   240|   240|	store.SetClock(func() time.Time {
-   241|   241|   241|   241|		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
-   242|   242|   242|   242|	})
-   243|   243|   243|   243|
-   244|   244|   244|   244|	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
-   245|   245|   245|   245|	if carolAcceptRec.Code != http.StatusOK {
-   246|   246|   246|   246|		t.Fatalf("expected Carol to join Group after judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
-   247|   247|   247|   247|	}
-   248|   248|   248|   248|	var accepted groupHomeBody
-   249|   249|   249|   249|	decodeResponse(t, carolAcceptRec, &accepted)
-   250|   250|   250|   250|	if len(accepted.Standings) != 1 {
-   251|   251|   251|   251|		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
-   252|   252|   252|   252|	}
-   253|   253|   253|   253|	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedJumps != 1 {
-   254|   254|   254|   254|		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
-   255|   255|   255|   255|	}
-   256|   256|   256|   256|}
-   257|   257|   257|   257|
-   258|   258|   258|   258|func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
-   259|   259|   259|   259|	server := newGroupsTestServer()
-   260|   260|   260|   260|	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
-   261|   261|   261|   261|
-   262|   262|   262|   262|	rec := doJSON(server, http.MethodPost, "/v1/groups/"+aliceGroup.Group.ID+"/invites", "bob-token", nil)
-   263|   263|   263|   263|	if rec.Code != http.StatusForbidden {
-   264|   264|   264|   264|		t.Fatalf("expected non-member Invite creation status 403, got %d: %s", rec.Code, rec.Body.String())
-   265|   265|   265|   265|	}
-   266|   266|   266|   266|}
-   267|   267|   267|   267|
-   268|   268|   268|   268|func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
-   269|   269|   269|   269|	server := newGroupsTestServer()
-   270|   270|   270|   270|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   271|   271|   271|   271|
-   272|   272|   272|   272|	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
-   273|   273|   273|   273|		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
-   274|   274|   274|   274|		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
-   275|   275|   275|   275|	})
-   276|   276|   276|   276|	if startRec.Code != http.StatusCreated {
-   277|   277|   277|   277|		t.Fatalf("expected status 201, got %d: %s", startRec.Code, startRec.Body.String())
-   278|   278|   278|   278|	}
-   279|   279|   279|   279|
-   280|   280|   280|   280|	var started groupHomeBody
-   281|   281|   281|   281|	decodeResponse(t, startRec, &started)
-   282|   282|   282|   282|	if started.ActiveSeason == nil {
-   283|   283|   283|   283|		t.Fatalf("expected Active Season on start response")
-   284|   284|   284|   284|	}
-   285|   285|   285|   285|	if started.ActiveSeason.Status != "Active" {
-   286|   286|   286|   286|		t.Fatalf("expected Active Season status, got %q", started.ActiveSeason.Status)
-   287|   287|   287|   287|	}
-   288|   288|   288|   288|	if started.ActiveSeason.CommissionerPlayerID != group.Membership.PlayerID {
-   289|   289|   289|   289|		t.Fatalf("expected starting Player to be Season Commissioner, got %#v", started.ActiveSeason)
-   290|   290|   290|   290|	}
-   291|   291|   291|   291|	if len(started.Standings) != 0 {
-   292|   292|   292|   292|		t.Fatalf("expected empty Standings, got %#v", started.Standings)
-   293|   293|   293|   293|	}
-   294|   294|   294|   294|
-   295|   295|   295|   295|	home := getGroupHome(t, server, "alice-token", group.Group.ID)
-   296|   296|   296|   296|	if home.ActiveSeason == nil || home.ActiveSeason.ID != started.ActiveSeason.ID {
-   297|   297|   297|   297|		t.Fatalf("expected Group home to show backend Active Season, got %#v", home.ActiveSeason)
-   298|   298|   298|   298|	}
-   299|   299|   299|   299|	if len(home.Standings) != 0 {
-   300|   300|   300|   300|		t.Fatalf("expected empty Standings on Group home, got %#v", home.Standings)
-   301|   301|   301|   301|	}
-   302|   302|   302|   302|}
-   303|   303|   303|   303|
-   304|   304|   304|   304|func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePeriod(t *testing.T) {
-   305|   305|   305|   305|	server := newGroupsTestServer()
-   306|   306|   306|   306|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   307|   307|   307|   307|	season := startSeason(t, server, "alice-token", group.Group.ID)
-   308|   308|   308|   308|	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
-   309|   309|   309|   309|	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
-   310|   310|   310|   310|	authorization := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
-   311|   311|   311|   311|
-   312|   312|   312|   312|	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
-   313|   313|   313|   313|	if closeRec.Code != http.StatusOK {
-   314|   314|   314|   314|		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
-   315|   315|   315|   315|	}
-   316|   316|   316|   316|	var closed groupHomeBody
-   317|   317|   317|   317|	decodeResponse(t, closeRec, &closed)
-   318|   318|   318|   318|	if closed.ActiveSeason == nil || closed.ActiveSeason.ID != season.ActiveSeason.ID || closed.ActiveSeason.Status != "Judging Grace Period" {
-   319|   319|   319|   319|		t.Fatalf("expected Season to move into Judging Grace Period, got %#v", closed.ActiveSeason)
-   320|   320|   320|   320|	}
-   321|   321|   321|   321|
-   322|   322|   322|   322|	submitRec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", "alice-token", map[string]string{
-   323|   323|   323|   323|		"uploadAuthorizationId": authorization.ID,
-   324|   324|   324|   324|		"caption":               "Too late for competition.",
-   325|   325|   325|   325|	})
-   326|   326|   326|   326|	if submitRec.Code != http.StatusConflict {
-   327|   327|   327|   327|		t.Fatalf("expected closed submission status 409, got %d: %s", submitRec.Code, submitRec.Body.String())
-   328|   328|   328|   328|	}
-   329|   329|   329|   329|}
-   330|   330|   330|   330|
-   331|   331|   331|   331|func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
-   332|   332|   332|   332|	server := newGroupsTestServer()
-   333|   333|   333|   333|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   334|   334|   334|   334|	season := startSeason(t, server, "alice-token", group.Group.ID)
-   335|   335|   335|   335|	invite := createInvite(t, server, "alice-token", group.Group.ID)
-   336|   336|   336|   336|	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   337|   337|   337|   337|	if acceptRec.Code != http.StatusOK {
-   338|   338|   338|   338|		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-   339|   339|   339|   339|	}
-   340|   340|   340|   340|	performed := performJump(t, server, "alice-token", group.Group.ID)
-   341|   341|   341|   341|
-   342|   342|   342|   342|	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
-   343|   343|   343|   343|	if closeRec.Code != http.StatusOK {
-   344|   344|   344|   344|		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
-   345|   345|   345|   345|	}
-   346|   346|   346|   346|
-   347|   347|   347|   347|	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
-   348|   348|   348|   348|	if judgment.JumpID != performed.Jump.ID || judgment.PlayerID == performed.Jump.PlayerID {
-   349|   349|   349|   349|		t.Fatalf("expected eligible Judge to score existing Performed Jump during Judging Grace Period, got %#v", judgment)
-   350|   350|   350|   350|	}
-   351|   351|   351|   351|}
-   352|   352|   352|   352|
-   353|   353|   353|   353|func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
-   354|   354|   354|   354|	server := newGroupsTestServer()
-   355|   355|   355|   355|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   356|   356|   356|   356|	season := startSeason(t, server, "alice-token", group.Group.ID)
-   357|   357|   357|   357|	invite := createInvite(t, server, "alice-token", group.Group.ID)
-   358|   358|   358|   358|	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-   359|   359|   359|   359|	if acceptRec.Code != http.StatusOK {
-   360|   360|   360|   360|		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-   361|   361|   361|   361|	}
-   362|   362|   362|   362|	performed := performJump(t, server, "alice-token", group.Group.ID)
-   363|   363|   363|   363|	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
-   364|   364|   364|   364|
-   365|   365|   365|   365|	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
-   366|   366|   366|   366|	if closeRec.Code != http.StatusOK {
-   367|   367|   367|   367|		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
-   368|   368|   368|   368|	}
-   369|   369|   369|   369|
-   370|   370|   370|   370|	finalizeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/finalize", "alice-token", nil)
-   371|   371|   371|   371|	if finalizeRec.Code != http.StatusOK {
-   372|   372|   372|   372|		t.Fatalf("expected status 200, got %d: %s", finalizeRec.Code, finalizeRec.Body.String())
-   373|   373|   373|   373|	}
-   374|   374|   374|   374|	var finalized groupHomeBody
-   375|   375|   375|   375|	decodeResponse(t, finalizeRec, &finalized)
-   376|   376|   376|   376|	if finalized.ActiveSeason != nil {
-   377|   377|   377|   377|		t.Fatalf("expected Finalized Season to no longer be open, got %#v", finalized.ActiveSeason)
-   378|   378|   378|   378|	}
-   379|   379|   379|   379|	if len(finalized.Standings) != 1 || finalized.Standings[0].SeasonScore != 14 || finalized.Standings[0].JudgedJumps != 1 {
-   380|   380|   380|   380|		t.Fatalf("expected locked Standings with Alice on 14 from one Judged Jump, got %#v", finalized.Standings)
-   381|   381|   381|   381|	}
-   382|   382|   382|   382|
-   383|   383|   383|   383|	editRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
-   384|   384|   384|   384|		"commitment":    10,
-   385|   385|   385|   385|		"transgression": 10,
-   386|   386|   386|   386|		"creativity":    10,
-   387|   387|   387|   387|		"presentation": 10,
-   388|   388|   388|   388|	})
-   389|   389|   389|   389|	if editRec.Code != http.StatusConflict {
-   390|   390|   390|   390|		t.Fatalf("expected Finalized Season to lock remaining Judging Windows, got %d: %s", editRec.Code, editRec.Body.String())
-   391|   391|   391|   391|	}
-   392|   392|   392|   392|}
-   393|   393|   393|   393|
-   394|   394|   394|   394|func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
-   395|   395|   395|   395|	server := newGroupsTestServer()
-   396|   396|   396|   396|	group := createGroup(t, server, "bob-token", "Breakfast Crew")
-   397|   397|   397|   397|	invite := createInvite(t, server, "bob-token", group.Group.ID)
-   398|   398|   398|   398|	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
-   399|   399|   399|   399|	if acceptRec.Code != http.StatusOK {
-   400|   400|   400|   400|		t.Fatalf("expected Alice to join Group before starting Season, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-   401|   401|   401|   401|	}
-   402|   402|   402|   402|	season := startSeason(t, server, "alice-token", group.Group.ID)
-   403|   403|   403|   403|	performed := performJump(t, server, "alice-token", group.Group.ID)
-   404|   404|   404|   404|
-   405|   405|   405|   405|	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "bob-token", nil)
-   406|   406|   406|   406|	if closeRec.Code != http.StatusOK {
-   407|   407|   407|   407|		t.Fatalf("expected Group Admin override close status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
-   408|   408|   408|   408|	}
-   409|   409|   409|   409|
-   410|   410|   410|   410|	finalizeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/finalize", "bob-token", nil)
-   411|   411|   411|   411|	if finalizeRec.Code != http.StatusOK {
-   412|   412|   412|   412|		t.Fatalf("expected Group Admin override finalize status 200, got %d: %s", finalizeRec.Code, finalizeRec.Body.String())
-   413|   413|   413|   413|	}
-   414|   414|   414|   414|
-   415|   415|   415|   415|	history := getSeasonHistory(t, server, "alice-token", season.ActiveSeason.ID)
-   416|   416|   416|   416|	if len(history.Entries) != 2 {
-   417|   417|   417|   417|		t.Fatalf("expected two visible override actions in Season history, got %#v", history.Entries)
-   418|   418|   418|   418|	}
-   419|   419|   419|   419|	if history.Entries[0].Action != "Submissions Closed" || history.Entries[0].ActorPlayerID != group.Membership.PlayerID || !history.Entries[0].Override || history.Entries[0].ActorRole != "Group Admin" {
-   420|   420|   420|   420|		t.Fatalf("expected visible Group Admin close override entry, got %#v", history.Entries[0])
-   421|   421|   421|   421|	}
-   422|   422|   422|   422|	if history.Entries[1].Action != "Season Finalized" || history.Entries[1].ActorPlayerID != group.Membership.PlayerID || !history.Entries[1].Override || history.Entries[1].ActorRole != "Group Admin" {
-   423|   423|   423|   423|		t.Fatalf("expected visible Group Admin finalize override entry, got %#v", history.Entries[1])
-   424|   424|   424|   424|	}
-   425|   425|   425|   425|	if history.Entries[1].ToStatus != "Finalized" {
-   426|   426|   426|   426|		t.Fatalf("expected finalized status in Season history, got %#v", history.Entries[1])
-   427|   427|   427|   427|	}
-   428|   428|   428|   428|
-   429|   429|   429|   429|	editRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
-   430|   430|   430|   430|		"commitment":    1,
-   431|   431|   431|   431|		"transgression": 1,
-   432|   432|   432|   432|		"creativity":    1,
-   433|   433|   433|   433|		"presentation": 1,
-   434|   434|   434|   434|	})
-   435|   435|   435|   435|	if editRec.Code != http.StatusConflict {
-   436|   436|   436|   436|		t.Fatalf("expected Group Admin finalization override to cap remaining Judging Windows, got %d: %s", editRec.Code, editRec.Body.String())
-   437|   437|   437|   437|	}
-   438|   438|   438|   438|}
-   439|   439|   439|   439|
-   440|   440|   440|   440|func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *testing.T) {
-   441|   441|   441|   441|	server := newGroupsTestServer()
-   442|   442|   442|   442|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   443|   443|   443|   443|	season := startSeason(t, server, "alice-token", group.Group.ID)
-   444|   444|   444|   444|
-   445|   445|   445|   445|	ideaRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "alice-token", map[string]string{
-   446|   446|   446|   446|		"source":      "Taco Bell",
-   447|   447|   447|   447|		"destination": "Olive Garden parking lot",
-   448|   448|   448|   448|		"food":        "Crunchwrap",
-   449|   449|   449|   449|	})
-   450|   450|   450|   450|	if ideaRec.Code != http.StatusCreated {
-   451|   451|   451|   451|		t.Fatalf("expected Idea status 201, got %d: %s", ideaRec.Code, ideaRec.Body.String())
-   452|   452|   452|   452|	}
-   453|   453|   453|   453|	var idea jumpBody
-   454|   454|   454|   454|	decodeResponse(t, ideaRec, &idea)
-   455|   455|   455|   455|	if idea.ID == "" || idea.GroupID != group.Group.ID || idea.PlayerID != group.Membership.PlayerID {
-   456|   456|   456|   456|		t.Fatalf("expected Group-scoped Idea for Alice, got %#v", idea)
-   457|   457|   457|   457|	}
-   458|   458|   458|   458|	if idea.Status != "Idea" || idea.SeasonID != nil || !idea.OffSeason {
-   459|   459|   459|   459|		t.Fatalf("expected Off-Season Idea before planning, got %#v", idea)
-   460|   460|   460|   460|	}
-   461|   461|   461|   461|
-   462|   462|   462|   462|	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "alice-token", nil)
-   463|   463|   463|   463|	if planRec.Code != http.StatusCreated {
-   464|   464|   464|   464|		t.Fatalf("expected Planned Jump status 201, got %d: %s", planRec.Code, planRec.Body.String())
-   465|   465|   465|   465|	}
-   466|   466|   466|   466|	var planned jumpBody
-   467|   467|   467|   467|	decodeResponse(t, planRec, &planned)
-   468|   468|   468|   468|	if planned.ID != idea.ID || planned.Status != "Planned Jump" {
-   469|   469|   469|   469|		t.Fatalf("expected same Jump to become a Planned Jump, got %#v", planned)
-   470|   470|   470|   470|	}
-   471|   471|   471|   471|	if planned.GroupID != group.Group.ID {
-   472|   472|   472|   472|		t.Fatalf("expected Planned Jump to belong to exactly one Group %q, got %q", group.Group.ID, planned.GroupID)
-   473|   473|   473|   473|	}
-   474|   474|   474|   474|	if planned.SeasonID == nil || *planned.SeasonID != season.ActiveSeason.ID || planned.OffSeason {
-   475|   475|   475|   475|		t.Fatalf("expected Planned Jump to be Season-linked by default, got %#v", planned)
-   476|   476|   476|   476|	}
-   477|   477|   477|   477|	if planned.Source != "Taco Bell" || planned.Destination != "Olive Garden parking lot" || planned.Food != "Crunchwrap" {
-   478|   478|   478|   478|		t.Fatalf("expected Source, Destination, and Food from Idea, got %#v", planned)
-   479|   479|   479|   479|	}
-   480|   480|   480|   480|}
-   481|   481|   481|   481|
-   482|   482|   482|   482|func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
-   483|   483|   483|   483|	server := newGroupsTestServer()
-   484|   484|   484|   484|	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-   485|   485|   485|   485|	startSeason(t, server, "alice-token", group.Group.ID)
-   486|   486|   486|   486|	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
-   487|   487|   487|   487|
-   488|   488|   488|   488|	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "alice-token", map[string]bool{"offSeason": true})
-   489|   489|   489|   489|	if planRec.Code != http.StatusCreated {
-   490|   490|   490|   490|		t.Fatalf("expected Planned Jump status 201, got %d: %s", planRec.Code, planRec.Body.String())
-   491|   491|   491|   491|	}
-   492|   492|   492|   492|	var planned jumpBody
-   493|   493|   493|   493|	decodeResponse(t, planRec, &planned)
-   494|   494|   494|   494|	if planned.SeasonID != nil || !planned.OffSeason {
-   495|   495|   495|   495|		t.Fatalf("expected explicit Off-Season Jump, got %#v", planned)
-   496|   496|   496|   496|	}
-   497|   497|   497|   497|}
-   498|   498|   498|   498|
-   499|   499|   499|   499|func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
-   500|   500|   500|   500|	server := newGroupsTestServer()
-   501|
+package httpapi_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"sort"
+	"sync"
+	"testing"
+	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
+)
+
+func TestCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.T) {
+	server := newGroupsTestServer()
+
+	createRec := doJSON(server, http.MethodPost, "/v1/groups", "alice-token", map[string]string{"name": "Breakfast Crew"})
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+
+	var created struct {
+		Group struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"group"`
+		Membership struct {
+			PlayerID string `json:"playerId"`
+			Role     string `json:"role"`
+		} `json:"membership"`
+		ActiveSeason any   `json:"activeSeason"`
+		RecentJumps []any `json:"recentJumps"`
+		Standings    []any `json:"standings"`
+	}
+	decodeResponse(t, createRec, &created)
+
+	if created.Group.ID == "" {
+		t.Fatalf("expected created Group to have an id")
+	}
+	if created.Group.Name != "Breakfast Crew" {
+		t.Fatalf("expected Group name from request, got %q", created.Group.Name)
+	}
+	if created.Membership.PlayerID == "" {
+		t.Fatalf("expected Group Membership to identify the Player")
+	}
+	if created.Membership.Role != "Group Admin" {
+		t.Fatalf("expected creator to become Group Admin, got %q", created.Membership.Role)
+	}
+	if created.ActiveSeason != nil {
+		t.Fatalf("expected no Active Season, got %#v", created.ActiveSeason)
+	}
+	if len(created.RecentJumps) != 0 {
+		t.Fatalf("expected no recent Jumps, got %#v", created.RecentJumps)
+	}
+	if len(created.Standings) != 0 {
+		t.Fatalf("expected empty Standings, got %#v", created.Standings)
+	}
+
+	homeRec := doJSON(server, http.MethodGet, "/v1/groups/"+created.Group.ID+"/home", "alice-token", nil)
+	if homeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", homeRec.Code, homeRec.Body.String())
+	}
+	var home struct {
+		Group struct {
+			ID string `json:"id"`
+		} `json:"group"`
+		Membership struct {
+			Role string `json:"role"`
+		} `json:"membership"`
+	}
+	decodeResponse(t, homeRec, &home)
+	if home.Group.ID != created.Group.ID || home.Membership.Role != "Group Admin" {
+		t.Fatalf("expected backend Group home for created Group, got %#v", home)
+	}
+}
+
+func TestSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
+	server := newGroupsTestServer()
+
+	breakfast := createGroup(t, server, "alice-token", "Breakfast Crew")
+	dinner := createGroup(t, server, "alice-token", "Dinner Weirdos")
+
+	listRec := doJSON(server, http.MethodGet, "/v1/groups", "alice-token", nil)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+	var list struct {
+		Memberships []struct {
+			Group struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"group"`
+			Membership struct {
+				Role string `json:"role"`
+			} `json:"membership"`
+		} `json:"memberships"`
+	}
+	decodeResponse(t, listRec, &list)
+	if len(list.Memberships) != 2 {
+		t.Fatalf("expected two Group Memberships, got %#v", list.Memberships)
+	}
+
+	breakfastHome := getGroupHome(t, server, "alice-token", breakfast.Group.ID)
+	dinnerHome := getGroupHome(t, server, "alice-token", dinner.Group.ID)
+	if breakfastHome.Group.Name != "Breakfast Crew" {
+		t.Fatalf("expected switched Group home for Breakfast Crew, got %#v", breakfastHome.Group)
+	}
+	if dinnerHome.Group.Name != "Dinner Weirdos" {
+		t.Fatalf("expected switched Group home for Dinner Weirdos, got %#v", dinnerHome.Group)
+	}
+}
+
+func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodGet, "/v1/groups/"+aliceGroup.Group.ID+"/home", "bob-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	bobExistingGroup := createGroup(t, server, "bob-token", "Dinner Weirdos")
+
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+	if invite.ID == "" || invite.GroupID != aliceGroup.Group.ID || invite.Token == "" {
+		t.Fatalf("expected Invite for Alice's Group, got %#v", invite)
+	}
+
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	var accepted groupHomeBody
+	decodeResponse(t, acceptRec, &accepted)
+	if accepted.Group.ID != aliceGroup.Group.ID || accepted.Membership.Role != "Player" {
+		t.Fatalf("expected Bob to join Alice's Group as Player, got %#v", accepted)
+	}
+
+	joinedHome := getGroupHome(t, server, "bob-token", aliceGroup.Group.ID)
+	if joinedHome.Group.Name != "Breakfast Crew" || joinedHome.Membership.Role != "Player" {
+		t.Fatalf("expected Bob to open invited Group home, got %#v", joinedHome)
+	}
+	stillOwnHome := getGroupHome(t, server, "bob-token", bobExistingGroup.Group.ID)
+	if stillOwnHome.Group.Name != "Dinner Weirdos" || stillOwnHome.Membership.Role != "Group Admin" {
+		t.Fatalf("expected Bob's existing play history to remain, got %#v", stillOwnHome)
+	}
+}
+
+func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+
+	first := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected first accept status 200, got %d: %s", first.Code, first.Body.String())
+	}
+
+	second := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "carol-token", nil)
+	if second.Code != http.StatusConflict {
+		t.Fatalf("expected already-used Invite status 409, got %d: %s", second.Code, second.Body.String())
+	}
+}
+
+func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+
+	aliceAccept := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
+	if aliceAccept.Code != http.StatusConflict {
+		t.Fatalf("expected existing member Invite accept status 409, got %d: %s", aliceAccept.Code, aliceAccept.Body.String())
+	}
+
+	bobAccept := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if bobAccept.Code != http.StatusOK {
+		t.Fatalf("expected Invite to remain usable for Bob, got %d: %s", bobAccept.Code, bobAccept.Body.String())
+	}
+}
+
+func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
+	})
+	rec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if rec.Code != http.StatusGone {
+		t.Fatalf("expected expired Invite status 410, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
+	server := newGroupsTestServer()
+
+	rec := doJSON(server, http.MethodPost, "/v1/invites/not-a-real-invite/accept", "bob-token", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected invalid Invite status 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+
+	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
+	if carolAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Carol to join Group after judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
+	}
+	var accepted groupHomeBody
+	decodeResponse(t, carolAcceptRec, &accepted)
+	if len(accepted.Standings) != 1 {
+		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
+	}
+	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedJumps != 1 {
+		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
+	}
+}
+
+func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
+	server := newGroupsTestServer()
+	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+aliceGroup.Group.ID+"/invites", "bob-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected non-member Invite creation status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
+	if startRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", startRec.Code, startRec.Body.String())
+	}
+
+	var started groupHomeBody
+	decodeResponse(t, startRec, &started)
+	if started.ActiveSeason == nil {
+		t.Fatalf("expected Active Season on start response")
+	}
+	if started.ActiveSeason.Status != "Active" {
+		t.Fatalf("expected Active Season status, got %q", started.ActiveSeason.Status)
+	}
+	if started.ActiveSeason.CommissionerPlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected starting Player to be Season Commissioner, got %#v", started.ActiveSeason)
+	}
+	if len(started.Standings) != 0 {
+		t.Fatalf("expected empty Standings, got %#v", started.Standings)
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if home.ActiveSeason == nil || home.ActiveSeason.ID != started.ActiveSeason.ID {
+		t.Fatalf("expected Group home to show backend Active Season, got %#v", home.ActiveSeason)
+	}
+	if len(home.Standings) != 0 {
+		t.Fatalf("expected empty Standings on Group home, got %#v", home.Standings)
+	}
+}
+
+func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePeriod(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+	var closed groupHomeBody
+	decodeResponse(t, closeRec, &closed)
+	if closed.ActiveSeason == nil || closed.ActiveSeason.ID != season.ActiveSeason.ID || closed.ActiveSeason.Status != "Judging Grace Period" {
+		t.Fatalf("expected Season to move into Judging Grace Period, got %#v", closed.ActiveSeason)
+	}
+
+	submitRec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Too late for competition.",
+	})
+	if submitRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed submission status 409, got %d: %s", submitRec.Code, submitRec.Body.String())
+	}
+}
+
+func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+
+	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+	if judgment.JumpID != performed.Jump.ID || judgment.PlayerID == performed.Jump.PlayerID {
+		t.Fatalf("expected eligible Judge to score existing Performed Jump during Judging Grace Period, got %#v", judgment)
+	}
+}
+
+func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+
+	finalizeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/finalize", "alice-token", nil)
+	if finalizeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", finalizeRec.Code, finalizeRec.Body.String())
+	}
+	var finalized groupHomeBody
+	decodeResponse(t, finalizeRec, &finalized)
+	if finalized.ActiveSeason != nil {
+		t.Fatalf("expected Finalized Season to no longer be open, got %#v", finalized.ActiveSeason)
+	}
+	if len(finalized.Standings) != 1 || finalized.Standings[0].SeasonScore != 14 || finalized.Standings[0].JudgedJumps != 1 {
+		t.Fatalf("expected locked Standings with Alice on 14 from one Judged Jump, got %#v", finalized.Standings)
+	}
+
+	editRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    10,
+		"transgression": 10,
+		"creativity":    10,
+		"presentation": 10,
+	})
+	if editRec.Code != http.StatusConflict {
+		t.Fatalf("expected Finalized Season to lock remaining Judging Windows, got %d: %s", editRec.Code, editRec.Body.String())
+	}
+}
+
+func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "bob-token", "Breakfast Crew")
+	invite := createInvite(t, server, "bob-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Alice to join Group before starting Season, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "bob-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin override close status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+
+	finalizeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/finalize", "bob-token", nil)
+	if finalizeRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin override finalize status 200, got %d: %s", finalizeRec.Code, finalizeRec.Body.String())
+	}
+
+	history := getSeasonHistory(t, server, "alice-token", season.ActiveSeason.ID)
+	if len(history.Entries) != 2 {
+		t.Fatalf("expected two visible override actions in Season history, got %#v", history.Entries)
+	}
+	if history.Entries[0].Action != "Submissions Closed" || history.Entries[0].ActorPlayerID != group.Membership.PlayerID || !history.Entries[0].Override || history.Entries[0].ActorRole != "Group Admin" {
+		t.Fatalf("expected visible Group Admin close override entry, got %#v", history.Entries[0])
+	}
+	if history.Entries[1].Action != "Season Finalized" || history.Entries[1].ActorPlayerID != group.Membership.PlayerID || !history.Entries[1].Override || history.Entries[1].ActorRole != "Group Admin" {
+		t.Fatalf("expected visible Group Admin finalize override entry, got %#v", history.Entries[1])
+	}
+	if history.Entries[1].ToStatus != "Finalized" {
+		t.Fatalf("expected finalized status in Season history, got %#v", history.Entries[1])
+	}
+
+	editRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    1,
+		"transgression": 1,
+		"creativity":    1,
+		"presentation": 1,
+	})
+	if editRec.Code != http.StatusConflict {
+		t.Fatalf("expected Group Admin finalization override to cap remaining Judging Windows, got %d: %s", editRec.Code, editRec.Body.String())
+	}
+}
+
+func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+
+	ideaRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "alice-token", map[string]string{
+		"source":      "Taco Bell",
+		"destination": "Olive Garden parking lot",
+		"food":        "Crunchwrap",
+	})
+	if ideaRec.Code != http.StatusCreated {
+		t.Fatalf("expected Idea status 201, got %d: %s", ideaRec.Code, ideaRec.Body.String())
+	}
+	var idea jumpBody
+	decodeResponse(t, ideaRec, &idea)
+	if idea.ID == "" || idea.GroupID != group.Group.ID || idea.PlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected Group-scoped Idea for Alice, got %#v", idea)
+	}
+	if idea.Status != "Idea" || idea.SeasonID != nil || !idea.OffSeason {
+		t.Fatalf("expected Off-Season Idea before planning, got %#v", idea)
+	}
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "alice-token", nil)
+	if planRec.Code != http.StatusCreated {
+		t.Fatalf("expected Planned Jump status 201, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var planned jumpBody
+	decodeResponse(t, planRec, &planned)
+	if planned.ID != idea.ID || planned.Status != "Planned Jump" {
+		t.Fatalf("expected same Jump to become a Planned Jump, got %#v", planned)
+	}
+	if planned.GroupID != group.Group.ID {
+		t.Fatalf("expected Planned Jump to belong to exactly one Group %q, got %q", group.Group.ID, planned.GroupID)
+	}
+	if planned.SeasonID == nil || *planned.SeasonID != season.ActiveSeason.ID || planned.OffSeason {
+		t.Fatalf("expected Planned Jump to be Season-linked by default, got %#v", planned)
+	}
+	if planned.Source != "Taco Bell" || planned.Destination != "Olive Garden parking lot" || planned.Food != "Crunchwrap" {
+		t.Fatalf("expected Source, Destination, and Food from Idea, got %#v", planned)
+	}
+}
+
+func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "alice-token", map[string]bool{"offSeason": true})
+	if planRec.Code != http.StatusCreated {
+		t.Fatalf("expected Planned Jump status 201, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var planned jumpBody
+	decodeResponse(t, planRec, &planned)
+	if planned.SeasonID != nil || !planned.OffSeason {
+		t.Fatalf("expected explicit Off-Season Jump, got %#v", planned)
+	}
+}
+
+func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "alice-token", nil)
+	if planRec.Code != http.StatusCreated {
+		t.Fatalf("expected Planned Jump status 201, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var planned jumpBody
+	decodeResponse(t, planRec, &planned)
+	if planned.SeasonID != nil || !planned.OffSeason {
+		t.Fatalf("expected Off-Season Jump without Active Season, got %#v", planned)
+	}
+}
+
+func TestPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	createGroup(t, server, "bob-token", "Side Judges")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence-upload-authorizations", "alice-token", map[string]string{
+		"contentType": "image/jpeg",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var authorization evidenceUploadAuthorizationBody
+	decodeResponse(t, rec, &authorization)
+	if authorization.ID == "" {
+		t.Fatalf("expected authorization id, got %#v", authorization)
+	}
+	if authorization.JumpID != planned.ID {
+		t.Fatalf("expected authorization for Planned Jump %q, got %#v", planned.ID, authorization)
+	}
+	if authorization.UploadMethod != "PUT" {
+		t.Fatalf("expected direct upload method PUT, got %#v", authorization)
+	}
+	if authorization.UploadURL == "" || authorization.MediaObjectKey == "" {
+		t.Fatalf("expected direct upload target fields, got %#v", authorization)
+	}
+	if authorization.UploadHeaders["Content-Type"] != "image/jpeg" {
+		t.Fatalf("expected upload content type header, got %#v", authorization.UploadHeaders)
+	}
+}
+
+func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before authorization attempt, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence-upload-authorizations", "bob-token", map[string]string{
+		"contentType": "image/jpeg",
+	})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Crunchwrap successfully smuggled into the parking lot.",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var submission evidenceSubmissionBody
+	decodeResponse(t, rec, &submission)
+	if submission.Jump.Status != "Performed Jump" {
+		t.Fatalf("expected Planned Jump to become Performed Jump, got %#v", submission.Jump)
+	}
+	if submission.Evidence.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected caption to be stored, got %#v", submission.Evidence)
+	}
+	if submission.Evidence.MediaObjectKey != authorization.MediaObjectKey {
+		t.Fatalf("expected backend-owned media object key from authorization, got %#v", submission.Evidence)
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.RecentJumps) != 1 {
+		t.Fatalf("expected one recent Performed Jump on Group home, got %#v", home.RecentJumps)
+	}
+	recent := home.RecentJumps[0]
+	if recent.Jump.ID != planned.ID || recent.Jump.Status != "Performed Jump" {
+		t.Fatalf("expected recent Performed Jump to match the submitted Jump, got %#v", recent)
+	}
+	if recent.Performer.DisplayName != "alice" {
+		t.Fatalf("expected performer display name on recent Jump, got %#v", recent.Performer)
+	}
+	if recent.Evidence.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected recent Jump evidence caption, got %#v", recent.Evidence)
+	}
+}
+
+func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
+	store := httpapi.NewMemoryStore()
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	future := time.Now().Add(1 * time.Hour)
+	farFuture := time.Now().Add(2 * time.Hour)
+	season := startSeasonWithDeadlines(t, server, "alice-token", group.Group.ID, future, farFuture)
+
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+	plan := createPlannedJump(t, server, "alice-token", idea.ID, false)
+
+	store.SetSeasonStatus(season.ActiveSeason.ID, "Judging Grace Period")
+
+	auth := authorizeEvidenceUpload(t, server, "alice-token", plan.ID, "image/jpeg")
+	submitRec := doJSON(server, http.MethodPost, "/v1/jumps/"+plan.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationID": auth.ID,
+		"caption":               "Attempted after deadline",
+	})
+	if submitRec.Code != http.StatusConflict {
+		t.Fatalf("expected submission window closed status 409, got %d: %s", submitRec.Code, submitRec.Body.String())
+	}
+}
+
+func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    4,
+		"transgression": 5,
+		"creativity":    3,
+		"presentation": 2,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected Judgment status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var judgment judgmentBody
+	decodeResponse(t, rec, &judgment)
+	if judgment.ID == "" || judgment.JumpID != performed.Jump.ID {
+		t.Fatalf("expected Judgment for Performed Jump, got %#v", judgment)
+	}
+	if judgment.PlayerID == performed.Jump.PlayerID {
+		t.Fatalf("expected Judge to be a different Player than performer, got %#v", judgment)
+	}
+	if judgment.Commitment != 4 || judgment.Transgression != 5 || judgment.Creativity != 3 || judgment.Presentation != 2 {
+		t.Fatalf("expected four submitted Judgment scores, got %#v", judgment)
+	}
+}
+
+func TestGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/disputes", "bob-token", map[string]string{
+		"concern": "House Rules",
+		"details": "This looked like it blocked the emergency exit.",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected Dispute status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var dispute disputeBody
+	decodeResponse(t, rec, &dispute)
+	if dispute.ID == "" || dispute.JumpID != performed.Jump.ID {
+		t.Fatalf("expected created Dispute for visible Jump, got %#v", dispute)
+	}
+	if dispute.RaisedByPlayerID == performed.Jump.PlayerID {
+		t.Fatalf("expected different Group member to raise Dispute, got %#v", dispute)
+	}
+	if dispute.Concern != "House Rules" || dispute.Details != "This looked like it blocked the emergency exit." || dispute.Status != "Open" {
+		t.Fatalf("expected open House Rules Dispute, got %#v", dispute)
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.RecentJumps) != 1 || len(home.RecentJumps[0].Disputes) != 1 {
+		t.Fatalf("expected Group home to show raised Dispute, got %#v", home.RecentJumps)
+	}
+	if home.RecentJumps[0].Disputes[0].ID != dispute.ID {
+		t.Fatalf("expected Group home to show created Dispute, got %#v", home.RecentJumps[0].Disputes)
+	}
+}
+
+func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Disputes, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	for _, concern := range []string{"House Rules", "Credibility", "Source", "Destination", "Food", "duplicate", "other"} {
+		t.Run(concern, func(t *testing.T) {
+			rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/disputes", "bob-token", map[string]string{
+				"concern": concern,
+				"details": "MVP concern coverage",
+			})
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected concern %q to be accepted, got %d: %s", concern, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "alice-token", map[string]int{
+		"commitment":    4,
+		"transgression": 5,
+		"creativity":    3,
+		"presentation": 2,
+	})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected performer Judgment status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	created := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+	updated := submitJudgment(t, server, "bob-token", performed.Jump.ID, 6, 7, 8, 9, http.StatusOK)
+
+	if updated.ID != created.ID || updated.JumpID != created.JumpID || updated.PlayerID != created.PlayerID {
+		t.Fatalf("expected edited Judgment to keep identity, created %#v updated %#v", created, updated)
+	}
+	if updated.Commitment != 6 || updated.Transgression != 7 || updated.Creativity != 8 || updated.Presentation != 9 {
+		t.Fatalf("expected edited Judgment scores, got %#v", updated)
+	}
+}
+
+func TestJudgmentScoresMustStayInRange(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    11,
+		"transgression": 5,
+		"creativity":    3,
+		"presentation": 2,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected out-of-range Judgment score status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestJudgmentRequiresAllScoreFields(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    0,
+		"transgression": 5,
+		"creativity":    3,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing Judgment score status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) {
+	store := httpapi.NewMemoryStore()
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	created := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+	store.SetSeasonStatus(season.ActiveSeason.ID, "Finalized")
+
+	editRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    6,
+		"transgression": 7,
+		"creativity":    8,
+		"presentation": 9,
+	})
+	if editRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed Judging Window edit status 409, got %d: %s", editRec.Code, editRec.Body.String())
+	}
+
+	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
+	if carolAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Carol to join Group before judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
+	}
+	createRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "carol-token", map[string]int{
+		"commitment":    1,
+		"transgression": 1,
+		"creativity":    1,
+		"presentation": 1,
+	})
+	if createRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed Judging Window create status 409, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+
+	if created.Commitment != 4 || created.Transgression != 5 || created.Creativity != 3 || created.Presentation != 2 {
+		t.Fatalf("expected original Judgment to exist before closed-window attempts, got %#v", created)
+	}
+}
+
+func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if home.ActiveSeason != nil {
+		t.Fatalf("expected Finalized Season to no longer be active, got %#v", home.ActiveSeason)
+	}
+	if len(home.RecentJumps) != 1 {
+		t.Fatalf("expected judged Jump to remain visible, got %#v", home.RecentJumps)
+	}
+	if home.RecentJumps[0].Jump.Status != "Judged Jump" || home.RecentJumps[0].Jump.FinalScore == nil || *home.RecentJumps[0].Jump.FinalScore != 14 {
+		t.Fatalf("expected closed Performed Jump to receive Final Score 14, got %#v", home.RecentJumps[0].Jump)
+	}
+	if len(home.Standings) != 1 {
+		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
+	}
+	if home.Standings[0].Player.ID != group.Membership.PlayerID || home.Standings[0].SeasonScore != 14 || home.Standings[0].JudgedJumps != 1 {
+		t.Fatalf("expected Alice to lead with Season Score 14 from one Judged Jump, got %#v", home.Standings[0])
+	}
+
+	editRec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
+		"commitment":    10,
+		"transgression": 10,
+		"creativity":    10,
+		"presentation": 10,
+	})
+	if editRec.Code != http.StatusConflict {
+		t.Fatalf("expected Finalized Season to lock Judgment edits, got %d: %s", editRec.Code, editRec.Body.String())
+	}
+}
+
+func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStandings(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+	before := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(before.Standings) != 1 {
+		t.Fatalf("expected judged Jump to reach Standings before Dispute resolution, got %#v", before.Standings)
+	}
+
+	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "Credibility", "The receipt timestamp does not match the Caption.")
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Disqualified Jump",
+		"resolutionReason": "Evidence does not support the claimed performance.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Dispute resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Jump.Status != "Disqualified Jump" {
+		t.Fatalf("expected resolved Jump to become Disqualified Jump, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Disqualified Jump" {
+		t.Fatalf("expected resolved Dispute to record disqualification, got %#v", resolution.Dispute)
+	}
+
+	after := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(after.RecentJumps) != 1 || after.RecentJumps[0].Jump.Status != "Disqualified Jump" {
+		t.Fatalf("expected Disqualified Jump to remain visible, got %#v", after.RecentJumps)
+	}
+	if len(after.Standings) != 0 {
+		t.Fatalf("expected Disqualified Jump to be excluded from Standings, got %#v", after.Standings)
+	}
+	if after.RecentJumps[0].Disputes[0].ResolutionReason == nil || *after.RecentJumps[0].Disputes[0].ResolutionReason != "Evidence does not support the claimed performance." {
+		t.Fatalf("expected visible disqualification reason, got %#v", after.RecentJumps[0].Disputes)
+	}
+}
+
+func TestFinalizedSeasonMarksUnwitnessedJumpsAndExcludesOffSeasonJumpsFromStandings(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	unjudged := performJump(t, server, "alice-token", group.Group.ID)
+	offSeasonIdea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
+	offSeasonPlanned := createPlannedJump(t, server, "alice-token", offSeasonIdea.ID, true)
+	offSeasonAuthorization := authorizeEvidenceUpload(t, server, "alice-token", offSeasonPlanned.ID, "image/jpeg")
+	offSeasonRec := doJSON(server, http.MethodPost, "/v1/jumps/"+offSeasonPlanned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": offSeasonAuthorization.ID,
+		"caption":               "Pizza Hut did make it to the library.",
+	})
+	if offSeasonRec.Code != http.StatusCreated {
+		t.Fatalf("expected Off-Season Evidence status 201, got %d: %s", offSeasonRec.Code, offSeasonRec.Body.String())
+	}
+	submitJudgment(t, server, "bob-token", offSeasonPlanned.ID, 10, 10, 10, 10, http.StatusCreated)
+
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	})
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	jumpsByID := map[string]jumpBody{}
+	for _, recent := range home.RecentJumps {
+		jumpsByID[recent.Jump.ID] = recent.Jump
+	}
+	if jumpsByID[unjudged.Jump.ID].Status != "Unwitnessed Jump" || jumpsByID[unjudged.Jump.ID].FinalScore != nil {
+		t.Fatalf("expected Season-linked Jump without Judgments to be Unjudged, got %#v", jumpsByID[unjudged.Jump.ID])
+	}
+	if jumpsByID[offSeasonPlanned.ID].Status != "Performed Jump" || jumpsByID[offSeasonPlanned.ID].FinalScore != nil {
+		t.Fatalf("expected Off-Season Jump to remain outside Season scoring, got %#v", jumpsByID[offSeasonPlanned.ID])
+	}
+	if len(home.Standings) != 0 {
+		t.Fatalf("expected Off-Season Judgment and Unjudged Jump not to affect Standings, got %#v", home.Standings)
+	}
+}
+
+func TestGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility(t *testing.T) {
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "carol-token", "Breakfast Crew")
+	aliceInvite := createInvite(t, server, "carol-token", group.Group.ID)
+	aliceAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+aliceInvite.Token+"/accept", "alice-token", nil)
+	if aliceAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Alice to join Group before starting Season, got %d: %s", aliceAcceptRec.Code, aliceAcceptRec.Body.String())
+	}
+	bobInvite := createInvite(t, server, "carol-token", group.Group.ID)
+	bobAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+bobInvite.Token+"/accept", "bob-token", nil)
+	if bobAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", bobAcceptRec.Code, bobAcceptRec.Body.String())
+	}
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC),
+	)
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "other", "Identifiable bystander appears in the photo.")
+
+	resolveRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Disqualified Jump",
+		"resolutionReason": "Competition evidence should be redacted before scoring.",
+	})
+	if resolveRec.Code != http.StatusOK {
+		t.Fatalf("expected commissioner resolution status 200, got %d: %s", resolveRec.Code, resolveRec.Body.String())
+	}
+
+	overrideRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "carol-token", map[string]string{
+		"resolution":       "Removed Jump",
+		"resolutionReason": "Serious privacy violation requires hiding the Jump.",
+	})
+	if overrideRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin override status 200, got %d: %s", overrideRec.Code, overrideRec.Body.String())
+	}
+
+	var override disputeResolutionBody
+	decodeResponse(t, overrideRec, &override)
+	if override.Jump.Status != "Removed Jump" {
+		t.Fatalf("expected Group Admin override to remove Jump, got %#v", override)
+	}
+	if override.Dispute.Status != "Overridden" || override.Dispute.OverrideResolution == nil || *override.Dispute.OverrideResolution != "Removed Jump" {
+		t.Fatalf("expected override to remain visible on Dispute, got %#v", override.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentJumps) != 0 {
+		t.Fatalf("expected Removed Jump hidden from normal Group visibility, got %#v", home.RecentJumps)
+	}
+}
+
+func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	if performed.Jump.SeasonID != nil || !performed.Jump.OffSeason {
+		t.Fatalf("expected Off-Season Jump, got %#v", performed.Jump)
+	}
+	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "House Rules", "This should be removed from normal Group visibility.")
+
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Jump",
+		"resolutionReason": "Off-Season Jump contains a serious privacy issue.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Jump.Status != "Removed Jump" {
+		t.Fatalf("expected Group Admin to remove Off-Season Jump, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Jump" {
+		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentJumps) != 0 {
+		t.Fatalf("expected Removed Off-Season Jump hidden from normal Group visibility, got %#v", home.RecentJumps)
+	}
+}
+
+func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
+	currentTime := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+		return currentTime
+	})
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	latestScore := 0
+	maxIDSeasonNumber := 0
+	maxID := ""
+	foundOutOfOrder := false
+	for seasonNumber := 1; seasonNumber <= 8; seasonNumber++ {
+		season := startSeasonWithDeadlines(
+			t,
+			server,
+			"alice-token",
+			group.Group.ID,
+			currentTime.Add(time.Hour),
+			currentTime.Add(2*time.Hour),
+		)
+		performed := performJump(t, server, "alice-token", group.Group.ID)
+		score := seasonNumber
+		submitJudgment(t, server, "bob-token", performed.Jump.ID, score, 0, 0, 0, http.StatusCreated)
+		currentTime = currentTime.Add(3 * time.Hour)
+		getGroupHome(t, server, "alice-token", group.Group.ID)
+
+		latestScore = score
+		if maxID == "" || season.ActiveSeason.ID > maxID {
+			maxID = season.ActiveSeason.ID
+			maxIDSeasonNumber = seasonNumber
+		}
+		if maxIDSeasonNumber != seasonNumber {
+			foundOutOfOrder = true
+			break
+		}
+	}
+	if !foundOutOfOrder {
+		t.Fatalf("expected at least one latest season ID ordering inversion across hashed IDs")
+	}
+
+	home := getGroupHome(t, server, "alice-token", group.Group.ID)
+	if len(home.Standings) != 1 {
+		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
+	}
+	if home.Standings[0].SeasonScore != latestScore || home.Standings[0].JudgedJumps != 1 {
+		t.Fatalf("expected latest season score %d to drive standings, got %#v", latestScore, home.Standings[0])
+	}
+}
+
+func TestIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Burger King", "bowling alley", "Whopper")
+
+	createRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "bob-token", map[string]string{
+		"source":      "Taco Bell",
+		"destination": "Olive Garden parking lot",
+		"food":        "Crunchwrap",
+	})
+	if createRec.Code != http.StatusForbidden {
+		t.Fatalf("expected non-member Idea creation status 403, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+
+	planRec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "bob-token", nil)
+	if planRec.Code != http.StatusForbidden {
+		t.Fatalf("expected non-member Planned Jump status 403, got %d: %s", planRec.Code, planRec.Body.String())
+	}
+}
+
+func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
+	server := newGroupsTestServer()
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	firstRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
+	if firstRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", firstRec.Code, firstRec.Body.String())
+	}
+
+	secondRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
+	if secondRec.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
+	}
+}
+
+func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	firstServer := newGroupsTestServerWithStore(store)
+	created := createGroup(t, firstServer, "alice-token", "Breakfast Crew")
+
+	restartedStore := newPostgresTestStore(t, databaseURL)
+	restartedServer := newGroupsTestServerWithStore(restartedStore)
+	home := getGroupHome(t, restartedServer, "alice-token", created.Group.ID)
+	if home.Group.Name != "Breakfast Crew" || home.Membership.Role != "Group Admin" {
+		t.Fatalf("expected durable Group Admin membership after restart, got %#v", home)
+	}
+}
+
+func TestPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	firstServer := newGroupsTestServerWithStore(store)
+	group := createGroup(t, firstServer, "alice-token", "Breakfast Crew")
+	started := startSeason(t, firstServer, "alice-token", group.Group.ID)
+
+	restartedStore := newPostgresTestStore(t, databaseURL)
+	restartedServer := newGroupsTestServerWithStore(restartedStore)
+	home := getGroupHome(t, restartedServer, "alice-token", group.Group.ID)
+	if home.ActiveSeason == nil || home.ActiveSeason.ID != started.ActiveSeason.ID {
+		t.Fatalf("expected durable Active Season after restart, got %#v", home.ActiveSeason)
+	}
+	if home.ActiveSeason.CommissionerPlayerID != group.Membership.PlayerID {
+		t.Fatalf("expected durable Season Commissioner, got %#v", home.ActiveSeason)
+	}
+
+	secondRec := doJSON(restartedServer, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
+	if secondRec.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d: %s", secondRec.Code, secondRec.Body.String())
+	}
+}
+
+func TestPostgresConcurrentSeasonStartsReturnCreatedAndConflict(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+	installSlowSeasonInsertTrigger(t, databaseURL)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+
+	start := make(chan struct{})
+	statuses := make(chan int, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
+				"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+				"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+			})
+			statuses <- rec.Code
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(statuses)
+
+	seen := map[int]int{}
+	for status := range statuses {
+		seen[status]++
+	}
+	if seen[http.StatusCreated] != 1 || seen[http.StatusConflict] != 1 {
+		t.Fatalf("expected one 201 and one 409, got %#v", seen)
+	}
+}
+
+func TestPostgresConcurrentInviteCreationReturnsDistinctInvites(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	created := createGroup(t, server, "alice-token", "Concurrent Invite Creators")
+
+	const inviteCount = 4
+	invites := make(chan inviteBody, inviteCount)
+	errors := make(chan string, inviteCount)
+	var wg sync.WaitGroup
+	for i := 0; i < inviteCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+created.Group.ID+"/invites", "alice-token", nil)
+			if rec.Code != http.StatusCreated {
+				errors <- rec.Body.String()
+				return
+			}
+			var invite inviteBody
+			if err := json.NewDecoder(rec.Body).Decode(&invite); err != nil {
+				errors <- err.Error()
+				return
+			}
+			invites <- invite
+		}()
+	}
+	wg.Wait()
+	close(invites)
+	close(errors)
+	for err := range errors {
+		t.Fatalf("expected concurrent Invite creation to succeed, got %s", err)
+	}
+
+	tokens := []string{}
+	for invite := range invites {
+		tokens = append(tokens, invite.Token)
+	}
+	if len(tokens) != inviteCount {
+		t.Fatalf("expected %d Invites, got %d", inviteCount, len(tokens))
+	}
+	sort.Strings(tokens)
+	for i := 1; i < len(tokens); i++ {
+		if tokens[i] == tokens[i-1] {
+			t.Fatalf("expected distinct Invite tokens, got %v", tokens)
+		}
+	}
+}
+
+func TestPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	created := createGroup(t, server, "alice-token", "Concurrent Invite Acceptors")
+	invite := createInvite(t, server, "alice-token", created.Group.ID)
+
+	codes := make(chan int, 2)
+	var wg sync.WaitGroup
+	for _, token := range []string{"bob-token", "carol-token"} {
+		wg.Add(1)
+		go func(token string) {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", token, nil)
+			codes <- rec.Code
+		}(token)
+	}
+	wg.Wait()
+	close(codes)
+
+	seen := map[int]int{}
+	for code := range codes {
+		seen[code]++
+	}
+	if seen[http.StatusOK] != 1 || seen[http.StatusConflict] != 1 {
+		t.Fatalf("expected one winner and one already-used Invite conflict, got %#v", seen)
+	}
+}
+
+func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		time.Now().Add(24*time.Hour),
+		time.Now().Add(48*time.Hour),
+	)
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 5, 3, 2, http.StatusCreated)
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+UPDATE seasons
+SET submission_deadline = now() - interval '48 hours', judging_deadline = now() - interval '24 hours'
+WHERE id = $1`, season.ActiveSeason.ID); err != nil {
+		t.Fatalf("expire Season deadlines: %v", err)
+	}
+
+	carolAcceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+createInvite(t, server, "alice-token", group.Group.ID).Token+"/accept", "carol-token", nil)
+	if carolAcceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Carol to join Group after judging, got %d: %s", carolAcceptRec.Code, carolAcceptRec.Body.String())
+	}
+	var accepted groupHomeBody
+	decodeResponse(t, carolAcceptRec, &accepted)
+	if len(accepted.Standings) != 1 {
+		t.Fatalf("expected standings in Invite accept response, got %#v", accepted.Standings)
+	}
+	if accepted.Standings[0].Player.ID != group.Membership.PlayerID || accepted.Standings[0].SeasonScore != 14 || accepted.Standings[0].JudgedJumps != 1 {
+		t.Fatalf("expected Alice standings in Invite accept response, got %#v", accepted.Standings[0])
+	}
+}
+
+func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "bob-token", "Breakfast Crew")
+	invite := createInvite(t, server, "bob-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Alice to join Group before starting Season, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "bob-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin override close status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+	finalizeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/finalize", "bob-token", nil)
+	if finalizeRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin override finalize status 200, got %d: %s", finalizeRec.Code, finalizeRec.Body.String())
+	}
+
+	history := getSeasonHistory(t, server, "alice-token", season.ActiveSeason.ID)
+	if len(history.Entries) != 2 {
+		t.Fatalf("expected two visible override actions in Season history, got %#v", history.Entries)
+	}
+	if history.Entries[0].Action != "Submissions Closed" || !history.Entries[0].Override || history.Entries[0].ActorRole != "Group Admin" {
+		t.Fatalf("expected visible Group Admin close override entry, got %#v", history.Entries[0])
+	}
+	if history.Entries[1].Action != "Season Finalized" || !history.Entries[1].Override || history.Entries[1].ToStatus != "Finalized" {
+		t.Fatalf("expected visible Group Admin finalize override entry, got %#v", history.Entries[1])
+	}
+}
+
+func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before raising Dispute, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+	if performed.Jump.SeasonID != nil || !performed.Jump.OffSeason {
+		t.Fatalf("expected Off-Season Jump, got %#v", performed.Jump)
+	}
+	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "House Rules", "This should be removed from normal Group visibility.")
+
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Jump",
+		"resolutionReason": "Off-Season Jump contains a serious privacy issue.",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected Group Admin off-season resolution status 200, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	var resolution disputeResolutionBody
+	decodeResponse(t, resolutionRec, &resolution)
+	if resolution.Jump.Status != "Removed Jump" {
+		t.Fatalf("expected Group Admin to remove Off-Season Jump, got %#v", resolution)
+	}
+	if resolution.Dispute.Status != "Resolved" || resolution.Dispute.Resolution == nil || *resolution.Dispute.Resolution != "Removed Jump" {
+		t.Fatalf("expected Off-Season Dispute to have terminal resolution, got %#v", resolution.Dispute)
+	}
+
+	home := getGroupHome(t, server, "bob-token", group.Group.ID)
+	if len(home.RecentJumps) != 0 {
+		t.Fatalf("expected Removed Off-Season Jump hidden from normal Group visibility, got %#v", home.RecentJumps)
+	}
+}
+
+func TestPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Breakfast Crew")
+	season := startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
+
+	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
+	if closeRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
+	}
+
+	submitRec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", "alice-token", map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Too late for competition.",
+	})
+	if submitRec.Code != http.StatusConflict {
+		t.Fatalf("expected closed submission status 409, got %d: %s", submitRec.Code, submitRec.Body.String())
+	}
+}
+
+func TestPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Concurrent Idea Creators")
+
+	const ideaCount = 4
+	ideas := make(chan jumpBody, ideaCount)
+	errors := make(chan string, ideaCount)
+	var wg sync.WaitGroup
+	for i := 0; i < ideaCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/ideas", "alice-token", map[string]string{
+				"source":      "Taco Bell",
+				"destination": "Olive Garden parking lot",
+				"food":        "Crunchwrap",
+			})
+			if rec.Code != http.StatusCreated {
+				errors <- rec.Body.String()
+				return
+			}
+			var idea jumpBody
+			if err := json.NewDecoder(rec.Body).Decode(&idea); err != nil {
+				errors <- err.Error()
+				return
+			}
+			ideas <- idea
+		}()
+	}
+	wg.Wait()
+	close(ideas)
+	close(errors)
+	for err := range errors {
+		t.Fatalf("expected concurrent Idea creation to succeed, got %s", err)
+	}
+
+	ids := []string{}
+	for idea := range ideas {
+		ids = append(ids, idea.ID)
+	}
+	if len(ids) != ideaCount {
+		t.Fatalf("expected %d Ideas, got %d", ideaCount, len(ids))
+	}
+	sort.Strings(ids)
+	for i := 1; i < len(ids); i++ {
+		if ids[i] == ids[i-1] {
+			t.Fatalf("expected distinct Idea ids, got %v", ids)
+		}
+	}
+}
+
+func TestPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+	installSlowJumpUpdateTrigger(t, databaseURL)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Concurrent Planners")
+	startSeason(t, server, "alice-token", group.Group.ID)
+	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
+
+	codes := make(chan int, 2)
+	var wg sync.WaitGroup
+	for _, body := range []any{nil, map[string]bool{"offSeason": true}} {
+		wg.Add(1)
+		go func(body any) {
+			defer wg.Done()
+			rec := doJSON(server, http.MethodPost, "/v1/ideas/"+idea.ID+"/planned-jump", "alice-token", body)
+			codes <- rec.Code
+		}(body)
+	}
+	wg.Wait()
+	close(codes)
+
+	seen := map[int]int{}
+	for code := range codes {
+		seen[code]++
+	}
+	if seen[http.StatusCreated] != 1 || seen[http.StatusNotFound] != 1 {
+		t.Fatalf("expected one Planned Jump creation and one rejected transition, got %#v", seen)
+	}
+}
+
+func newGroupsTestServer() http.Handler {
+	return newGroupsTestServerWithStore(httpapi.NewMemoryStore())
+}
+
+func newGroupsTestServerWithStore(store httpapi.Store) http.Handler {
+	return httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "supabase", Subject: "carol-auth", Email: "carol@example.com"},
+		},
+		Store: store,
+	})
+}
+
+func newPostgresTestStore(t *testing.T, databaseURL string) httpapi.Store {
+	t.Helper()
+	store, err := httpapi.NewPostgresStore(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatalf("new Postgres store: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Fatalf("close Postgres store: %v", err)
+		}
+	})
+	return store
+}
+
+func installSlowSeasonInsertTrigger(t *testing.T, databaseURL string) {
+	t.Helper()
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+CREATE OR REPLACE FUNCTION supperjumpin_test_slow_season_insert()
+RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_sleep(0.2);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_season_insert ON seasons;
+CREATE TRIGGER supperjumpin_test_slow_season_insert
+BEFORE INSERT ON seasons
+FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_season_insert();`); err != nil {
+		t.Fatalf("install slow Season insert trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), `
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_season_insert ON seasons;
+DROP FUNCTION IF EXISTS supperjumpin_test_slow_season_insert();`); err != nil {
+			t.Fatalf("remove slow Season insert trigger: %v", err)
+		}
+	})
+}
+
+func installSlowJumpUpdateTrigger(t *testing.T, databaseURL string) {
+	t.Helper()
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `
+CREATE OR REPLACE FUNCTION supperjumpin_test_slow_stunt_update()
+RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_sleep(0.2);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
+CREATE TRIGGER supperjumpin_test_slow_stunt_update
+BEFORE UPDATE ON stunts
+FOR EACH ROW EXECUTE FUNCTION supperjumpin_test_slow_stunt_update();`); err != nil {
+		t.Fatalf("install slow Jump update trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), `
+DROP TRIGGER IF EXISTS supperjumpin_test_slow_stunt_update ON stunts;
+DROP FUNCTION IF EXISTS supperjumpin_test_slow_stunt_update();`); err != nil {
+			t.Fatalf("remove slow Jump update trigger: %v", err)
+		}
+	})
+}
+
+func doJSON(server http.Handler, method string, path string, token string, body any) *httptest.ResponseRecorder {
+	var requestBody bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&requestBody).Encode(body); err != nil {
+			panic(err)
+		}
+	}
+	req := httptest.NewRequest(method, path, &requestBody)
+	req.Header.Set("Authorization", "Bearer "+token)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	return rec
+}
+
+func decodeResponse(t *testing.T, rec *httptest.ResponseRecorder, target any) {
+	t.Helper()
+	if err := json.NewDecoder(rec.Body).Decode(target); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+}
+
+type groupHomeBody struct {
+	Group struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"group"`
+	Membership struct {
+		PlayerID string `json:"playerId"`
+		Role     string `json:"role"`
+	} `json:"membership"`
+	ActiveSeason *struct {
+		ID                   string `json:"id"`
+		Status               string `json:"status"`
+		CommissionerPlayerID string `json:"commissionerPlayerId"`
+	} `json:"activeSeason"`
+	RecentJumps []performedJumpViewBody `json:"recentJumps"`
+	Standings    []standingBody           `json:"standings"`
+}
+
+type performedJumpViewBody struct {
+	Jump struct {
+		ID          string  `json:"id"`
+		GroupID     string  `json:"groupId"`
+		PlayerID    string  `json:"playerId"`
+		SeasonID    *string `json:"seasonId"`
+		Status      string  `json:"status"`
+		Source      string  `json:"source"`
+		Destination string  `json:"destination"`
+		Food        string  `json:"food"`
+		OffSeason   bool    `json:"offSeason"`
+		FinalScore  *int    `json:"finalScore"`
+	} `json:"jump"`
+	Performer struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"performer"`
+	Evidence struct {
+		ID             string `json:"id"`
+		JumpID    string `json:"jumpId"`
+		Caption        string `json:"caption"`
+		MediaObjectKey string `json:"mediaObjectKey"`
+	} `json:"evidence"`
+	Disputes []disputeBody `json:"disputes"`
+}
+
+type disputeBody struct {
+	ID                 string  `json:"id"`
+	JumpID    string `json:"jumpId"`
+	RaisedByPlayerID   string  `json:"raisedByPlayerId"`
+	Concern            string  `json:"concern"`
+	Details            string  `json:"details"`
+	Status             string  `json:"status"`
+	Resolution         *string `json:"resolution"`
+	ResolutionReason   *string `json:"resolutionReason"`
+	ResolvedByPlayerID *string `json:"resolvedByPlayerId"`
+	OverrideResolution *string `json:"overrideResolution"`
+	OverrideReason     *string `json:"overrideReason"`
+	OverrideByPlayerID *string `json:"overrideByPlayerId"`
+}
+
+type disputeResolutionBody struct {
+	Jump    jumpBody    `json:"jump"`
+	Dispute disputeBody `json:"dispute"`
+}
+
+func createGroup(t *testing.T, server http.Handler, token string, name string) groupHomeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups", token, map[string]string{"name": name})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func startSeason(t *testing.T, server http.Handler, token string, groupID string) groupHomeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/seasons", token, map[string]string{
+		"submissionDeadline": time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+		"judgingDeadline":    time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func startSeasonWithDeadlines(t *testing.T, server http.Handler, token string, groupID string, submissionDeadline time.Time, judgingDeadline time.Time) groupHomeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/seasons", token, map[string]string{
+		"submissionDeadline": submissionDeadline.Format(time.RFC3339),
+		"judgingDeadline":    judgingDeadline.Format(time.RFC3339),
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func getGroupHome(t *testing.T, server http.Handler, token string, groupID string) groupHomeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodGet, "/v1/groups/"+groupID+"/home", token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body groupHomeBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func getSeasonHistory(t *testing.T, server http.Handler, token string, seasonID string) seasonHistoryBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodGet, "/v1/seasons/"+seasonID+"/history", token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body seasonHistoryBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+type inviteBody struct {
+	ID      string `json:"id"`
+	GroupID string `json:"groupId"`
+	Token   string `json:"token"`
+}
+
+type jumpBody struct {
+	ID          string  `json:"id"`
+	GroupID     string  `json:"groupId"`
+	PlayerID    string  `json:"playerId"`
+	SeasonID    *string `json:"seasonId"`
+	Status      string  `json:"status"`
+	Source      string  `json:"source"`
+	Destination string  `json:"destination"`
+	Food        string  `json:"food"`
+	OffSeason   bool    `json:"offSeason"`
+	FinalScore  *int    `json:"finalScore"`
+}
+
+type standingBody struct {
+	Player struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	} `json:"player"`
+	SeasonScore  int `json:"seasonScore"`
+	JudgedJumps int `json:"judgedJumps"`
+}
+
+type evidenceUploadAuthorizationBody struct {
+	ID             string            `json:"id"`
+	JumpID    string `json:"jumpId"`
+	UploadURL      string            `json:"uploadUrl"`
+	UploadMethod   string            `json:"uploadMethod"`
+	UploadHeaders  map[string]string `json:"uploadHeaders"`
+	MediaObjectKey string            `json:"mediaObjectKey"`
+	ExpiresAt      string            `json:"expiresAt"`
+}
+
+type evidenceBody struct {
+	ID             string `json:"id"`
+	JumpID    string `json:"jumpId"`
+	Caption        string `json:"caption"`
+	MediaObjectKey string `json:"mediaObjectKey"`
+}
+
+type evidenceSubmissionBody struct {
+	Jump     jumpBody     `json:"jump"`
+	Evidence evidenceBody `json:"evidence"`
+}
+
+type judgmentBody struct {
+	ID            string `json:"id"`
+	JumpID    string `json:"jumpId"`
+	PlayerID      string `json:"playerId"`
+	Commitment int `json:"commitment"`
+	Transgression int    `json:"transgression"`
+	Creativity    int    `json:"creativity"`
+	Presentation int `json:"presentation"`
+}
+
+type seasonHistoryBody struct {
+	Entries []struct {
+		Action        string `json:"action"`
+		ActorPlayerID string `json:"actorPlayerId"`
+		ActorRole     string `json:"actorRole"`
+		Override      bool   `json:"override"`
+		ToStatus      string `json:"toStatus"`
+	} `json:"entries"`
+}
+
+func createInvite(t *testing.T, server http.Handler, token string, groupID string) inviteBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/invites", token, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body inviteBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func createIdea(t *testing.T, server http.Handler, token string, groupID string, source string, destination string, food string) jumpBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/groups/"+groupID+"/ideas", token, map[string]string{
+		"source":      source,
+		"destination": destination,
+		"food":        food,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body jumpBody
+	decodeResponse(t, rec, &body)
+	return body
+}
+
+func createPlannedJump(t *testing.T, server http.Handler, token string, ideaID string, offSeason bool) jumpBody {
+	t.Helper()
+	var body any
+	if offSeason {
+		body = map[string]bool{"offSeason": true}
+	}
+	rec := doJSON(server, http.MethodPost, "/v1/ideas/"+ideaID+"/planned-jump", token, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var planned jumpBody
+	decodeResponse(t, rec, &planned)
+	return planned
+}
+
+func authorizeEvidenceUpload(t *testing.T, server http.Handler, token string, jumpID string, contentType string) evidenceUploadAuthorizationBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+jumpID+"/evidence-upload-authorizations", token, map[string]string{
+		"contentType": contentType,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var authorization evidenceUploadAuthorizationBody
+	decodeResponse(t, rec, &authorization)
+	return authorization
+}
+
+func performJump(t *testing.T, server http.Handler, token string, groupID string) evidenceSubmissionBody {
+	t.Helper()
+	idea := createIdea(t, server, token, groupID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
+	planned := createPlannedJump(t, server, token, idea.ID, false)
+	authorization := authorizeEvidenceUpload(t, server, token, planned.ID, "image/jpeg")
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", token, map[string]string{
+		"uploadAuthorizationId": authorization.ID,
+		"caption":               "Crunchwrap successfully smuggled into the parking lot.",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var submission evidenceSubmissionBody
+	decodeResponse(t, rec, &submission)
+	return submission
+}
+
+func raiseDispute(t *testing.T, server http.Handler, token string, jumpID string, concern string, details string) disputeBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+jumpID+"/disputes", token, map[string]string{
+		"concern": concern,
+		"details": details,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected Dispute status 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var dispute disputeBody
+	decodeResponse(t, rec, &dispute)
+	return dispute
+}
+
+func submitJudgment(t *testing.T, server http.Handler, token string, jumpID string, commitment int, transgression int, creativity int, presentation int, expectedStatus int) judgmentBody {
+	t.Helper()
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+jumpID+"/judgment", token, map[string]int{
+		"commitment":    commitment,
+		"transgression": transgression,
+		"creativity":    creativity,
+		"presentation":  presentation,
+	})
+	if rec.Code != expectedStatus {
+		t.Fatalf("expected Judgment status %d, got %d: %s", expectedStatus, rec.Code, rec.Body.String())
+	}
+	var judgment judgmentBody
+	decodeResponse(t, rec, &judgment)
+	return judgment
+}
