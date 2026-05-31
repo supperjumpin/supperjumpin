@@ -7,7 +7,6 @@ CREATE TABLE judgments (
     creativity INT NOT NULL CHECK (creativity >= 0 AND creativity <= 10),
     presentation INT NOT NULL CHECK (presentation >= 0 AND presentation <= 10),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (jump_id, player_id)
 );
 

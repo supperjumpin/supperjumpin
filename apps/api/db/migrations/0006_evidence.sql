@@ -1,11 +1,3 @@
-ALTER TABLE jumps DROP CONSTRAINT jumps_status_check;
-ALTER TABLE jumps
-    ADD CONSTRAINT jumps_status_check CHECK (status IN ('Idea', 'Planned Jump', 'Performed Jump'));
-
-ALTER TABLE jumps DROP CONSTRAINT jumps_check;
-ALTER TABLE jumps
-    ADD CONSTRAINT jumps_check CHECK ((season_id IS NULL) OR (status IN ('Planned Jump', 'Performed Jump')));
-
 CREATE TABLE evidence_upload_authorizations (
     id TEXT PRIMARY KEY,
     jump_id TEXT NOT NULL REFERENCES jumps(id),
