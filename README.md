@@ -8,6 +8,7 @@ Prerequisites:
 
 - Node.js/npm
 - Go
+- sqlc
 - Docker Desktop or Docker Engine with Compose
 
 Install JavaScript dependencies once from the repo root:
@@ -43,6 +44,12 @@ npm run demo:mobile
 ```
 
 Copy `apps/mobile/.env.example` to `apps/mobile/.env` and set the Supabase project URL, anon key, and API base URL before using mobile auth.
+
+Regenerate the API's Go query layer from the SQL query files:
+
+```sh
+npm run sqlc:generate
+```
 
 ## Runnable scaffold
 
