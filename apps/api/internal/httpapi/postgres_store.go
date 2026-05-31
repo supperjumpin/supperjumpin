@@ -816,7 +816,7 @@ func (s *PostgresStore) SubmitEvidence(ctx context.Context, player Player, jumpI
 	var authorization EvidenceUploadAuthorization
 	var contentType string
 	if err := tx.QueryRowContext(ctx, `
-SELECT id, stunt_id, content_type, media_object_key, expires_at
+SELECT id, jump_id, content_type, media_object_key, expires_at
 FROM evidence_upload_authorizations
 WHERE id = $1 AND jump_id = $2 AND player_id = $3`, uploadAuthorizationID, jumpID, player.ID).Scan(
 		&authorization.ID,
@@ -1421,7 +1421,7 @@ type jumpViewQueryer interface {
 
 func recentPerformedJumpsForGroupQuery(ctx context.Context, queryer jumpViewQueryer, groupID string) ([]PerformedJumpView, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, stunts.source, stunts.destination, stunts.food, jumps.final_score,
+SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score,
        evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
        players.id, players.display_name
 FROM jumps
@@ -1479,11 +1479,11 @@ ORDER BY evidences.created_at DESC, jumps.id DESC`, groupID)
 
 func disputesForJumpQuery(ctx context.Context, queryer jumpViewQueryer, jumpID string) ([]Dispute, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+SELECT id, jump_id, raised_by_player_id, concern, details, status,
        resolution, resolution_reason, resolved_by_player_id,
        override_resolution, override_reason, override_by_player_id
 FROM disputes
-WHERE stunt_id = $1
+WHERE jump_id = $1
 ORDER BY created_at ASC, id ASC`, jumpID)
 	if err != nil {
 		return nil, err
@@ -1550,7 +1550,7 @@ func disputeInTx(ctx context.Context, tx *sql.Tx, disputeID string) (Dispute, er
 	var overrideReason sql.NullString
 	var overrideByPlayerID sql.NullString
 	if err := tx.QueryRowContext(ctx, `
-SELECT id, stunt_id, raised_by_player_id, concern, details, status,
+SELECT id, jump_id, raised_by_player_id, concern, details, status,
        resolution, resolution_reason, resolved_by_player_id,
        override_resolution, override_reason, override_by_player_id
 FROM disputes

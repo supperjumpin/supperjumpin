@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -90,6 +91,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		home, ok, err := config.Store.GroupHome(r.Context(), profile.Player, r.PathValue("groupID"))
 		if err != nil {
+			log.Printf("ERROR: GroupHome: %v", err)
 			http.Error(w, "get Group home", http.StatusInternalServerError)
 			return
 		}
@@ -390,6 +392,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if err != nil {
+			log.Printf("ERROR: SubmitEvidence: %v", err)
 			http.Error(w, "submit Evidence", http.StatusInternalServerError)
 			return
 		}
@@ -443,6 +446,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if err != nil {
+			log.Printf("ERROR: SubmitJudgment: %v", err)
 			http.Error(w, "submit Judgment", http.StatusInternalServerError)
 			return
 		}
