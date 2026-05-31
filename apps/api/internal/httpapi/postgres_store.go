@@ -110,8 +110,9 @@ func (s *PostgresStore) GroupHomeForSeason(ctx context.Context, seasonID string,
 func (s *PostgresStore) Jump(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
 	var snap game.JumpSnapshot
 	var seasonID sql.NullString
+	var gracePeriodExpiresAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food
+SELECT id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at
 FROM jumps
 WHERE id = $1`, jumpID).Scan(
 		&snap.ID,
@@ -122,6 +123,7 @@ WHERE id = $1`, jumpID).Scan(
 		&snap.Source,
 		&snap.Destination,
 		&snap.Food,
+		&gracePeriodExpiresAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
@@ -134,6 +136,9 @@ WHERE id = $1`, jumpID).Scan(
 	}
 	if seasonID.Valid {
 		snap.SeasonID = &seasonID.String
+	}
+	if gracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
@@ -355,8 +360,9 @@ ON CONFLICT DO NOTHING`, id, groupID, playerID, "Idea", source, destination, foo
 func (s *PostgresStore) Idea(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
 	var snap game.JumpSnapshot
 	var seasonID sql.NullString
+	var gracePeriodExpiresAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food
+SELECT id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at
 FROM jumps
 WHERE id = $1`, jumpID).Scan(
 		&snap.ID,
@@ -367,6 +373,7 @@ WHERE id = $1`, jumpID).Scan(
 		&snap.Source,
 		&snap.Destination,
 		&snap.Food,
+		&gracePeriodExpiresAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
@@ -376,6 +383,9 @@ WHERE id = $1`, jumpID).Scan(
 	}
 	if seasonID.Valid {
 		snap.SeasonID = &seasonID.String
+	}
+	if gracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
@@ -394,12 +404,13 @@ func (s *PostgresStore) ActiveSeasonForGroup(ctx context.Context, groupID string
 func (s *PostgresStore) UpdateJumpToPlanned(ctx context.Context, jumpID, playerID string, seasonID *string) (game.JumpSnapshot, error) {
 	var snap game.JumpSnapshot
 	var resultSeasonID sql.NullString
+	var gracePeriodExpiresAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
 UPDATE jumps
 SET status = 'Planned Jump', season_id = $2
 WHERE id = $1
   AND status = 'Idea'
-RETURNING id, group_id, player_id, season_id, status, source, destination, food`, jumpID, seasonID).Scan(
+RETURNING id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at`, jumpID, seasonID).Scan(
 		&snap.ID,
 		&snap.GroupID,
 		&snap.PlayerID,
@@ -408,6 +419,7 @@ RETURNING id, group_id, player_id, season_id, status, source, destination, food`
 		&snap.Source,
 		&snap.Destination,
 		&snap.Food,
+		&gracePeriodExpiresAt,
 	)
 	if err != nil {
 		return game.JumpSnapshot{}, err
@@ -415,7 +427,72 @@ RETURNING id, group_id, player_id, season_id, status, source, destination, food`
 	if resultSeasonID.Valid {
 		snap.SeasonID = &resultSeasonID.String
 	}
+	if gracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
+	}
 	return snap, nil
+}
+
+func (s *PostgresStore) InsertPerformedJump(ctx context.Context, params game.InsertPerformedJumpParams) (game.JumpSnapshot, game.EvidenceSnapshot, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
+	}
+	defer tx.Rollback()
+
+	jumpID, err := randomToken("jump")
+	if err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
+	}
+
+	var groupID any
+	if params.GroupID != "" {
+		groupID = params.GroupID
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO jumps (id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		jumpID, groupID, params.PlayerID, params.SeasonID, "Performed Jump",
+		params.Source, params.Destination, params.Food, params.GracePeriodExpiresAt,
+	); err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
+	}
+
+	evidenceID := stableID("evidence", jumpID+":"+params.MediaObjectKey)
+	now := time.Now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO evidences (id, jump_id, player_id, caption, media_object_key, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)`,
+		evidenceID, jumpID, params.PlayerID, params.Caption, params.MediaObjectKey, now,
+	); err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
+	}
+
+	jumpSnap := game.JumpSnapshot{
+		ID:                  jumpID,
+		GroupID:             params.GroupID,
+		PlayerID:            params.PlayerID,
+		Status:              "Performed Jump",
+		SeasonID:            params.SeasonID,
+		Source:              params.Source,
+		Destination:         params.Destination,
+		Food:                params.Food,
+		GracePeriodExpiresAt: params.GracePeriodExpiresAt,
+	}
+	evidenceSnap := game.EvidenceSnapshot{
+		ID:             evidenceID,
+		JumpID:        jumpID,
+		PlayerID:       params.PlayerID,
+		MediaObjectKey: params.MediaObjectKey,
+		Caption:        params.Caption,
+		CreatedAt:      now,
+	}
+	return jumpSnap, evidenceSnap, nil
 }
 
 // game.EvidenceRepository adapter methods for PostgresStore
@@ -423,8 +500,9 @@ RETURNING id, group_id, player_id, season_id, status, source, destination, food`
 func (s *PostgresStore) PlannedJump(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
 	var snap game.JumpSnapshot
 	var seasonID sql.NullString
+	var gracePeriodExpiresAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food
+SELECT id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at
 FROM jumps
 WHERE id = $1`, jumpID).Scan(
 		&snap.ID,
@@ -435,6 +513,7 @@ WHERE id = $1`, jumpID).Scan(
 		&snap.Source,
 		&snap.Destination,
 		&snap.Food,
+		&gracePeriodExpiresAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
@@ -447,6 +526,9 @@ WHERE id = $1`, jumpID).Scan(
 	}
 	if seasonID.Valid {
 		snap.SeasonID = &seasonID.String
+	}
+	if gracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
@@ -545,8 +627,9 @@ WHERE id = $1 AND status = 'Planned Jump'`, jumpID,
 func (s *PostgresStore) JumpByID(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
 	var snap game.JumpSnapshot
 	var seasonID sql.NullString
+	var gracePeriodExpiresAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score
+SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
 FROM jumps
 WHERE id = $1`, jumpID).Scan(
 		&snap.ID,
@@ -558,6 +641,7 @@ WHERE id = $1`, jumpID).Scan(
 		&snap.Destination,
 		&snap.Food,
 		&snap.FinalScore,
+		&gracePeriodExpiresAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.JumpSnapshot{}, false, nil
@@ -567,6 +651,9 @@ WHERE id = $1`, jumpID).Scan(
 	}
 	if seasonID.Valid {
 		snap.SeasonID = &seasonID.String
+	}
+	if gracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
 	}
 	return snap, true, nil
 }
@@ -699,7 +786,7 @@ func (s *PostgresStore) UpdateSeasonStatus(ctx context.Context, seasonID, action
 
 func (s *PostgresStore) JumpsForSeason(ctx context.Context, seasonID string) ([]game.JumpSnapshot, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score
+SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
 FROM jumps
 WHERE season_id = $1`, seasonID)
 	if err != nil {
@@ -711,11 +798,15 @@ WHERE season_id = $1`, seasonID)
 	for rows.Next() {
 		var snap game.JumpSnapshot
 		var sid sql.NullString
-		if err := rows.Scan(&snap.ID, &snap.GroupID, &snap.PlayerID, &sid, &snap.Status, &snap.Source, &snap.Destination, &snap.Food, &snap.FinalScore); err != nil {
+		var gracePeriodExpiresAt sql.NullTime
+		if err := rows.Scan(&snap.ID, &snap.GroupID, &snap.PlayerID, &sid, &snap.Status, &snap.Source, &snap.Destination, &snap.Food, &snap.FinalScore, &gracePeriodExpiresAt); err != nil {
 			return nil, err
 		}
 		if sid.Valid {
 			snap.SeasonID = &sid.String
+		}
+		if gracePeriodExpiresAt.Valid {
+			snap.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
 		}
 		result = append(result, snap)
 	}
@@ -1107,7 +1198,7 @@ type jumpViewQueryer interface {
 
 func recentPerformedJumpsForGroupQuery(ctx context.Context, queryer jumpViewQueryer, groupID string) ([]PerformedJumpView, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score,
+SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score, jumps.grace_period_expires_at,
        evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
        players.id, players.display_name
 FROM jumps
@@ -1124,6 +1215,7 @@ ORDER BY evidences.created_at DESC, jumps.id DESC`, groupID)
 	for rows.Next() {
 		var jump Jump
 		var seasonID sql.NullString
+		var gracePeriodExpiresAt sql.NullTime
 		var evidence Evidence
 		var performer Player
 		if err := rows.Scan(
@@ -1136,6 +1228,7 @@ ORDER BY evidences.created_at DESC, jumps.id DESC`, groupID)
 			&jump.Destination,
 			&jump.Food,
 			&jump.FinalScore,
+			&gracePeriodExpiresAt,
 			&evidence.ID,
 			&evidence.Caption,
 			&evidence.MediaObjectKey,
@@ -1150,6 +1243,9 @@ ORDER BY evidences.created_at DESC, jumps.id DESC`, groupID)
 			jump.OffSeason = false
 		} else {
 			jump.OffSeason = true
+		}
+		if gracePeriodExpiresAt.Valid {
+			jump.GracePeriodExpiresAt = gracePeriodExpiresAt.Time
 		}
 		disputes, err := disputesForJumpQuery(ctx, queryer, jump.ID)
 		if err != nil {

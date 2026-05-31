@@ -1,6 +1,6 @@
 CREATE TABLE jumps (
     id TEXT PRIMARY KEY,
-    group_id TEXT NOT NULL REFERENCES groups(id),
+    group_id TEXT REFERENCES groups(id),
     player_id TEXT NOT NULL REFERENCES players(id),
     season_id TEXT REFERENCES seasons(id),
     status TEXT NOT NULL CHECK (status IN ('Idea', 'Planned Jump', 'Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump', 'Removed Jump')),
@@ -8,6 +8,7 @@ CREATE TABLE jumps (
     destination TEXT NOT NULL,
     food TEXT NOT NULL,
     final_score INT,
+    grace_period_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK ((season_id IS NULL) OR (status IN ('Planned Jump', 'Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump', 'Removed Jump'))),
     CONSTRAINT jumps_final_score_matches_status CHECK (

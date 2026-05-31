@@ -145,16 +145,17 @@ type PerformedJumpView struct {
 }
 
 type Jump struct {
-	ID          string  `json:"id"`
-	GroupID     string  `json:"groupId"`
-	PlayerID    string  `json:"playerId"`
-	SeasonID    *string `json:"seasonId"`
-	Status      string  `json:"status"`
-	Source      string  `json:"source"`
-	Destination string  `json:"destination"`
-	Food        string  `json:"food"`
-	OffSeason   bool    `json:"offSeason"`
-	FinalScore  *int    `json:"finalScore"`
+	ID                  string    `json:"id"`
+	GroupID             string    `json:"groupId"`
+	PlayerID            string    `json:"playerId"`
+	SeasonID            *string   `json:"seasonId"`
+	Status              string    `json:"status"`
+	Source              string    `json:"source"`
+	Destination         string    `json:"destination"`
+	Food                string    `json:"food"`
+	OffSeason           bool      `json:"offSeason"`
+	FinalScore          *int      `json:"finalScore"`
+	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
 }
 
 type EvidenceUploadAuthorization struct {
@@ -522,6 +523,22 @@ func submitEvidence(ctx context.Context, db Persistence, player Player, jumpID s
 			CreatedAt:      result.Evidence.CreatedAt,
 		},
 	}, true, nil
+}
+
+func createPerformedJump(ctx context.Context, db Persistence, player Player, source, destination, food, caption, mediaObjectKey string, groupID string) (Jump, error) {
+	result := game.CreatePerformedJump(ctx, db, game.CreatePerformedJumpInput{
+		PlayerID:       player.ID,
+		Source:         source,
+		Destination:    destination,
+		Food:           food,
+		Caption:        caption,
+		MediaObjectKey: mediaObjectKey,
+		GroupID:        groupID,
+	}, db.Now())
+	if result.Err != nil {
+		return Jump{}, mapGameErr(result.Err)
+	}
+	return jumpFromGame(result.Jump), nil
 }
 
 func submitJudgment(ctx context.Context, db Persistence, player Player, jumpID string, difficulty int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
@@ -958,29 +975,31 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID strin
 // jumpFromGame converts a game.JumpSnapshot to the httpapi Jump type.
 func jumpFromGame(snap game.JumpSnapshot) Jump {
 	return Jump{
-		ID:          snap.ID,
-		GroupID:     snap.GroupID,
-		PlayerID:    snap.PlayerID,
-		Status:      snap.Status,
-		SeasonID:    snap.SeasonID,
-		Source:      snap.Source,
-		Destination: snap.Destination,
-		Food:        snap.Food,
-		OffSeason:   snap.SeasonID == nil,
+		ID:                  snap.ID,
+		GroupID:             snap.GroupID,
+		PlayerID:            snap.PlayerID,
+		Status:              snap.Status,
+		SeasonID:            snap.SeasonID,
+		Source:              snap.Source,
+		Destination:         snap.Destination,
+		Food:                snap.Food,
+		OffSeason:           snap.SeasonID == nil,
+		GracePeriodExpiresAt: snap.GracePeriodExpiresAt,
 	}
 }
 
 func jumpToSnapshot(jump Jump) game.JumpSnapshot {
 	return game.JumpSnapshot{
-		ID:          jump.ID,
-		GroupID:     jump.GroupID,
-		PlayerID:    jump.PlayerID,
-		Status:      jump.Status,
-		SeasonID:    jump.SeasonID,
-		Source:      jump.Source,
-		Destination: jump.Destination,
-		Food:        jump.Food,
-		FinalScore:  jump.FinalScore,
+		ID:                  jump.ID,
+		GroupID:             jump.GroupID,
+		PlayerID:            jump.PlayerID,
+		Status:              jump.Status,
+		SeasonID:            jump.SeasonID,
+		Source:              jump.Source,
+		Destination:         jump.Destination,
+		Food:                jump.Food,
+		FinalScore:          jump.FinalScore,
+		GracePeriodExpiresAt: jump.GracePeriodExpiresAt,
 	}
 }
 
@@ -1037,6 +1056,47 @@ func (s *MemoryStore) UpdateJumpToPlanned(ctx context.Context, jumpID, playerID 
 	jump.OffSeason = seasonID == nil
 	s.jumps[jumpID] = jump
 	return jumpToSnapshot(jump), nil
+}
+
+func (s *MemoryStore) InsertPerformedJump(ctx context.Context, params game.InsertPerformedJumpParams) (game.JumpSnapshot, game.EvidenceSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.jumpNumber++
+	id := stableID("jump", params.PlayerID+":"+strconv.Itoa(s.jumpNumber))
+	jump := Jump{
+		ID:                  id,
+		GroupID:             params.GroupID,
+		PlayerID:            params.PlayerID,
+		Status:              "Performed Jump",
+		SeasonID:            params.SeasonID,
+		Source:              params.Source,
+		Destination:         params.Destination,
+		Food:                params.Food,
+		OffSeason:           params.SeasonID == nil,
+		GracePeriodExpiresAt: params.GracePeriodExpiresAt,
+	}
+	s.jumps[id] = jump
+
+	evidenceID := stableID("evidence", id)
+	now := s.now().UTC()
+	evidence := Evidence{
+		ID:             evidenceID,
+		JumpID:         id,
+		Caption:        params.Caption,
+		MediaObjectKey: params.MediaObjectKey,
+		CreatedAt:      now,
+	}
+	s.evidences[id] = evidence
+
+	return jumpToSnapshot(jump), game.EvidenceSnapshot{
+		ID:             evidenceID,
+		JumpID:        id,
+		PlayerID:       params.PlayerID,
+		MediaObjectKey: params.MediaObjectKey,
+		Caption:        params.Caption,
+		CreatedAt:      now,
+	}, nil
 }
 
 // game.EvidenceRepository adapter methods for MemoryStore
