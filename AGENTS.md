@@ -38,7 +38,7 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 | Change API contract | `apps/api/openapi.yaml` → regenerate client | CI enforces sync |
 | Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
 | Mobile UI changes | `apps/mobile/App.tsx` | Single-file prototype shell |
-| Check CI pipeline | `.github/workflows/ci.yml` | Go 1.25.2, Node 22 |
+| Check CI pipeline | `.github/workflows/ci.yml` | Go 1.26.3, Node 24.16.0 |
 | Domain terminology | `CONTEXT.md` | "Jump" not "Stunt", "Player" not "User" |
 
 ## CONVENTIONS
