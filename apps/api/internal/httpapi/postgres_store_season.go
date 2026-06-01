@@ -145,13 +145,15 @@ func (s *PostgresStore) JudgmentsForJump(ctx context.Context, jumpID string) ([]
 	var result []game.Judgment
 	for _, row := range rows {
 		result = append(result, game.Judgment{
-			ID:           row.ID,
-			JumpID:       row.JumpID,
-			PlayerID:     row.PlayerID,
-			Commitment:   int(row.Commitment),
-			Transgression: int(row.Transgression),
-			Creativity:   int(row.Creativity),
-			Presentation: int(row.Presentation),
+			ID:             row.ID,
+			JumpID:         row.JumpID,
+			PlayerID:       row.PlayerID.String,
+			GuestSessionID: row.GuestSessionID.String,
+			Provenance:     row.Provenance,
+			Commitment:     int(row.Commitment),
+			Transgression:  int(row.Transgression),
+			Creativity:     int(row.Creativity),
+			Presentation:   int(row.Presentation),
 		})
 	}
 	return result, nil
