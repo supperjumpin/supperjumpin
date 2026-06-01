@@ -42,6 +42,8 @@ var ErrGuestCapReached = errors.New("Guest Judgment cap reached")
 
 var ErrInvalidJudgeIdentity = errors.New("Judgment must have exactly one judge identity: player or guest session")
 
+var ErrOpenMonthNotClosed = errors.New("Open month has not soft-closed yet")
+
 // mapGameErr translates game-module typed errors into the corresponding
 // httpapi sentinel errors so HTTP handlers can use their existing errors.Is checks.
 func mapGameErr(err error) error {
@@ -83,6 +85,9 @@ func mapGameErr(err error) error {
 	}
 	if errors.Is(err, game.ErrInvalidJudgeIdentity) {
 		return ErrInvalidJudgeIdentity
+	}
+	if errors.Is(err, game.ErrOpenMonthNotClosed) {
+		return ErrOpenMonthNotClosed
 	}
 	return err
 }
@@ -170,7 +175,10 @@ type Jump struct {
 	Food                string    `json:"food"`
 	OffSeason           bool      `json:"offSeason"`
 	FinalScore          *int      `json:"finalScore"`
+	OpenFinalScore      *int      `json:"openFinalScore"`
+	SeasonFinalScore    *int      `json:"seasonFinalScore"`
 	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
+	CreatedAt           time.Time `json:"createdAt"`
 }
 
 type EvidenceUploadAuthorization struct {
@@ -275,6 +283,7 @@ type Persistence interface {
 	game.JudgmentRepository
 	game.SeasonRepository
 	game.DisputeRepository
+	game.OpenRepository
 
 	GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error)
 	GroupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error)
@@ -1108,6 +1117,7 @@ func (s *MemoryStore) InsertIdea(ctx context.Context, groupID, playerID, source,
 		Destination: destination,
 		Food:        food,
 		OffSeason:   true,
+		CreatedAt:   s.now().UTC(),
 	}
 	s.jumps[jump.ID] = jump
 	return jumpToSnapshot(jump), nil
@@ -1164,6 +1174,7 @@ func (s *MemoryStore) InsertPerformedJump(ctx context.Context, params game.Inser
 		Food:                params.Food,
 		OffSeason:           params.SeasonID == nil,
 		GracePeriodExpiresAt: params.GracePeriodExpiresAt,
+		CreatedAt:           s.now().UTC(),
 	}
 	s.jumps[id] = jump
 
@@ -1453,6 +1464,68 @@ func (s *MemoryStore) UpdateJumpStatusAfterDispute(ctx context.Context, jumpID, 
 	jump.Status = status
 	jump.FinalScore = nil
 	s.jumps[jump.ID] = jump
+	return nil
+}
+
+// game.OpenRepository adapter methods for MemoryStore
+
+func (s *MemoryStore) JumpsForOpenMonth(ctx context.Context, year, month int) ([]game.JumpSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0)
+	var result []game.JumpSnapshot
+	for _, jump := range s.jumps {
+		if jump.CreatedAt.Equal(start) || jump.CreatedAt.After(start) && jump.CreatedAt.Before(end) {
+			if jump.Status == "Performed Jump" || jump.Status == "Judged Jump" || jump.Status == "Unjudged Jump" || jump.Status == "Disqualified Jump" {
+				result = append(result, jumpToSnapshot(jump))
+			}
+		}
+	}
+	return result, nil
+}
+
+func (s *MemoryStore) UpdateJumpOpenFinalScore(ctx context.Context, jumpID string, score *int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	jump, ok := s.jumps[jumpID]
+	if !ok {
+		return nil
+	}
+	jump.OpenFinalScore = score
+	s.jumps[jumpID] = jump
+	return nil
+}
+
+func (s *MemoryStore) PlayersForOpenMonth(ctx context.Context, year, month int) ([]game.PlayerSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0)
+	seen := map[string]bool{}
+	var result []game.PlayerSnapshot
+	for _, jump := range s.jumps {
+		if jump.CreatedAt.Equal(start) || jump.CreatedAt.After(start) && jump.CreatedAt.Before(end) {
+			if jump.Status == "Performed Jump" || jump.Status == "Judged Jump" || jump.Status == "Unjudged Jump" || jump.Status == "Disqualified Jump" {
+				if !seen[jump.PlayerID] {
+					seen[jump.PlayerID] = true
+					player := s.players[jump.PlayerID]
+					result = append(result, game.PlayerSnapshot{ID: player.ID, DisplayName: player.DisplayName})
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+func (s *MemoryStore) UpsertOpenStanding(ctx context.Context, year, month int, playerID string, score, judgedJumps int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// MemoryStore doesn't need to persist open standings for basic tests.
 	return nil
 }
 

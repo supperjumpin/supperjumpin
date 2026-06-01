@@ -464,6 +464,44 @@ paths:
           description: Performed Jump not found.
         "409":
           description: The Judging Window is closed.
+  /v1/opens/{year}/{month}/compute:
+    post:
+      operationId: computeOpenScores
+      summary: Compute Open Final Scores for a completed calendar month
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: Open scores computed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "400":
+          description: Invalid year or month.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Compute Open scores not allowed.
+        "409":
+          description: Open month has not soft-closed yet.
   /v1/jumps/{jumpId}/disputes:
     post:
       operationId: createDispute

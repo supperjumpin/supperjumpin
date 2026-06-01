@@ -263,6 +263,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/opens/{year}/{month}/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compute Open Final Scores for a completed calendar month */
+        post: operations["computeOpenScores"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/jumps/{jumpId}/disputes": {
         parameters: {
             query?: never;
@@ -1178,6 +1195,59 @@ export interface operations {
                 content?: never;
             };
             /** @description The Judging Window is closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    computeOpenScores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                year: number;
+                month: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open scores computed successfully. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                    };
+                };
+            };
+            /** @description Invalid year or month. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Compute Open scores not allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Open month has not soft-closed yet. */
             409: {
                 headers: {
                     [name: string]: unknown;
