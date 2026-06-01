@@ -5,8 +5,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type AuthIdentity struct {
@@ -629,6 +632,45 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, resolved)
+	})
+	mux.HandleFunc("POST /v1/opens/{year}/{month}/compute", func(w http.ResponseWriter, r *http.Request) {
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		yearStr := r.PathValue("year")
+		monthStr := r.PathValue("month")
+		year, err := strconv.Atoi(yearStr)
+		if err != nil {
+			http.Error(w, "invalid year", http.StatusBadRequest)
+			return
+		}
+		month, err := strconv.Atoi(monthStr)
+		if err != nil || month < 1 || month > 12 {
+			http.Error(w, "invalid month", http.StatusBadRequest)
+			return
+		}
+
+		result := game.ComputeOpenScores(r.Context(), config.DB, game.ComputeOpenScoresInput{
+			Year:  year,
+			Month: month,
+		}, config.DB.Now())
+
+		if errors.Is(result.Err, game.ErrOpenMonthNotClosed) {
+			http.Error(w, "Open month has not soft-closed yet", http.StatusConflict)
+			return
+		}
+		if err != nil {
+			http.Error(w, "compute Open scores", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			http.Error(w, "compute Open scores not allowed", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "computed"})
 	})
 	return mux
 }

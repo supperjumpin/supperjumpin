@@ -110,8 +110,21 @@ type Jump struct {
 	Destination          string
 	Food                 string
 	FinalScore           sql.NullInt32
+	OpenFinalScore       sql.NullInt32
+	SeasonFinalScore     sql.NullInt32
 	GracePeriodExpiresAt sql.NullTime
 	CreatedAt            time.Time
+}
+
+type OpenStanding struct {
+	ID          string
+	Year        int32
+	Month       int32
+	PlayerID    string
+	Score       int32
+	JudgedJumps int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Player struct {
