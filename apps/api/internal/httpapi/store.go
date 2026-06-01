@@ -38,6 +38,10 @@ var ErrDisputeNotFound = errors.New("Dispute not found")
 
 var ErrInvalidDisputeResolution = errors.New("Dispute resolution must be No Action, Disqualified Jump, or Removed Jump")
 
+var ErrGuestCapReached = errors.New("Guest Judgment cap reached")
+
+var ErrInvalidJudgeIdentity = errors.New("Judgment must have exactly one judge identity: player or guest session")
+
 // mapGameErr translates game-module typed errors into the corresponding
 // httpapi sentinel errors so HTTP handlers can use their existing errors.Is checks.
 func mapGameErr(err error) error {
@@ -73,6 +77,12 @@ func mapGameErr(err error) error {
 	}
 	if errors.Is(err, game.ErrAuthorGracePeriodActive) {
 		return ErrAuthorGracePeriodActive
+	}
+	if errors.Is(err, game.ErrGuestCapReached) {
+		return ErrGuestCapReached
+	}
+	if errors.Is(err, game.ErrInvalidJudgeIdentity) {
+		return ErrInvalidJudgeIdentity
 	}
 	return err
 }
@@ -187,13 +197,21 @@ type EvidenceSubmission struct {
 }
 
 type Judgment struct {
+	ID             string `json:"id"`
+	JumpID         string `json:"jumpId"`
+	PlayerID       string `json:"playerId"`
+	GuestSessionID string `json:"guestSessionId,omitempty"`
+	Provenance     string `json:"provenance,omitempty"`
+	Commitment     int    `json:"commitment"`
+	Transgression  int    `json:"transgression"`
+	Creativity     int    `json:"creativity"`
+	Presentation   int    `json:"presentation"`
+}
+
+type GuestSession struct {
 	ID            string `json:"id"`
-	JumpID        string `json:"jumpId"`
-	PlayerID      string `json:"playerId"`
-	Commitment    int    `json:"commitment"`
-	Transgression int    `json:"transgression"`
-	Creativity    int    `json:"creativity"`
-	Presentation  int    `json:"presentation"`
+	JudgmentCount int    `json:"judgmentCount"`
+	CreatedAt     int64  `json:"createdAt"`
 }
 
 type Dispute struct {
@@ -260,6 +278,7 @@ type Persistence interface {
 
 	GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error)
 	GroupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error)
+	CreateGuestSession(ctx context.Context, id string) error
 	Now() time.Time
 }
 
@@ -546,14 +565,16 @@ func createPerformedJump(ctx context.Context, db Persistence, player Player, sou
 	return jumpFromGame(result.Jump), nil
 }
 
-func submitJudgment(ctx context.Context, db Persistence, player Player, jumpID string, commitment int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
+func submitJudgment(ctx context.Context, db Persistence, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
 	result := game.SubmitJudgment(ctx, db, game.JudgmentInput{
-		JumpID:        jumpID,
-		JudgePlayerID: player.ID,
-		Commitment:    commitment,
-		Transgression: transgression,
-		Creativity:    creativity,
-		Presentation:  presentation,
+		JumpID:         jumpID,
+		JudgePlayerID:  playerID,
+		GuestSessionID: guestSessionID,
+		Provenance:     provenance,
+		Commitment:     commitment,
+		Transgression:  transgression,
+		Creativity:     creativity,
+		Presentation:   presentation,
 	}, db.Now())
 	if result.Err != nil {
 		return Judgment{}, false, false, mapGameErr(result.Err)
@@ -562,13 +583,15 @@ func submitJudgment(ctx context.Context, db Persistence, player Player, jumpID s
 		return Judgment{}, false, false, nil
 	}
 	return Judgment{
-		ID:            result.Judgment.ID,
-		JumpID:        result.Judgment.JumpID,
-		PlayerID:      result.Judgment.PlayerID,
-		Commitment:    result.Judgment.Commitment,
-		Transgression: result.Judgment.Transgression,
-		Creativity:    result.Judgment.Creativity,
-		Presentation:  result.Judgment.Presentation,
+		ID:             result.Judgment.ID,
+		JumpID:         result.Judgment.JumpID,
+		PlayerID:       result.Judgment.PlayerID,
+		GuestSessionID: result.Judgment.GuestSessionID,
+		Provenance:     result.Judgment.Provenance,
+		Commitment:     result.Judgment.Commitment,
+		Transgression:  result.Judgment.Transgression,
+		Creativity:     result.Judgment.Creativity,
+		Presentation:   result.Judgment.Presentation,
 	}, true, result.Created, nil
 }
 
@@ -625,6 +648,7 @@ type MemoryStore struct {
 	uploads           map[string]EvidenceUploadAuthorization
 	evidences         map[string]Evidence
 	judgments         map[string]Judgment
+	guestSessions     map[string]GuestSession
 	disputes          map[string]Dispute
 	now               func() time.Time
 	groupNumber       int
@@ -646,20 +670,21 @@ func NewMemoryStore() *MemoryStore {
 
 func NewMemoryStoreWithClock(now func() time.Time) *MemoryStore {
 	return &MemoryStore{
-		accounts:     map[string]MeResponse{},
-		players:      map[string]Player{},
-		groups:       map[string]Group{},
-		memberships:  map[string]map[string]GroupMembership{},
-		invites:      map[string]memoryInvite{},
-		seasons:      map[string]Season{},
-		seasonEvents: map[string][]SeasonHistoryEntry{},
-		seasonOrder:  map[string]int{},
-		jumps:       map[string]Jump{},
-		uploads:      map[string]EvidenceUploadAuthorization{},
-		evidences:    map[string]Evidence{},
-		judgments:    map[string]Judgment{},
-		disputes:     map[string]Dispute{},
-		now:          now,
+		accounts:      map[string]MeResponse{},
+		players:       map[string]Player{},
+		groups:        map[string]Group{},
+		memberships:   map[string]map[string]GroupMembership{},
+		invites:       map[string]memoryInvite{},
+		seasons:       map[string]Season{},
+		seasonEvents:  map[string][]SeasonHistoryEntry{},
+		seasonOrder:   map[string]int{},
+		jumps:        map[string]Jump{},
+		uploads:       map[string]EvidenceUploadAuthorization{},
+		evidences:     map[string]Evidence{},
+		judgments:     map[string]Judgment{},
+		guestSessions: map[string]GuestSession{},
+		disputes:      map[string]Dispute{},
+		now:           now,
 	}
 }
 
@@ -950,30 +975,40 @@ func (s *MemoryStore) JumpByID(ctx context.Context, jumpID string) (game.JumpSna
 	return jumpToSnapshot(jump), true, nil
 }
 
-func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, commitment, transgression, creativity, presentation int) (game.Judgment, bool, error) {
+func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID, guestSessionID, provenance string, commitment, transgression, creativity, presentation int) (game.Judgment, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := jumpID + ":" + playerID
+	var key string
+	if playerID != "" {
+		key = jumpID + ":" + playerID
+	} else {
+		key = jumpID + ":guest:" + guestSessionID
+	}
+
 	_, existed := s.judgments[key]
 	httpJudgment := Judgment{
-		ID:            stableID("judgment", key),
-		JumpID:        jumpID,
-		PlayerID:      playerID,
-		Commitment:    commitment,
-		Transgression: transgression,
-		Creativity:    creativity,
-		Presentation:  presentation,
+		ID:             stableID("judgment", key),
+		JumpID:         jumpID,
+		PlayerID:       playerID,
+		GuestSessionID: guestSessionID,
+		Provenance:     provenance,
+		Commitment:     commitment,
+		Transgression:  transgression,
+		Creativity:     creativity,
+		Presentation:   presentation,
 	}
 	s.judgments[key] = httpJudgment
 	return game.Judgment{
-		ID:            httpJudgment.ID,
-		JumpID:        httpJudgment.JumpID,
-		PlayerID:      httpJudgment.PlayerID,
-		Commitment:    httpJudgment.Commitment,
-		Transgression: httpJudgment.Transgression,
-		Creativity:    httpJudgment.Creativity,
-		Presentation:  httpJudgment.Presentation,
+		ID:             httpJudgment.ID,
+		JumpID:         httpJudgment.JumpID,
+		PlayerID:       httpJudgment.PlayerID,
+		GuestSessionID: httpJudgment.GuestSessionID,
+		Provenance:     httpJudgment.Provenance,
+		Commitment:     httpJudgment.Commitment,
+		Transgression:  httpJudgment.Transgression,
+		Creativity:     httpJudgment.Creativity,
+		Presentation:   httpJudgment.Presentation,
 	}, !existed, nil
 }
 
@@ -990,6 +1025,39 @@ func (s *MemoryStore) AdvanceJumpToJudged(ctx context.Context, jumpID string) er
 	}
 	jump.Status = "Judged Jump"
 	s.jumps[jumpID] = jump
+	return nil
+}
+
+func (s *MemoryStore) GuestSessionJudgmentCount(ctx context.Context, guestSessionID string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gs, ok := s.guestSessions[guestSessionID]
+	if !ok {
+		return 0, nil
+	}
+	return gs.JudgmentCount, nil
+}
+
+func (s *MemoryStore) IncrementGuestSessionJudgmentCount(ctx context.Context, guestSessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gs := s.guestSessions[guestSessionID]
+	gs.JudgmentCount++
+	s.guestSessions[guestSessionID] = gs
+	return nil
+}
+
+func (s *MemoryStore) CreateGuestSession(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.guestSessions[id] = GuestSession{
+		ID:            id,
+		JudgmentCount: 0,
+		CreatedAt:     s.now().Unix(),
+	}
 	return nil
 }
 

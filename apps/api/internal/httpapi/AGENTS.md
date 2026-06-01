@@ -32,4 +32,5 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 ## NOTES
 
 - `groups_test.go` is the largest file in the project (~2300 lines). It covers the full Group/Jump/Season/Judgment/Dispute lifecycle. Consider splitting into focused test files (e.g., `group_season_test.go`) if it grows further.
-- `server.go` contains all routing in one function with 18 inline closures. As the API grows, consider extracting route registration into a separate function or file.
+- `server.go` contains all routing in one function with ~20 inline closures. As the API grows, consider extracting route registration into a separate function or file.
+- `guest_judgment_test.go` covers the Guest Judge session and unauthenticated Judgment flow.
