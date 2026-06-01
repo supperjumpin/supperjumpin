@@ -2,8 +2,8 @@
 
 ## 🟢 Current Focus
 - **Objective**: Design package complete (issues #50–#67). Ready for implementation backlog (#68) and first tracer bullet.
-- **Active Issue**: None — all design docs shipped, CONTEXT.md and ADRs reconciled with accepted decisions (#67).
-- **Status**: CONTEXT.md + ADRs updated to match v1 scope. New ADRs 0025–0027 formalize Guest Judge sessions, Open data model, and hexagonal architecture.
+- **Active Issue**: #119 Public Jump read experience is being handled externally; avoid stepping on Feed/Jump Detail work unless asked.
+- **Status**: Groups/Seasons are deprioritized for now. Prefer direct changes over backward-compatibility shims because no compatibility promise exists yet.
 - **Agent ID**: Sisyphus
 - **Last Updated**: 2026-05-30T20:00:00Z
 

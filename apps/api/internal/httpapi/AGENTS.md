@@ -9,10 +9,11 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Task | Location | Notes |
 |------|----------|-------|
 | Add/modify route | `server.go` | `mux.HandleFunc` closures; ~18 routes in one file |
-| Change JSON request/response shape | `store.go` (DTO structs) | camelCase `json:"groupId"` tags |
+| Change JSON request/response shape | `dto.go` | camelCase `json:"groupId"` tags |
 | Fix game error → HTTP status mapping | `store.go` (mapGameErr) | e.g., `ErrInvalidJudgmentScore` → 400 |
 | Add transport helper | `store.go` | Wraps game function + assembles DTO response |
-| In-memory test double | `store.go` (MemoryStore) | Full `Persistence` implementation using maps |
+| In-memory test double | `memory_store.go` | Full `Persistence` implementation using maps |
+| Shared transport helpers | `helpers.go` | ID generation, DTO/snapshot mapping, small package helpers |
 | Production persistence | `postgres_store.go` (PostgresStore) | Raw SQL implementing same `Persistence` interface |
 | Integration tests | `groups_test.go`, `me_test.go` | `httptest` + `MemoryStore`; comprehensive lifecycle tests |
 
