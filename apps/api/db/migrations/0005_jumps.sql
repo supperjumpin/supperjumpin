@@ -12,8 +12,8 @@ CREATE TABLE jumps (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK ((season_id IS NULL) OR (status IN ('Planned Jump', 'Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump', 'Removed Jump'))),
     CONSTRAINT jumps_final_score_matches_status CHECK (
-        (status = 'Judged Jump' AND final_score IS NOT NULL)
-        OR (status <> 'Judged Jump' AND final_score IS NULL)
+        final_score IS NULL
+        OR status = 'Judged Jump'
     )
 );
 

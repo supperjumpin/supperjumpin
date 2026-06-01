@@ -13,12 +13,17 @@ import (
 
 const adoptJumpToSeason = `-- name: AdoptJumpToSeason :exec
 UPDATE jumps
-SET status = 'Performed Jump'
+SET status = 'Performed Jump', grace_period_expires_at = $2
 WHERE id = $1 AND status = 'Planned Jump'
 `
 
-func (q *Queries) AdoptJumpToSeason(ctx context.Context, id string) error {
-	_, err := q.db.ExecContext(ctx, adoptJumpToSeason, id)
+type AdoptJumpToSeasonParams struct {
+	ID                   string
+	GracePeriodExpiresAt sql.NullTime
+}
+
+func (q *Queries) AdoptJumpToSeason(ctx context.Context, arg AdoptJumpToSeasonParams) error {
+	_, err := q.db.ExecContext(ctx, adoptJumpToSeason, arg.ID, arg.GracePeriodExpiresAt)
 	return err
 }
 
