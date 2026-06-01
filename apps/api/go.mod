@@ -1,6 +1,6 @@
 module github.com/supperjumpin/supperjumpin/apps/api
 
-go 1.25.2
+go 1.26.3
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
