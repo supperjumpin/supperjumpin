@@ -512,7 +512,7 @@ the caption and media key.
 
 ### 9a. Player B judges Player A's stunt
 
-Player B scores the stunt on four axes (each 0–10):
+Player B scores the stunt on four axes (each 1–4):
 
 ```sh
 JUDGMENT=$(curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
@@ -520,8 +520,8 @@ JUDGMENT=$(curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
   -H "Content-Type: application/json" \
   -d '{
     "commitment": 7,
-    "transgression": 8,
-    "creativity": 9,
+    "transgression": 3,
+    "creativity": 4,
     "presentation": 6
   }' | jq)
 
@@ -534,8 +534,8 @@ echo "$JUDGMENT" | jq
   "stuntId": "stunt_...",
   "playerId": "player_...",
   "commitment": 7,
-  "transgression": 8,
-  "creativity": 9,
+  "transgression": 3,
+  "creativity": 4,
   "presentation": 6
 }
 ```
@@ -550,7 +550,7 @@ Returns `201 Created` on first judgment, `200 OK` on edits (upsert).
 "Judge required"
 ```
 
-**Scores outside 0–10:**
+**Scores outside 1–4:**
 ```json
 // HTTP 400 Bad Request
 "Judgment scores must be between 0 and 10"
@@ -572,8 +572,8 @@ curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
   -H "Content-Type: application/json" \
   -d '{
     "commitment": 8,
-    "transgression": 8,
-    "creativity": 9,
+    "transgression": 3,
+    "creativity": 4,
     "presentation": 7
   }' | jq
 ```
@@ -619,7 +619,7 @@ Standings now populate:
   "standings": [
     {
       "player": { "id": "player_...", "displayName": "alice" },
-      "seasonScore": 32,
+      "seasonScore": 14,
       "judgedStunts": 1
     }
   ]
@@ -650,7 +650,7 @@ func (s *MemoryStore) finalScoreForStunt(stuntID string) (int, bool) {
 }
 ```
 
-So finalScore is the sum of all four axes averaged across judgments. With one judgment of 8+8+9+7=32, finalScore = 32.
+So finalScore is the sum of all four axes averaged across judgments. With one judgment of 3+3+4+4=14, finalScore = 32.
 
 ### 10c. Standings computation rules
 
@@ -738,7 +738,7 @@ curl -s -H "Authorization: Bearer player-a-token" \
         "source": "Taco Bell",
         "destination": "Olive Garden Parking Lot",
         "food": "Crunchwrap Supreme",
-        "finalScore": 32,
+        "finalScore": 14,
         ...
       },
       "performer": { "id": "player_...", "displayName": "alice" },
@@ -753,7 +753,7 @@ curl -s -H "Authorization: Bearer player-a-token" \
   "standings": [
     {
       "player": { "id": "player_...", "displayName": "alice" },
-      "seasonScore": 32,
+      "seasonScore": 14,
       "judgedStunts": 1
     }
   ]
