@@ -10,8 +10,8 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 |------|----------|-------|
 | Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig; call transport helpers in `store.go` |
-| Change DTO / JSON shape | `internal/httpapi/store.go` | DTO structs, transport helpers, error mapping |
-| In-memory tests | `internal/httpapi/store.go` | `MemoryStore` implements full `Persistence` interface |
+| Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
+| In-memory tests | `internal/httpapi/memory_store.go` | `MemoryStore` implements full `Persistence` interface |
 | Production persistence | `internal/httpapi/postgres_store*.go` | sqlc-generated queries via `db.Queries`; per-repository files |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | DB schema | `db/migrations/*.sql` | 9 numbered migrations; pre-stable: fold changes into existing |
@@ -22,7 +22,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 
 - **Standard library HTTP only**: `net/http` + `http.NewServeMux()` with Go 1.22 path patterns. No Gin, Echo, or Fiber.
 - **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` header.
-- **Transport helpers** in `store.go` bridge between game snapshots and JSON DTOs. Example: `createGroup()` calls `game.CreateGroup()` then assembles `GroupHomeResponse`.
+- **Transport helpers** in `store.go` bridge between game snapshots and JSON DTOs from `dto.go`. Example: `createGroup()` calls `game.CreateGroup()` then assembles `GroupHomeResponse`.
 - **Error mapping**: `mapGameErr()` in `store.go` translates domain errors (`game.ErrInvalidJudgmentScore`) to transport errors (`httpapi.ErrInvalidJudgmentScore`) for HTTP status codes.
 - **sqlc for queries**: All repository interface methods in `postgres_store_*.go` delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run sqlc:generate`.
 - **Transactions**: Multi-step DB operations use `BeginTx` + `defer tx.Rollback()` + `tx.Commit()` with `qtx := s.queries.WithTx(tx)` for sqlc-generated queries inside the transaction.

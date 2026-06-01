@@ -1,4 +1,5 @@
 package httpapi
+
 import (
 	"context"
 	"database/sql"
@@ -102,6 +103,7 @@ func (s *PostgresStore) GroupHomeForSeason(ctx context.Context, seasonID string,
 	}
 	return s.GroupHomeForGroup(ctx, season.GroupID, player)
 }
+
 // --- PostgresStore private helpers ---
 func (s *PostgresStore) groupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error) {
 	group, membership, ok, err := s.groupMembershipLoad(ctx, groupID, player)
@@ -238,8 +240,11 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 	membership.GroupID = group.ID
 	return group, membership, true, nil
 }
+
 // --- Package-level helpers for PostgresStore ---
 func ensureSeasonStatusesForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) ([]string, error) {
+	// TODO: If Groups/Seasons become active again, move deadline-based status
+	// progression into a pure game helper and let adapters only persist changes.
 	rows, err := tx.QueryContext(ctx, `
 SELECT id, status, submission_deadline, judging_deadline
 FROM seasons
@@ -330,10 +335,12 @@ LIMIT 1`, groupID).Scan(
 	}
 	return &season, nil
 }
+
 // jumpViewQueryer is satisfied by *sql.DB and *sql.Tx for querying jump views.
 type jumpViewQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
+
 func recentPerformedJumpsForGroupQuery(ctx context.Context, queryer jumpViewQueryer, groupID string) ([]PerformedJumpView, error) {
 	rows, err := queryer.QueryContext(ctx, `
 SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score, jumps.grace_period_expires_at,
