@@ -189,6 +189,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 }
 
 // FeedJumps returns a page of public Feed Jumps with cursor-based pagination.
+//
+// TODO: The running average subquery (judgments LEFT JOIN + AVG aggregate) does a
+// full scan of the judgments table per query. At scale, consider materializing the
+// running average on the jumps table (periodic batch update) or adding a composite
+// index on (jump_id, created_at) to the judgments table. Tracked for Wave 2+.
 func (s *PostgresStore) FeedJumps(ctx context.Context, cursorTS *time.Time, cursorID string, limit int) ([]JumpCard, error) {
 	var rows *sql.Rows
 	var err error

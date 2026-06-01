@@ -622,7 +622,9 @@ paths:
             type: string
       responses:
         "200":
-          description: Full Jump detail or tombstone response.
+          description: >
+            Full Jump detail or tombstone response. Live Jumps (Performed, Judged, etc.)
+            return JumpDetail. Removed Jumps return JumpTombstone with no content.
           content:
             application/json:
               schema:

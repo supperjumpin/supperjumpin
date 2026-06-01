@@ -179,9 +179,19 @@ func decodeCursor(cursor string) (time.Time, string, error) {
 	if err != nil {
 		return time.Time{}, "", fmt.Errorf("decode cursor: %w", err)
 	}
+	if len(data) > 256 {
+		return time.Time{}, "", fmt.Errorf("cursor too long")
+	}
 	var fc feedCursor
 	if err := json.Unmarshal(data, &fc); err != nil {
 		return time.Time{}, "", fmt.Errorf("unmarshal cursor: %w", err)
+	}
+	if fc.CreatedAt <= 0 || fc.LastID == "" {
+		return time.Time{}, "", fmt.Errorf("invalid cursor values")
+	}
+	// Reject cursors more than 1 hour in the future to prevent cursor manipulation
+	if fc.CreatedAt > time.Now().UnixMilli()+3600000 {
+		return time.Time{}, "", fmt.Errorf("cursor timestamp too far in the future")
 	}
 	return time.UnixMilli(fc.CreatedAt), fc.LastID, nil
 }
