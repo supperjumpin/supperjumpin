@@ -34,3 +34,36 @@ test("formatFailureMessage includes tool name, current version, and requirement"
   assert.ok(msg.includes("24.15.0"));
   assert.ok(msg.includes(">=24.16.0 <25"));
 });
+
+import { checkExactVersion, formatExactFailureMessage, extractSqlcVersion, extractMigrateVersion } from "./setup.mjs";
+
+test("checkExactVersion returns true for exact match", () => {
+  assert.strictEqual(checkExactVersion("1.31.1", "1.31.1"), true);
+});
+
+test("checkExactVersion returns false for mismatch", () => {
+  assert.strictEqual(checkExactVersion("1.30.0", "1.31.1"), false);
+});
+
+test("formatExactFailureMessage includes tool name, current version, and expected version", () => {
+  const msg = formatExactFailureMessage("sqlc", "1.30.0", "1.31.1");
+  assert.ok(msg.includes("sqlc"));
+  assert.ok(msg.includes("1.30.0"));
+  assert.ok(msg.includes("1.31.1"));
+});
+
+test("extractSqlcVersion strips leading v", () => {
+  assert.strictEqual(extractSqlcVersion("v1.31.1\n"), "1.31.1");
+});
+
+test("extractSqlcVersion handles plain semver", () => {
+  assert.strictEqual(extractSqlcVersion("1.31.1"), "1.31.1");
+});
+
+test("extractMigrateVersion strips leading v", () => {
+  assert.strictEqual(extractMigrateVersion("v4.19.1\n"), "4.19.1");
+});
+
+test("extractMigrateVersion handles plain semver", () => {
+  assert.strictEqual(extractMigrateVersion("4.19.1"), "4.19.1");
+});

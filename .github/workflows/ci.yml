@@ -27,8 +27,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Install npm dependencies
-        run: npm ci
+      - name: Run setup
+        run: npm run setup
 
       - name: Verify API client sync
         run: |
@@ -43,9 +43,6 @@ jobs:
 
       - name: Run Go tests
         run: go test ./apps/api/...
-
-      - name: Install sqlc
-        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
       - name: Verify sqlc generated code is fresh
         run: npm run sqlc:generate && git diff --exit-code
