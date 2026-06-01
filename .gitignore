@@ -29,6 +29,9 @@ coverage/
 # Local git worktrees for agent workers
 worktrees/
 
+# Local tool binaries
+bin/
+
 # Local work-issue orchestration state
 .work-issue/
 

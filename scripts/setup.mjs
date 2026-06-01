@@ -41,7 +41,29 @@ export function formatFailureMessage(tool, current, requirement) {
   return `${tool} version ${current} does not satisfy requirement ${requirement}`;
 }
 
+export function checkExactVersion(current, expected) {
+  return current === expected;
+}
+
+export function formatExactFailureMessage(tool, current, expected) {
+  return `${tool} version ${current} does not match expected ${expected}`;
+}
+
+export function extractSqlcVersion(stdout) {
+  const match = stdout.trim().match(/v?([\d.]+)/);
+  if (!match) throw new Error(`Could not parse sqlc version from: ${stdout}`);
+  return match[1];
+}
+
+export function extractMigrateVersion(stdout) {
+  const match = stdout.trim().match(/v?([\d.]+)/);
+  if (!match) throw new Error(`Could not parse golang-migrate version from: ${stdout}`);
+  return match[1];
+}
+
 import { spawnSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { TOOL_VERSIONS } from "./tool-versions.mjs";
 
 function capture(command, args) {
   return spawnSync(command, args, { encoding: "utf8" });
@@ -75,6 +97,43 @@ function extractDockerComposeVersion(stdout) {
   const match = stdout.trim().match(/v?([\d.]+)/);
   if (!match) throw new Error(`Could not parse Docker Compose version from: ${stdout}`);
   return match[1];
+}
+
+function ensureLocalGoTool(name, binaryName, getVersion, modulePath, expectedVersion, buildTags) {
+  const binPath = `./bin/${binaryName}`;
+  const check = getVersion();
+  let needsInstall = false;
+
+  if (!check.ok) {
+    needsInstall = true;
+    console.log(`${name} not found in bin/. Installing ${expectedVersion}...`);
+  } else if (!checkExactVersion(check.version, expectedVersion)) {
+    needsInstall = true;
+    console.log(`${name} ${check.version} does not match expected ${expectedVersion}. Reinstalling...`);
+  } else {
+    console.log(`${name} ${check.version} ✅`);
+  }
+
+  if (needsInstall) {
+    const args = ["install"];
+    if (buildTags) args.push("-tags", buildTags);
+    args.push(`${modulePath}@v${expectedVersion}`);
+
+    const install = spawnSync("go", args, {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GOBIN: `${process.cwd()}/bin`,
+      },
+    });
+
+    if (install.status !== 0) {
+      console.error(`${name} installation failed:`);
+      console.error(install.stderr || "");
+      process.exit(1);
+    }
+    console.log(`${name} ${expectedVersion} installed ✅`);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -115,6 +174,36 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error("\nSetup aborted due to missing or outdated host tools.");
     process.exit(1);
   }
+
+  mkdirSync("./bin", { recursive: true });
+
+  ensureLocalGoTool(
+    "sqlc",
+    "sqlc",
+    () => {
+      const result = capture("./bin/sqlc", ["version"]);
+      if (result.status !== 0) return { ok: false };
+      return { ok: true, version: extractSqlcVersion(result.stdout) };
+    },
+    "github.com/sqlc-dev/sqlc/cmd/sqlc",
+    TOOL_VERSIONS.sqlc,
+    ""
+  );
+
+  ensureLocalGoTool(
+    "golang-migrate",
+    "migrate",
+    () => {
+      const result = capture("go", ["version", "-m", "./bin/migrate"]);
+      if (result.status !== 0) return { ok: false };
+      const match = result.stdout.match(/mod\s+github\.com\/golang-migrate\/migrate\/v4\s+v?([\d.]+)/);
+      if (!match) return { ok: false };
+      return { ok: true, version: match[1] };
+    },
+    "github.com/golang-migrate/migrate/v4/cmd/migrate",
+    TOOL_VERSIONS["golang-migrate"],
+    "postgres"
+  );
 
   console.log("\nRunning npm ci for reproducible dependency installation...");
   const npmCi = capture("npm", ["ci"]);
