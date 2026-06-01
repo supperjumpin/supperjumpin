@@ -357,7 +357,7 @@ EOSQL
   SELF_JUDGE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$API_A_PORT/v1/stunts/$STUNT_ID/judgment" \
     -H "Authorization: Bearer $TOKEN_A" \
     -H "Content-Type: application/json" \
-    -d '{"difficulty":5,"transgression":5,"creativity":5,"documentation":5}')
+    -d '{"commitment":5,"transgression":5,"creativity":5,"presentation":5}')
   if [ "$SELF_JUDGE" = "403" ]; then
     ok "Self-judging correctly rejected (HTTP 403)"
   else
@@ -369,7 +369,7 @@ EOSQL
   BAD_SCORE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:$API_B_PORT/v1/stunts/$STUNT_ID/judgment" \
     -H "Authorization: Bearer $TOKEN_B" \
     -H "Content-Type: application/json" \
-    -d '{"difficulty":11,"transgression":5,"creativity":5,"documentation":5}')
+    -d '{"commitment":11,"transgression":5,"creativity":5,"presentation":5}')
   if [ "$BAD_SCORE" = "400" ]; then
     ok "Out-of-range scores correctly rejected (HTTP 400)"
   else
@@ -381,7 +381,7 @@ EOSQL
   JUDGE_RESP=$(curl -sf -X POST "http://localhost:$API_B_PORT/v1/stunts/$STUNT_ID/judgment" \
     -H "Authorization: Bearer $TOKEN_B" \
     -H "Content-Type: application/json" \
-    -d '{"difficulty":8,"transgression":8,"creativity":9,"documentation":7}')
+    -d '{"commitment":8,"transgression":8,"creativity":9,"presentation":7}')
   JUDGE_ID=$(echo "$JUDGE_RESP" | jq -r '.id')
   TOTAL_SCORE=$((8+8+9+7))
   ok "Player B submitted judgment (ID: $JUDGE_ID) — total: $TOTAL_SCORE"
@@ -390,7 +390,7 @@ EOSQL
   EDIT_RESP=$(curl -sf -X POST "http://localhost:$API_B_PORT/v1/stunts/$STUNT_ID/judgment" \
     -H "Authorization: Bearer $TOKEN_B" \
     -H "Content-Type: application/json" \
-    -d '{"difficulty":7,"transgression":8,"creativity":9,"documentation":6}')
+    -d '{"commitment":7,"transgression":8,"creativity":9,"presentation":6}')
   EDIT_TOTAL=$((7+8+9+6))
   ok "Judgment edited (upsert) — new total: $EDIT_TOTAL"
 

@@ -403,9 +403,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [difficulty, transgression, creativity, presentation]
+              required: [commitment, transgression, creativity, presentation]
               properties:
-                difficulty:
+                commitment:
                   type: integer
                   minimum: 0
                   maximum: 10
@@ -718,7 +718,7 @@ components:
           $ref: "#/components/schemas/Evidence"
     Judgment:
       type: object
-      required: [id, jumpId, playerId, difficulty, transgression, creativity, presentation]
+      required: [id, jumpId, playerId, commitment, transgression, creativity, presentation]
       properties:
         id:
           type: string
@@ -726,7 +726,7 @@ components:
           type: string
         playerId:
           type: string
-        difficulty:
+        commitment:
           type: integer
           minimum: 0
           maximum: 10

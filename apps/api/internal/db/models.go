@@ -85,7 +85,7 @@ type Judgment struct {
 	ID            string
 	JumpID        string
 	PlayerID      string
-	Difficulty    int32
+	Commitment    int32
 	Transgression int32
 	Creativity    int32
 	Presentation  int32

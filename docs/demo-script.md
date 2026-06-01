@@ -519,10 +519,10 @@ JUDGMENT=$(curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
   -H "Authorization: Bearer player-b-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "difficulty": 7,
+    "commitment": 7,
     "transgression": 8,
     "creativity": 9,
-    "documentation": 6
+    "presentation": 6
   }' | jq)
 
 echo "$JUDGMENT" | jq
@@ -533,10 +533,10 @@ echo "$JUDGMENT" | jq
   "id": "judgment_...",
   "stuntId": "stunt_...",
   "playerId": "player_...",
-  "difficulty": 7,
+  "commitment": 7,
   "transgression": 8,
   "creativity": 9,
-  "documentation": 6
+  "presentation": 6
 }
 ```
 
@@ -571,10 +571,10 @@ curl -s -X POST http://localhost:8081/v1/stunts/$STUNT_ID/judgment \
   -H "Authorization: Bearer player-b-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "difficulty": 8,
+    "commitment": 8,
     "transgression": 8,
     "creativity": 9,
-    "documentation": 7
+    "presentation": 7
   }' | jq
 ```
 

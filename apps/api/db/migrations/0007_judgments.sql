@@ -2,7 +2,7 @@ CREATE TABLE judgments (
     id TEXT PRIMARY KEY,
     jump_id TEXT NOT NULL REFERENCES jumps(id),
     player_id TEXT NOT NULL REFERENCES players(id),
-    difficulty INT NOT NULL CHECK (difficulty >= 0 AND difficulty <= 10),
+    commitment INT NOT NULL CHECK (commitment >= 0 AND commitment <= 10),
     transgression INT NOT NULL CHECK (transgression >= 0 AND transgression <= 10),
     creativity INT NOT NULL CHECK (creativity >= 0 AND creativity <= 10),
     presentation INT NOT NULL CHECK (presentation >= 0 AND presentation <= 10),

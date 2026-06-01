@@ -166,7 +166,7 @@ Index and constraint names follow the same rename pattern.
 | `jumps` | Status CHECK: remove `Idea`, `Planned Stunt`; add v1 states | v1 has no pre-commitment flow; Players submit Performed Jumps directly |
 | `jumps` | `final_score INT` → `open_final_score INT` + `season_final_score INT` | A Jump may earn separate Open and Season Final Scores (ADR-0023) |
 | `judgments` | `player_id TEXT NOT NULL` → `player_id TEXT` (nullable) | Guest Judges submit Judgments without a `player_id` |
-| `judgments` | Rename `difficulty` → `commitment`, `documentation` → `presentation` | ADR-0020, ADR-0022 |
+| `judgments` | `difficulty` → `commitment`, `documentation` → `presentation` (done) | ADR-0020, ADR-0022 |
 | `judgments` | CHECK constraints: 0–10 → 1–4 scale | ADR-0022: forced-choice 1–4 named-tier scale |
 | `judgments` | Add `guest_session_id TEXT` | Links Guest Judge Judgments to their session |
 | `judgments` | Add `provenance TEXT NOT NULL` | Tracks whether Judgment was submitted in public-feed or Season-linked context (ADR-0021) |
@@ -232,7 +232,7 @@ All changes follow ADR-0004 (REST/OpenAPI contract). The API versioning remains 
 
 | Method | Path | Change | Rationale |
 |--------|------|--------|-----------|
-| `POST /v1/jumps/{jumpID}/judgments` | Request body: `difficulty` → `commitment`, `documentation` → `presentation`, scale 1–4 | ADR-0022 |
+| `POST /v1/jumps/{jumpID}/judgments` | Request body: `difficulty` → `commitment`, `documentation` → `presentation` (done), scale 1–4 | ADR-0022 |
 | `POST /v1/jumps/{jumpID}/judgments` | New optional `guestSessionId` field | Guest Judges without `player_id` |
 | `GET /v1/jumps/{jumpID}` | Response includes `openFinalScore`, `seasonFinalScore` (nullable), `gracePeriodExpiresAt` | Multi-score model, Grace Period |
 
