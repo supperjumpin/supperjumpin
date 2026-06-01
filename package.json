@@ -8,6 +8,7 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "generate:api-client": "npm --workspace @supperjumpin/api-client run generate",
+    "sqlc:generate": "cd apps/api && sqlc generate",
     "api:dev": "node ./scripts/demo-api.mjs --no-db",
     "demo:api": "node ./scripts/demo-api.mjs",
     "demo:mobile": "npm --workspace @supperjumpin/mobile run dev",

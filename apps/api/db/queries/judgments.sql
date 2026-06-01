@@ -1,21 +1,30 @@
--- name: CreateJudgment :exec
-INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
-ON CONFLICT (jump_id, player_id) 
-DO UPDATE SET 
+-- name: UpsertJudgment :one
+WITH upsert AS (
+  INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation)
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
+  ON CONFLICT (jump_id, player_id) DO UPDATE SET
     difficulty = EXCLUDED.difficulty,
     transgression = EXCLUDED.transgression,
     creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation;
+    presentation = EXCLUDED.presentation
+  RETURNING (xmax = 0) AS created
+)
+SELECT created FROM upsert;
 
 -- name: GetJudgment :one
-SELECT * FROM judgments
+SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+FROM judgments
 WHERE jump_id = $1 AND player_id = $2;
+
+-- name: ListJudgmentsForJump :many
+SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+FROM judgments
+WHERE jump_id = $1;
 
 -- name: ListJumpsForJudging :many
 SELECT j.id, j.player_id, j.source, j.destination, j.food
 FROM jumps j
-WHERE j.group_id = $1 
+WHERE j.group_id = $1
   AND j.status = 'Performed Jump'
   AND j.player_id != $2
   AND NOT EXISTS (
