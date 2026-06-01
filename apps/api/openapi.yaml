@@ -407,20 +407,20 @@ paths:
               properties:
                 commitment:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 transgression:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 creativity:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 presentation:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
       responses:
         "200":
           description: The edited Judgment.
@@ -728,20 +728,20 @@ components:
           type: string
         commitment:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         transgression:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         creativity:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         presentation:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
     PerformedJumpView:
       type: object
       required: [jump, performer, evidence, disputes]

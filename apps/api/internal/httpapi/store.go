@@ -28,7 +28,7 @@ var ErrJudgingWindowClosed = errors.New("Judging Window closed")
 
 var ErrSubmissionWindowClosed = errors.New("Submission Window closed")
 
-var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
+var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 1 and 4")
 
 var ErrAuthorGracePeriodActive = errors.New("Author Grace Period is still active")
 

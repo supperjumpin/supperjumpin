@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrInvalidJudgmentScore   = errors.New("Judgment scores must be between 0 and 10")
+	ErrInvalidJudgmentScore    = errors.New("Judgment scores must be between 1 and 4")
 	ErrJumpNotFound          = errors.New("Jump not found")
 	ErrJudgingWindowClosed    = errors.New("Judging Window closed")
 	ErrForbidden              = errors.New("Judge must be a different Player than the performer")
@@ -167,7 +167,7 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 }
 
 func validScore(score int) bool {
-	return score >= 0 && score <= 10
+	return score >= 1 && score <= 4
 }
 
 func isOpenSeasonStatus(status string) bool {
