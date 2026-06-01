@@ -30,6 +30,8 @@ var ErrSubmissionWindowClosed = errors.New("Submission Window closed")
 
 var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 0 and 10")
 
+var ErrAuthorGracePeriodActive = errors.New("Author Grace Period is still active")
+
 var ErrInvalidDisputeConcern = errors.New("Dispute concern must be House Rules, Credibility, Source, Destination, Food, duplicate, or other")
 
 var ErrDisputeNotFound = errors.New("Dispute not found")
@@ -68,6 +70,9 @@ func mapGameErr(err error) error {
 	}
 	if errors.Is(err, game.ErrDisputeNotFound) {
 		return ErrDisputeNotFound
+	}
+	if errors.Is(err, game.ErrAuthorGracePeriodActive) {
+		return ErrAuthorGracePeriodActive
 	}
 	return err
 }
@@ -185,7 +190,7 @@ type Judgment struct {
 	ID            string `json:"id"`
 	JumpID        string `json:"jumpId"`
 	PlayerID      string `json:"playerId"`
-	Difficulty    int    `json:"difficulty"`
+	Commitment    int    `json:"commitment"`
 	Transgression int    `json:"transgression"`
 	Creativity    int    `json:"creativity"`
 	Presentation  int    `json:"presentation"`
@@ -541,11 +546,11 @@ func createPerformedJump(ctx context.Context, db Persistence, player Player, sou
 	return jumpFromGame(result.Jump), nil
 }
 
-func submitJudgment(ctx context.Context, db Persistence, player Player, jumpID string, difficulty int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
+func submitJudgment(ctx context.Context, db Persistence, player Player, jumpID string, commitment int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
 	result := game.SubmitJudgment(ctx, db, game.JudgmentInput{
 		JumpID:        jumpID,
 		JudgePlayerID: player.ID,
-		Difficulty:    difficulty,
+		Commitment:    commitment,
 		Transgression: transgression,
 		Creativity:    creativity,
 		Presentation:  presentation,
@@ -560,7 +565,7 @@ func submitJudgment(ctx context.Context, db Persistence, player Player, jumpID s
 		ID:            result.Judgment.ID,
 		JumpID:        result.Judgment.JumpID,
 		PlayerID:      result.Judgment.PlayerID,
-		Difficulty:    result.Judgment.Difficulty,
+		Commitment:    result.Judgment.Commitment,
 		Transgression: result.Judgment.Transgression,
 		Creativity:    result.Judgment.Creativity,
 		Presentation:  result.Judgment.Presentation,
@@ -945,7 +950,7 @@ func (s *MemoryStore) JumpByID(ctx context.Context, jumpID string) (game.JumpSna
 	return jumpToSnapshot(jump), true, nil
 }
 
-func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, difficulty, transgression, creativity, presentation int) (game.Judgment, bool, error) {
+func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, commitment, transgression, creativity, presentation int) (game.Judgment, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -955,7 +960,7 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID strin
 		ID:            stableID("judgment", key),
 		JumpID:        jumpID,
 		PlayerID:      playerID,
-		Difficulty:    difficulty,
+		Commitment:    commitment,
 		Transgression: transgression,
 		Creativity:    creativity,
 		Presentation:  presentation,
@@ -965,11 +970,27 @@ func (s *MemoryStore) UpsertJudgment(ctx context.Context, jumpID, playerID strin
 		ID:            httpJudgment.ID,
 		JumpID:        httpJudgment.JumpID,
 		PlayerID:      httpJudgment.PlayerID,
-		Difficulty:    httpJudgment.Difficulty,
+		Commitment:    httpJudgment.Commitment,
 		Transgression: httpJudgment.Transgression,
 		Creativity:    httpJudgment.Creativity,
 		Presentation:  httpJudgment.Presentation,
 	}, !existed, nil
+}
+
+func (s *MemoryStore) AdvanceJumpToJudged(ctx context.Context, jumpID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	jump, ok := s.jumps[jumpID]
+	if !ok {
+		return game.ErrJumpNotFound
+	}
+	if jump.Status != "Performed Jump" {
+		return nil
+	}
+	jump.Status = "Judged Jump"
+	s.jumps[jumpID] = jump
+	return nil
 }
 
 // jumpFromGame converts a game.JumpSnapshot to the httpapi Jump type.
@@ -1228,15 +1249,15 @@ func (s *MemoryStore) JudgmentsForJump(ctx context.Context, jumpID string) ([]ga
 	var result []game.Judgment
 	for _, j := range s.judgments {
 		if j.JumpID == jumpID {
-			result = append(result, game.Judgment{
-				ID:            j.ID,
-				JumpID:        j.JumpID,
-				PlayerID:      j.PlayerID,
-				Difficulty:    j.Difficulty,
-				Transgression: j.Transgression,
-				Creativity:    j.Creativity,
-				Presentation:  j.Presentation,
-			})
+		result = append(result, game.Judgment{
+			ID:            j.ID,
+			JumpID:        j.JumpID,
+			PlayerID:      j.PlayerID,
+			Commitment:    j.Commitment,
+			Transgression: j.Transgression,
+			Creativity:    j.Creativity,
+			Presentation:  j.Presentation,
+		})
 		}
 	}
 	return result, nil

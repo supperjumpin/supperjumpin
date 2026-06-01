@@ -267,7 +267,7 @@ func finalizeJumpsForSeason(ctx context.Context, repo SeasonRepository, seasonID
 		return err
 	}
 	for _, jump := range jumps {
-		if jump.Status != "Performed Jump" {
+		if jump.Status != "Performed Jump" && jump.Status != "Judged Jump" {
 			continue
 		}
 		judgments, err := repo.JudgmentsForJump(ctx, jump.ID)
@@ -291,7 +291,7 @@ func finalizeJumpsForSeason(ctx context.Context, repo SeasonRepository, seasonID
 func finalScore(judgments []Judgment) int {
 	total := 0
 	for _, j := range judgments {
-		total += j.Difficulty + j.Transgression + j.Creativity + j.Presentation
+		total += j.Commitment + j.Transgression + j.Creativity + j.Presentation
 	}
 	return total / len(judgments)
 }

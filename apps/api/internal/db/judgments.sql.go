@@ -11,7 +11,7 @@ import (
 )
 
 const getJudgment = `-- name: GetJudgment :one
-SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+SELECT id, jump_id, player_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1 AND player_id = $2
 `
@@ -25,7 +25,7 @@ type GetJudgmentRow struct {
 	ID            string
 	JumpID        string
 	PlayerID      string
-	Difficulty    int32
+	Commitment    int32
 	Transgression int32
 	Creativity    int32
 	Presentation  int32
@@ -38,7 +38,7 @@ func (q *Queries) GetJudgment(ctx context.Context, arg GetJudgmentParams) (GetJu
 		&i.ID,
 		&i.JumpID,
 		&i.PlayerID,
-		&i.Difficulty,
+		&i.Commitment,
 		&i.Transgression,
 		&i.Creativity,
 		&i.Presentation,
@@ -47,7 +47,7 @@ func (q *Queries) GetJudgment(ctx context.Context, arg GetJudgmentParams) (GetJu
 }
 
 const listJudgmentsForJump = `-- name: ListJudgmentsForJump :many
-SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+SELECT id, jump_id, player_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1
 `
@@ -56,7 +56,7 @@ type ListJudgmentsForJumpRow struct {
 	ID            string
 	JumpID        string
 	PlayerID      string
-	Difficulty    int32
+	Commitment    int32
 	Transgression int32
 	Creativity    int32
 	Presentation  int32
@@ -75,7 +75,7 @@ func (q *Queries) ListJudgmentsForJump(ctx context.Context, jumpID string) ([]Li
 			&i.ID,
 			&i.JumpID,
 			&i.PlayerID,
-			&i.Difficulty,
+			&i.Commitment,
 			&i.Transgression,
 			&i.Creativity,
 			&i.Presentation,
@@ -150,10 +150,10 @@ func (q *Queries) ListJumpsForJudging(ctx context.Context, arg ListJumpsForJudgi
 
 const upsertJudgment = `-- name: UpsertJudgment :one
 WITH upsert AS (
-  INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation)
+  INSERT INTO judgments (id, jump_id, player_id, commitment, transgression, creativity, presentation)
   VALUES ($1, $2, $3, $4, $5, $6, $7)
   ON CONFLICT (jump_id, player_id) DO UPDATE SET
-    difficulty = EXCLUDED.difficulty,
+    commitment = EXCLUDED.commitment,
     transgression = EXCLUDED.transgression,
     creativity = EXCLUDED.creativity,
     presentation = EXCLUDED.presentation
@@ -166,7 +166,7 @@ type UpsertJudgmentParams struct {
 	ID            string
 	JumpID        string
 	PlayerID      string
-	Difficulty    int32
+	Commitment    int32
 	Transgression int32
 	Creativity    int32
 	Presentation  int32
@@ -177,7 +177,7 @@ func (q *Queries) UpsertJudgment(ctx context.Context, arg UpsertJudgmentParams) 
 		arg.ID,
 		arg.JumpID,
 		arg.PlayerID,
-		arg.Difficulty,
+		arg.Commitment,
 		arg.Transgression,
 		arg.Creativity,
 		arg.Presentation,

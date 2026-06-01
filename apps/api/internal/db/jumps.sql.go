@@ -22,6 +22,17 @@ func (q *Queries) AdoptJumpToSeason(ctx context.Context, id string) error {
 	return err
 }
 
+const advanceJumpToJudged = `-- name: AdvanceJumpToJudged :exec
+UPDATE jumps
+SET status = 'Judged Jump'
+WHERE id = $1 AND status = 'Performed Jump'
+`
+
+func (q *Queries) AdvanceJumpToJudged(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, advanceJumpToJudged, id)
+	return err
+}
+
 const getJump = `-- name: GetJump :one
 SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
 FROM jumps

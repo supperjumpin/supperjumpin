@@ -35,6 +35,11 @@ UPDATE jumps
 SET status = $2, final_score = $3
 WHERE id = $1;
 
+-- name: AdvanceJumpToJudged :exec
+UPDATE jumps
+SET status = 'Judged Jump'
+WHERE id = $1 AND status = 'Performed Jump';
+
 -- name: UpdateJumpStatusAfterDispute :exec
 UPDATE jumps
 SET status = $2, final_score = NULL

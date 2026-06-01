@@ -148,7 +148,7 @@ func (s *PostgresStore) JudgmentsForJump(ctx context.Context, jumpID string) ([]
 			ID:           row.ID,
 			JumpID:       row.JumpID,
 			PlayerID:     row.PlayerID,
-			Difficulty:   int(row.Difficulty),
+			Commitment:   int(row.Commitment),
 			Transgression: int(row.Transgression),
 			Creativity:   int(row.Creativity),
 			Presentation: int(row.Presentation),

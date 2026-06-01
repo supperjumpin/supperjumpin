@@ -388,7 +388,7 @@ export interface components {
             id: string;
             jumpId: string;
             playerId: string;
-            difficulty: number;
+            commitment: number;
             transgression: number;
             creativity: number;
             presentation: number;
@@ -1069,7 +1069,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    difficulty: number;
+                    commitment: number;
                     transgression: number;
                     creativity: number;
                     presentation: number;

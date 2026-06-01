@@ -75,13 +75,13 @@ func (s *PostgresStore) GroupMembership(ctx context.Context, playerID, groupID s
 	return game.MembershipSnapshot{Role: role}, true, nil
 }
 
-func (s *PostgresStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, difficulty, transgression, creativity, presentation int) (game.Judgment, bool, error) {
+func (s *PostgresStore) UpsertJudgment(ctx context.Context, jumpID, playerID string, commitment, transgression, creativity, presentation int) (game.Judgment, bool, error) {
 	judgmentID := stableID("judgment", jumpID+":"+playerID)
 	created, err := s.queries.UpsertJudgment(ctx, db.UpsertJudgmentParams{
 		ID:            judgmentID,
 		JumpID:        jumpID,
 		PlayerID:      playerID,
-		Difficulty:    int32(difficulty),
+		Commitment:    int32(commitment),
 		Transgression: int32(transgression),
 		Creativity:    int32(creativity),
 		Presentation:  int32(presentation),
@@ -93,7 +93,7 @@ func (s *PostgresStore) UpsertJudgment(ctx context.Context, jumpID, playerID str
 		ID:            judgmentID,
 		JumpID:        jumpID,
 		PlayerID:      playerID,
-		Difficulty:    difficulty,
+		Commitment:    commitment,
 		Transgression: transgression,
 		Creativity:    creativity,
 		Presentation:  presentation,

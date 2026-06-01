@@ -449,7 +449,7 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		var request struct {
-			Difficulty    *int `json:"difficulty"`
+			Commitment    *int `json:"commitment"`
 			Transgression *int `json:"transgression"`
 			Creativity    *int `json:"creativity"`
 			Presentation  *int `json:"presentation"`
@@ -458,8 +458,8 @@ func NewServer(config ServerConfig) http.Handler {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		if request.Difficulty == nil || request.Transgression == nil || request.Creativity == nil || request.Presentation == nil {
-			http.Error(w, "difficulty, transgression, creativity, and presentation are required", http.StatusBadRequest)
+		if request.Commitment == nil || request.Transgression == nil || request.Creativity == nil || request.Presentation == nil {
+			http.Error(w, "commitment, transgression, creativity, and presentation are required", http.StatusBadRequest)
 			return
 		}
 
@@ -468,7 +468,7 @@ func NewServer(config ServerConfig) http.Handler {
 			config.DB,
 			profile.Player,
 			r.PathValue("jumpID"),
-			*request.Difficulty,
+			*request.Commitment,
 			*request.Transgression,
 			*request.Creativity,
 			*request.Presentation,
@@ -483,6 +483,10 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 		if errors.Is(err, ErrInvalidJudgmentScore) {
 			http.Error(w, "Judgment scores must be between 0 and 10", http.StatusBadRequest)
+			return
+		}
+		if errors.Is(err, ErrAuthorGracePeriodActive) {
+			http.Error(w, "Author Grace Period is still active", http.StatusForbidden)
 			return
 		}
 		if err != nil {
