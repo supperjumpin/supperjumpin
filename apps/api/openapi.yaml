@@ -427,20 +427,20 @@ paths:
                   description: Required for Guest Judges. Must not be provided when authenticated.
                 commitment:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 transgression:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 creativity:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 presentation:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
       responses:
         "200":
           description: The edited Judgment.
@@ -756,20 +756,20 @@ components:
           description: Tracks the context in which the Judgment was submitted.
         commitment:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         transgression:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         creativity:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         presentation:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
     GuestSession:
       type: object
       required: [id]

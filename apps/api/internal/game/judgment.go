@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrInvalidJudgmentScore   = errors.New("Judgment scores must be between 0 and 10")
+	ErrInvalidJudgmentScore    = errors.New("Judgment scores must be between 1 and 4")
 	ErrJumpNotFound          = errors.New("Jump not found")
 	ErrJudgingWindowClosed    = errors.New("Judging Window closed")
 	ErrForbidden              = errors.New("Judge must be a different Player than the performer")
@@ -100,7 +100,7 @@ type JudgmentResult struct {
 // SubmitJudgment evaluates judgment rules.
 //
 // Submitting a Judgment requires:
-//   - Valid scores (0-10)
+//   - Valid scores (1–4 forced-choice)
 //   - The Jump exists and is in "Performed Jump" status
 //   - The Author Grace Period has expired
 //   - The Judge is not the performer
@@ -202,7 +202,7 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 }
 
 func validScore(score int) bool {
-	return score >= 0 && score <= 10
+	return score >= 1 && score <= 4
 }
 
 func isOpenSeasonStatus(status string) bool {

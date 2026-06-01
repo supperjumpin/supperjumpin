@@ -46,6 +46,43 @@ func (m *mockJudgmentRepo) IncrementGuestSessionJudgmentCount(_ context.Context,
 	return nil
 }
 
+func TestValidScore_AcceptsBoundaryValues(t *testing.T) {
+	cases := []struct {
+		score int
+		want  bool
+	}{
+		{0, false},
+		{1, true},
+		{2, true},
+		{3, true},
+		{4, true},
+		{5, false},
+		{-1, false},
+		{10, false},
+	}
+	for _, tc := range cases {
+		got := validScore(tc.score)
+		if got != tc.want {
+			t.Errorf("validScore(%d) = %v; want %v", tc.score, got, tc.want)
+		}
+	}
+}
+
+func TestValidScore_AllFourScoresMustBeValid(t *testing.T) {
+	if !validScore(1) {
+		t.Error("validScore(1) should be true (minimum valid)")
+	}
+	if !validScore(4) {
+		t.Error("validScore(4) should be true (maximum valid)")
+	}
+	if !validScore(2) {
+		t.Error("validScore(2) should be true")
+	}
+	if !validScore(3) {
+		t.Error("validScore(3) should be true")
+	}
+}
+
 func TestNonMemberCanJudgePublicPerformedJumpAfterGracePeriod(t *testing.T) {
 	var advancedJumpID string
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
@@ -81,10 +118,10 @@ func TestNonMemberCanJudgePublicPerformedJumpAfterGracePeriod(t *testing.T) {
 	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
 		JumpID:        "jump_1",
 		JudgePlayerID: "nonmember_judge_1",
-		Commitment:    7,
-		Transgression: 8,
-		Creativity:    9,
-		Presentation:  10,
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    4,
+		Presentation:  4,
 	}, now)
 
 	if result.Err != nil {
@@ -96,7 +133,7 @@ func TestNonMemberCanJudgePublicPerformedJumpAfterGracePeriod(t *testing.T) {
 	if !result.Created {
 		t.Fatal("expected judgment to be created (not an edit)")
 	}
-	if result.Judgment.Commitment != 7 || result.Judgment.Transgression != 8 || result.Judgment.Creativity != 9 || result.Judgment.Presentation != 10 {
+	if result.Judgment.Commitment != 3 || result.Judgment.Transgression != 3 || result.Judgment.Creativity != 4 || result.Judgment.Presentation != 4 {
 		t.Fatalf("expected judgment with correct scores, got %#v", result.Judgment)
 	}
 	if advancedJumpID != "jump_1" {
@@ -123,10 +160,10 @@ func TestAuthorGracePeriodBlocksJudging(t *testing.T) {
 	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
 		JumpID:        "jump_1",
 		JudgePlayerID: "judge_1",
-		Commitment:    7,
-		Transgression: 8,
-		Creativity:    9,
-		Presentation:  10,
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    4,
+		Presentation:  4,
 	}, now)
 
 	if !errors.Is(result.Err, ErrAuthorGracePeriodActive) {
@@ -159,10 +196,10 @@ func TestJudgingAllowedAfterGracePeriodExpires(t *testing.T) {
 	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
 		JumpID:        "jump_1",
 		JudgePlayerID: "judge_1",
-		Commitment:    5,
-		Transgression: 5,
-		Creativity:    5,
-		Presentation:  5,
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    3,
+		Presentation:  3,
 	}, now)
 
 	if result.Err != nil {
@@ -192,10 +229,10 @@ func TestSelfJudgingStillBlocked(t *testing.T) {
 	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
 		JumpID:        "jump_1",
 		JudgePlayerID: "performer_1",
-		Commitment:    7,
-		Transgression: 8,
-		Creativity:    9,
-		Presentation:  10,
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    4,
+		Presentation:  4,
 	}, now)
 
 	if result.Err != nil {
@@ -215,9 +252,9 @@ func TestInvalidJudgmentScoreRejected(t *testing.T) {
 		JumpID:        "jump_1",
 		JudgePlayerID: "judge_1",
 		Commitment:    11,
-		Transgression: 5,
-		Creativity:    5,
-		Presentation:  5,
+		Transgression: 3,
+		Creativity:    3,
+		Presentation:  3,
 	}, now)
 
 	if !errors.Is(result.Err, ErrInvalidJudgmentScore) {
@@ -268,10 +305,10 @@ func TestGuestCanJudgePublicPerformedJump(t *testing.T) {
 		JumpID:         "jump_1",
 		GuestSessionID: "guest_session_abc",
 		Provenance:     "public",
-		Commitment:     7,
-		Transgression:  8,
-		Creativity:     9,
-		Presentation:   10,
+		Commitment:     2,
+		Transgression:  3,
+		Creativity:     3,
+		Presentation:   4,
 	}, now)
 
 	if result.Err != nil {
@@ -307,10 +344,10 @@ func TestGuestJudgmentRequiresExactlyOneJudgeIdentity(t *testing.T) {
 		JumpID:         "jump_1",
 		JudgePlayerID:  "judge_1",
 		GuestSessionID: "guest_session_abc",
-		Commitment:     5,
-		Transgression:  5,
-		Creativity:     5,
-		Presentation:   5,
+		Commitment:     2,
+		Transgression:  2,
+		Creativity:     3,
+		Presentation:   3,
 	}, now)
 	if !errors.Is(result.Err, ErrInvalidJudgeIdentity) {
 		t.Fatalf("expected ErrInvalidJudgeIdentity when both identities provided, got %v", result.Err)
@@ -319,10 +356,10 @@ func TestGuestJudgmentRequiresExactlyOneJudgeIdentity(t *testing.T) {
 	// Neither player nor guest provided
 	result = SubmitJudgment(context.Background(), repo, JudgmentInput{
 		JumpID:        "jump_1",
-		Commitment:    5,
-		Transgression: 5,
-		Creativity:    5,
-		Presentation:  5,
+		Commitment:    2,
+		Transgression: 2,
+		Creativity:    3,
+		Presentation:  3,
 	}, now)
 	if !errors.Is(result.Err, ErrInvalidJudgeIdentity) {
 		t.Fatalf("expected ErrInvalidJudgeIdentity when no identity provided, got %v", result.Err)
@@ -351,10 +388,10 @@ func TestGuestCapPreventsJudging(t *testing.T) {
 		JumpID:         "jump_1",
 		GuestSessionID: "guest_session_abc",
 		Provenance:     "public",
-		Commitment:     5,
-		Transgression:  5,
-		Creativity:     5,
-		Presentation:   5,
+		Commitment:     2,
+		Transgression:  2,
+		Creativity:     3,
+		Presentation:   3,
 	}, now)
 
 	if !errors.Is(result.Err, ErrGuestCapReached) {
@@ -389,10 +426,10 @@ func TestGuestCannotJudgeTheirOwnJump(t *testing.T) {
 	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
 		JumpID:         "jump_1",
 		GuestSessionID: "guest_session_abc",
-		Commitment:     5,
-		Transgression:  5,
-		Creativity:     5,
-		Presentation:   5,
+		Commitment:     2,
+		Transgression:  2,
+		Creativity:     3,
+		Presentation:   3,
 	}, now)
 
 	if result.Err != nil {
@@ -439,10 +476,10 @@ func TestPlayerJudgmentStillWorks(t *testing.T) {
 		JumpID:        "jump_1",
 		JudgePlayerID: "nonmember_judge_1",
 		Provenance:    "public",
-		Commitment:    7,
-		Transgression: 8,
-		Creativity:    9,
-		Presentation:  10,
+		Commitment:    2,
+		Transgression: 3,
+		Creativity:    3,
+		Presentation:  4,
 	}, now)
 
 	if result.Err != nil {

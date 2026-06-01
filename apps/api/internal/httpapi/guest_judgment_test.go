@@ -61,10 +61,10 @@ func TestGuestCanJudgePerformedJump(t *testing.T) {
 	// Guest judges the jump
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
 		"guestSessionId": guestSessionID,
-		"commitment":     7,
-		"transgression":  8,
-		"creativity":     9,
-		"presentation":   10,
+		"commitment":     2,
+		"transgression":  3,
+		"creativity":     3,
+		"presentation":   4,
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
@@ -98,10 +98,10 @@ func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
 		performed := performJump(t, server, "alice-token", group.Group.ID)
 		rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
 			"guestSessionId": guestSessionID,
-			"commitment":     5,
-			"transgression":  5,
-			"creativity":     5,
-			"presentation":   5,
+			"commitment":     2,
+			"transgression":  2,
+			"creativity":     3,
+			"presentation":   3,
 		})
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("expected status 201 for judgment %d, got %d: %s", i+1, rec.Code, rec.Body.String())
@@ -112,10 +112,10 @@ func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
 	performed := performJump(t, server, "alice-token", group.Group.ID)
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
 		"guestSessionId": guestSessionID,
-		"commitment":     5,
-		"transgression":  5,
-		"creativity":     5,
-		"presentation":   5,
+		"commitment":     2,
+		"transgression":  2,
+		"creativity":     3,
+		"presentation":   3,
 	})
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected status 403 for cap-exceeded judgment, got %d: %s", rec.Code, rec.Body.String())
@@ -129,7 +129,7 @@ func TestAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
 	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	// Bob (authenticated) judges Alice's jump
-	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 7, 8, 9, 10, http.StatusCreated)
+	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 2, 3, 3, 4, http.StatusCreated)
 	if judgment.JumpID != performed.Jump.ID {
 		t.Fatalf("expected judgment for jump %s, got %s", performed.Jump.ID, judgment.JumpID)
 	}
@@ -146,10 +146,10 @@ func TestCannotProvideBothAuthAndGuestSession(t *testing.T) {
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]any{
 		"guestSessionId": "some-session-id",
-		"commitment":     5,
-		"transgression":  5,
-		"creativity":     5,
-		"presentation":   5,
+		"commitment":     2,
+		"transgression":  2,
+		"creativity":     3,
+		"presentation":   3,
 	})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400 when both auth and guestSessionId provided, got %d: %s", rec.Code, rec.Body.String())
@@ -163,10 +163,10 @@ func TestGuestSessionIdRequiredWhenUnauthenticated(t *testing.T) {
 	performed := performJump(t, server, "alice-token", group.Group.ID)
 
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
-		"commitment":    5,
-		"transgression": 5,
-		"creativity":    5,
-		"presentation":  5,
+		"commitment":    2,
+		"transgression": 2,
+		"creativity":    3,
+		"presentation":  3,
 	})
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401 when unauthenticated without guestSessionId, got %d: %s", rec.Code, rec.Body.String())
