@@ -582,6 +582,55 @@ paths:
           description: The signed-in Player is not an authorized resolver for this Dispute.
         "404":
           description: Dispute not found.
+  /v1/feed:
+    get:
+      operationId: getPublicFeed
+      summary: Public Feed of recent Jumps (reverse chronological, cursor paginated)
+      security: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        "200":
+          description: Paginated Jump cards for the public Feed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicFeedResponse"
+        "400":
+          description: Invalid cursor or limit parameter.
+  /v1/jumps/{jumpId}:
+    get:
+      operationId: getJumpDetail
+      summary: Public Jump Detail — full read view or tombstone
+      security: []
+      parameters:
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full Jump detail or tombstone response.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/JumpDetail"
+                  - $ref: "#/components/schemas/JumpTombstone"
+        "404":
+          description: Jump not found.
 components:
   securitySchemes:
     bearerAuth:
@@ -927,3 +976,121 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GroupMembershipSummary"
+    PublicFeedResponse:
+      type: object
+      required: [jumps, nextCursor]
+      properties:
+        jumps:
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpCard"
+        nextCursor:
+          type: string
+          nullable: true
+    JumpCard:
+      type: object
+      required: [id, performerName, performerId, source, destination, food, caption, mediaObjectKey, status, gracePeriodExpiresAt, runningAverage, judgmentCount, createdAt]
+      properties:
+        id:
+          type: string
+        performerName:
+          type: string
+        performerId:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+        food:
+          type: string
+        caption:
+          type: string
+        mediaObjectKey:
+          type: string
+        status:
+          type: string
+          enum: [Performed Jump, Judged Jump, Unjudged Jump, Disqualified Jump]
+        gracePeriodExpiresAt:
+          type: string
+          format: date-time
+        runningAverage:
+          type: number
+          format: float
+        judgmentCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    JumpDetail:
+      type: object
+      required: [id, performerName, performerId, source, destination, food, caption, mediaObjectKey, status, gracePeriodExpiresAt, runningAverage, judgmentCount, createdAt]
+      properties:
+        id:
+          type: string
+        performerName:
+          type: string
+        performerId:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+        food:
+          type: string
+        caption:
+          type: string
+        mediaObjectKey:
+          type: string
+        status:
+          type: string
+          enum: [Performed Jump, Judged Jump, Unjudged Jump, Disqualified Jump]
+        gracePeriodExpiresAt:
+          type: string
+          format: date-time
+        runningAverage:
+          type: number
+          format: float
+        judgmentCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        finalScore:
+          type: integer
+          nullable: true
+        disputes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dispute"
+        viewerContext:
+          $ref: "#/components/schemas/ViewerContext"
+    JumpTombstone:
+      type: object
+      required: [id, status, message, removedAt]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [Removed Jump]
+        message:
+          type: string
+        removedAt:
+          type: string
+          format: date-time
+    ViewerContext:
+      type: object
+      required: [canJudge, hasJudged]
+      properties:
+        canJudge:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+          enum: [self-judging, grace-period, already-judged]
+        gracePeriodEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        hasJudged:
+          type: boolean

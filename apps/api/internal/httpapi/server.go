@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -672,7 +673,118 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "computed"})
 	})
+
+	// GET /v1/feed — public, unauthenticated Feed
+	mux.HandleFunc("GET /v1/feed", func(w http.ResponseWriter, r *http.Request) {
+		cursorStr := r.URL.Query().Get("cursor")
+		limit := 20
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 50 {
+				limit = parsed
+			} else {
+				http.Error(w, "invalid limit parameter", http.StatusBadRequest)
+				return
+			}
+		}
+
+		var cursorTS *time.Time
+		var cursorID string
+		if cursorStr != "" {
+			ts, id, err := decodeCursor(cursorStr)
+			if err != nil {
+				http.Error(w, "invalid cursor", http.StatusBadRequest)
+				return
+			}
+			cursorTS = &ts
+			cursorID = id
+		}
+
+		// Fetch limit+1 to detect whether there's a next page
+		cards, err := config.DB.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
+		if err != nil {
+			http.Error(w, "Could not load jumps", http.StatusInternalServerError)
+			return
+		}
+
+		var nextCursor *string
+		if len(cards) > limit {
+			cards = cards[:limit]
+			last := cards[len(cards)-1]
+			c := encodeCursor(last.CreatedAt, last.ID)
+			nextCursor = &c
+		}
+
+		writeJSON(w, http.StatusOK, PublicFeedResponse{Jumps: cards, NextCursor: nextCursor})
+	})
+
+	// GET /v1/jumps/{jumpID} — public, unauthenticated Jump Detail
+	mux.HandleFunc("GET /v1/jumps/{jumpID}", func(w http.ResponseWriter, r *http.Request) {
+		viewer := optionalProfile(r, config)
+		jumpID := r.PathValue("jumpID")
+
+		detail, found, err := config.DB.JumpDetail(r.Context(), jumpID)
+		if err != nil {
+			http.Error(w, "Could not load jump detail", http.StatusInternalServerError)
+			return
+		}
+		if !found {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Jump not found. It may have been removed."})
+			return
+		}
+
+		// Tombstone for Removed Jumps
+		if detail.Status == "Removed Jump" {
+			writeJSON(w, http.StatusOK, JumpTombstone{
+				ID:        detail.ID,
+				Status:    "Removed Jump",
+				Message:   "This Jump is no longer available",
+				RemovedAt: detail.CreatedAt.Format(time.RFC3339),
+			})
+			return
+		}
+
+		// Attach viewer context if viewer is authenticated
+		if viewer != nil {
+			detail.ViewerContext = computeViewerContext(detail, *viewer, config.DB, r.Context())
+		}
+
+		writeJSON(w, http.StatusOK, detail)
+	})
+
 	return mux
+}
+
+// computeViewerContext determines the viewer's eligibility to judge a Jump.
+func computeViewerContext(detail JumpDetail, viewer MeResponse, db Persistence, ctx context.Context) *ViewerContext {
+	vc := &ViewerContext{CanJudge: true}
+
+	// 1. Self-judging
+	if viewer.Player.ID == detail.PerformerID {
+		vc.CanJudge = false
+		reason := "self-judging"
+		vc.Reason = &reason
+		return vc
+	}
+
+	// 2. Grace period active
+	if time.Now().Before(detail.GracePeriodExpiresAt) {
+		vc.CanJudge = false
+		reason := "grace-period"
+		vc.Reason = &reason
+		vc.GracePeriodEndsAt = &detail.GracePeriodExpiresAt
+		return vc
+	}
+
+	// 3. Already judged
+	hasJudged, err := db.HasJudgedJump(ctx, detail.ID, viewer.Player.ID)
+	if err == nil && hasJudged {
+		vc.CanJudge = false
+		vc.HasJudged = true
+		reason := "already-judged"
+		vc.Reason = &reason
+	}
+
+	return vc
 }
 
 func signedInProfile(w http.ResponseWriter, r *http.Request, config ServerConfig) (MeResponse, bool) {

@@ -155,3 +155,13 @@ func (s *PostgresStore) CreateGuestSession(ctx context.Context, id string) error
 	_, err := s.queries.CreateGuestSession(ctx, id)
 	return err
 }
+
+// HasJudgedJump returns true if the player has already submitted a Judgment for this Jump.
+func (s *PostgresStore) HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM judgments WHERE jump_id = $1 AND player_id = $2)`, jumpID, playerID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}

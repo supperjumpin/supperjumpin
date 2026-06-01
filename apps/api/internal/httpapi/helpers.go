@@ -3,9 +3,13 @@ package httpapi
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
@@ -138,4 +142,46 @@ func displayName(email string) string {
 		return "player"
 	}
 	return name
+}
+
+// optionalProfile attempts to extract the signed-in player profile,
+// returning nil if no valid token is present (no 401 written).
+func optionalProfile(r *http.Request, config ServerConfig) *MeResponse {
+	token, ok := bearerToken(r.Header.Get("Authorization"))
+	if !ok {
+		return nil
+	}
+	identity, ok := config.Auth.Verify(token)
+	if !ok {
+		return nil
+	}
+	profile, err := config.Store.BootstrapIdentity(r.Context(), identity)
+	if err != nil {
+		return nil
+	}
+	return &profile
+}
+
+// feedCursor encodes a timestamp + ID pair for cursor-based pagination.
+type feedCursor struct {
+	CreatedAt int64  `json:"t"`
+	LastID    string `json:"i"`
+}
+
+func encodeCursor(t time.Time, id string) string {
+	fc := feedCursor{CreatedAt: t.UnixMilli(), LastID: id}
+	data, _ := json.Marshal(fc)
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func decodeCursor(cursor string) (time.Time, string, error) {
+	data, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("decode cursor: %w", err)
+	}
+	var fc feedCursor
+	if err := json.Unmarshal(data, &fc); err != nil {
+		return time.Time{}, "", fmt.Errorf("unmarshal cursor: %w", err)
+	}
+	return time.UnixMilli(fc.CreatedAt), fc.LastID, nil
 }
