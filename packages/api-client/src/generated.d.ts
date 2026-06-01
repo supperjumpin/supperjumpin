@@ -229,6 +229,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/guest-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a Guest Judge session for unauthenticated Judgments */
+        post: operations["createGuestSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/jumps/{jumpId}/judgment": {
         parameters: {
             query?: never;
@@ -238,8 +255,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit or edit the signed-in Judge's Judgment for a Performed Jump */
+        /** Submit or edit a Judge's Judgment for a Performed Jump (authenticated or Guest) */
         post: operations["submitJudgment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/opens/{year}/{month}/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compute Open Final Scores for a completed calendar month */
+        post: operations["computeOpenScores"];
         delete?: never;
         options?: never;
         head?: never;
@@ -387,11 +421,22 @@ export interface components {
         Judgment: {
             id: string;
             jumpId: string;
-            playerId: string;
+            /** @description Present for authenticated Player judgments. Empty for Guest judgments. */
+            playerId?: string;
+            /** @description Present for Guest judgments. Empty for authenticated Player judgments. */
+            guestSessionId?: string;
+            /**
+             * @description Tracks the context in which the Judgment was submitted.
+             * @enum {string}
+             */
+            provenance?: "public" | "open" | "season";
             commitment: number;
             transgression: number;
             creativity: number;
             presentation: number;
+        };
+        GuestSession: {
+            id: string;
         };
         PerformedJumpView: {
             jump: components["schemas"]["Jump"];
@@ -1057,6 +1102,30 @@ export interface operations {
             };
         };
     };
+    createGuestSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The created Guest Session. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestSession"];
+                };
+            };
+        };
+    };
     submitJudgment: {
         parameters: {
             query?: never;
@@ -1069,6 +1138,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Required for Guest Judges. Must not be provided when authenticated. */
+                    guestSessionId?: string;
                     commitment: number;
                     transgression: number;
                     creativity: number;
@@ -1102,14 +1173,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Missing or invalid bearer token. */
+            /** @description Authentication or guestSessionId required. */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description The signed-in Player is not an eligible Judge for this Performed Jump. */
+            /** @description The Judge is not eligible for this Performed Jump (self-judge, cap reached, or grace period active). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1124,6 +1195,59 @@ export interface operations {
                 content?: never;
             };
             /** @description The Judging Window is closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    computeOpenScores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                year: number;
+                month: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open scores computed successfully. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                    };
+                };
+            };
+            /** @description Invalid year or month. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Compute Open scores not allowed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Open month has not soft-closed yet. */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -194,19 +194,19 @@ export default function App() {
       return;
     }
     setIsJudging(true);
-    setGestureScores({ commitment: 5, transgression: 5, creativity: 5, presentation: 5 });
+    setGestureScores({ commitment: 2, transgression: 2, creativity: 2, presentation: 2 });
     setSelectedJump(jump);
     setStatus("Use gestures or buttons to set scores. Swipe up/down on each factor.");
   }
 
   function updateGestureScore(factor: "commitment" | "transgression" | "creativity" | "presentation", delta: number) {
     if (!gestureScores) return;
-    const newValue = Math.max(0, Math.min(10, gestureScores[factor] + delta));
+    const newValue = Math.max(1, Math.min(4, gestureScores[factor] + delta));
     setGestureScores({ ...gestureScores, [factor]: newValue });
   }
 
   function clearGestureScores() {
-    setGestureScores({ commitment: 5, transgression: 5, creativity: 5, presentation: 5 });
+    setGestureScores({ commitment: 2, transgression: 2, creativity: 2, presentation: 2 });
     setStatus("Gesture scores cleared. Start fresh.");
   }
 
@@ -380,25 +380,25 @@ export default function App() {
                 <Text style={styles.body}>Swipe up/down on each factor to adjust score (0-10)</Text>
                 <View style={styles.scoreRow} {...commitmentPan.panHandlers} accessibilityLabel="Commitment score adjustment. Swipe up or down to change value.">
                   <Text style={styles.scoreLabel}>Commitment:</Text>
-                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.commitment} out of 10`}>{gestureScores.commitment}</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.commitment} out of 4`}>{gestureScores.commitment}</Text>
                   <Button onPress={() => updateGestureScore("commitment", -1)} title="-" accessibilityLabel="Decrease commitment score by 1" />
                   <Button onPress={() => updateGestureScore("commitment", 1)} title="+" accessibilityLabel="Increase commitment score by 1" />
                 </View>
                 <View style={styles.scoreRow} {...transgressionPan.panHandlers} accessibilityLabel="Transgression score adjustment. Swipe up or down to change value.">
                   <Text style={styles.scoreLabel}>Transgression:</Text>
-                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.transgression} out of 10`}>{gestureScores.transgression}</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.transgression} out of 4`}>{gestureScores.transgression}</Text>
                   <Button onPress={() => updateGestureScore("transgression", -1)} title="-" accessibilityLabel="Decrease transgression score by 1" />
                   <Button onPress={() => updateGestureScore("transgression", 1)} title="+" accessibilityLabel="Increase transgression score by 1" />
                 </View>
                 <View style={styles.scoreRow} {...creativityPan.panHandlers} accessibilityLabel="Creativity score adjustment. Swipe up or down to change value.">
                   <Text style={styles.scoreLabel}>Creativity:</Text>
-                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.creativity} out of 10`}>{gestureScores.creativity}</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.creativity} out of 4`}>{gestureScores.creativity}</Text>
                   <Button onPress={() => updateGestureScore("creativity", -1)} title="-" accessibilityLabel="Decrease creativity score by 1" />
                   <Button onPress={() => updateGestureScore("creativity", 1)} title="+" accessibilityLabel="Increase creativity score by 1" />
                 </View>
                 <View style={styles.scoreRow} {...presentationPan.panHandlers} accessibilityLabel="Presentation score adjustment. Swipe up or down to change value.">
                   <Text style={styles.scoreLabel}>Presentation:</Text>
-                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.presentation} out of 10`}>{gestureScores.presentation}</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.presentation} out of 4`}>{gestureScores.presentation}</Text>
                   <Button onPress={() => updateGestureScore("presentation", -1)} title="-" accessibilityLabel="Decrease presentation score by 1" />
                   <Button onPress={() => updateGestureScore("presentation", 1)} title="+" accessibilityLabel="Increase presentation score by 1" />
                 </View>

@@ -71,6 +71,12 @@ type GroupMembership struct {
 	CreatedAt time.Time
 }
 
+type GuestSession struct {
+	ID            string
+	JudgmentCount int32
+	CreatedAt     time.Time
+}
+
 type Invite struct {
 	ID                string
 	GroupID           string
@@ -82,14 +88,16 @@ type Invite struct {
 }
 
 type Judgment struct {
-	ID            string
-	JumpID        string
-	PlayerID      string
-	Commitment    int32
-	Transgression int32
-	Creativity    int32
-	Presentation  int32
-	CreatedAt     time.Time
+	ID             string
+	JumpID         string
+	PlayerID       sql.NullString
+	GuestSessionID sql.NullString
+	Provenance     string
+	Commitment     int32
+	Transgression  int32
+	Creativity     int32
+	Presentation   int32
+	CreatedAt      time.Time
 }
 
 type Jump struct {
@@ -102,8 +110,21 @@ type Jump struct {
 	Destination          string
 	Food                 string
 	FinalScore           sql.NullInt32
+	OpenFinalScore       sql.NullInt32
+	SeasonFinalScore     sql.NullInt32
 	GracePeriodExpiresAt sql.NullTime
 	CreatedAt            time.Time
+}
+
+type OpenStanding struct {
+	ID          string
+	Year        int32
+	Month       int32
+	PlayerID    string
+	Score       int32
+	JudgedJumps int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Player struct {

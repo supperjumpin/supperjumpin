@@ -5,8 +5,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type AuthIdentity struct {
@@ -442,17 +445,37 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, submission)
 	})
-	mux.HandleFunc("POST /v1/jumps/{jumpID}/judgment", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
+	mux.HandleFunc("POST /v1/guest-sessions", func(w http.ResponseWriter, r *http.Request) {
+		id, err := randomToken("guest_session")
+		if err != nil {
+			http.Error(w, "create guest session", http.StatusInternalServerError)
 			return
+		}
+		if err := config.DB.CreateGuestSession(r.Context(), id); err != nil {
+			http.Error(w, "create guest session", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]string{"id": id})
+	})
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/judgment", func(w http.ResponseWriter, r *http.Request) {
+		var playerID, guestSessionID string
+		authOK := false
+
+		// Try authenticated path only if bearer token is present
+		if r.Header.Get("Authorization") != "" {
+			var profile MeResponse
+			profile, authOK = signedInProfile(w, r, config)
+			if authOK {
+				playerID = profile.Player.ID
+			}
 		}
 
 		var request struct {
-			Commitment    *int `json:"commitment"`
-			Transgression *int `json:"transgression"`
-			Creativity    *int `json:"creativity"`
-			Presentation  *int `json:"presentation"`
+			GuestSessionID *string `json:"guestSessionId"`
+			Commitment     *int    `json:"commitment"`
+			Transgression  *int    `json:"transgression"`
+			Creativity     *int    `json:"creativity"`
+			Presentation   *int    `json:"presentation"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -463,10 +486,26 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
+		if request.GuestSessionID != nil && *request.GuestSessionID != "" {
+			guestSessionID = *request.GuestSessionID
+		}
+
+		// Must have exactly one identity
+		if !authOK && guestSessionID == "" {
+			http.Error(w, "Authentication or guestSessionId required", http.StatusUnauthorized)
+			return
+		}
+		if authOK && guestSessionID != "" {
+			http.Error(w, "Cannot provide both authentication and guestSessionId", http.StatusBadRequest)
+			return
+		}
+
 		judgment, ok, created, err := submitJudgment(
 			r.Context(),
 			config.DB,
-			profile.Player,
+			playerID,
+			guestSessionID,
+			"public",
 			r.PathValue("jumpID"),
 			*request.Commitment,
 			*request.Transgression,
@@ -482,11 +521,19 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if errors.Is(err, ErrInvalidJudgmentScore) {
-			http.Error(w, "Judgment scores must be between 0 and 10", http.StatusBadRequest)
+			http.Error(w, "Judgment scores must be between 1 and 4", http.StatusBadRequest)
 			return
 		}
 		if errors.Is(err, ErrAuthorGracePeriodActive) {
 			http.Error(w, "Author Grace Period is still active", http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrGuestCapReached) {
+			http.Error(w, "Guest Judgment cap reached", http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrInvalidJudgeIdentity) {
+			http.Error(w, "Invalid judge identity", http.StatusBadRequest)
 			return
 		}
 		if err != nil {
@@ -585,6 +632,45 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, resolved)
+	})
+	mux.HandleFunc("POST /v1/opens/{year}/{month}/compute", func(w http.ResponseWriter, r *http.Request) {
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		yearStr := r.PathValue("year")
+		monthStr := r.PathValue("month")
+		year, err := strconv.Atoi(yearStr)
+		if err != nil {
+			http.Error(w, "invalid year", http.StatusBadRequest)
+			return
+		}
+		month, err := strconv.Atoi(monthStr)
+		if err != nil || month < 1 || month > 12 {
+			http.Error(w, "invalid month", http.StatusBadRequest)
+			return
+		}
+
+		result := game.ComputeOpenScores(r.Context(), config.DB, game.ComputeOpenScoresInput{
+			Year:  year,
+			Month: month,
+		}, config.DB.Now())
+
+		if errors.Is(result.Err, game.ErrOpenMonthNotClosed) {
+			http.Error(w, "Open month has not soft-closed yet", http.StatusConflict)
+			return
+		}
+		if err != nil {
+			http.Error(w, "compute Open scores", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			http.Error(w, "compute Open scores not allowed", http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "computed"})
 	})
 	return mux
 }

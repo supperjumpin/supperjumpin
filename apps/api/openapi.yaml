@@ -385,10 +385,27 @@ paths:
           description: The signed-in Player is not the performer of this Planned Jump.
         "404":
           description: Planned Jump or upload authorization not found.
+  /v1/guest-sessions:
+    post:
+      operationId: createGuestSession
+      summary: Create a Guest Judge session for unauthenticated Judgments
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: The created Guest Session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestSession"
   /v1/jumps/{jumpId}/judgment:
     post:
       operationId: submitJudgment
-      summary: Submit or edit the signed-in Judge's Judgment for a Performed Jump
+      summary: Submit or edit a Judge's Judgment for a Performed Jump (authenticated or Guest)
       security:
         - bearerAuth: []
       parameters:
@@ -405,22 +422,25 @@ paths:
               type: object
               required: [commitment, transgression, creativity, presentation]
               properties:
+                guestSessionId:
+                  type: string
+                  description: Required for Guest Judges. Must not be provided when authenticated.
                 commitment:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 transgression:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 creativity:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
                 presentation:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  minimum: 1
+                  maximum: 4
       responses:
         "200":
           description: The edited Judgment.
@@ -437,13 +457,51 @@ paths:
         "400":
           description: Invalid Judgment request.
         "401":
-          description: Missing or invalid bearer token.
+          description: Authentication or guestSessionId required.
         "403":
-          description: The signed-in Player is not an eligible Judge for this Performed Jump.
+          description: The Judge is not eligible for this Performed Jump (self-judge, cap reached, or grace period active).
         "404":
           description: Performed Jump not found.
         "409":
           description: The Judging Window is closed.
+  /v1/opens/{year}/{month}/compute:
+    post:
+      operationId: computeOpenScores
+      summary: Compute Open Final Scores for a completed calendar month
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: Open scores computed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "400":
+          description: Invalid year or month.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Compute Open scores not allowed.
+        "409":
+          description: Open month has not soft-closed yet.
   /v1/jumps/{jumpId}/disputes:
     post:
       operationId: createDispute
@@ -718,7 +776,7 @@ components:
           $ref: "#/components/schemas/Evidence"
     Judgment:
       type: object
-      required: [id, jumpId, playerId, commitment, transgression, creativity, presentation]
+      required: [id, jumpId, commitment, transgression, creativity, presentation]
       properties:
         id:
           type: string
@@ -726,22 +784,36 @@ components:
           type: string
         playerId:
           type: string
+          description: Present for authenticated Player judgments. Empty for Guest judgments.
+        guestSessionId:
+          type: string
+          description: Present for Guest judgments. Empty for authenticated Player judgments.
+        provenance:
+          type: string
+          enum: [public, open, season]
+          description: Tracks the context in which the Judgment was submitted.
         commitment:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         transgression:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         creativity:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
         presentation:
           type: integer
-          minimum: 0
-          maximum: 10
+          minimum: 1
+          maximum: 4
+    GuestSession:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
     PerformedJumpView:
       type: object
       required: [jump, performer, evidence, disputes]
