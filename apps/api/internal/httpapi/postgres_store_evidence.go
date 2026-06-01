@@ -115,7 +115,10 @@ func (s *PostgresStore) ClaimAndAdvance(ctx context.Context, authorizationID, ju
 	}); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
-	if err := qtx.AdoptJumpToSeason(ctx, jumpID); err != nil {
+	if err := qtx.AdoptJumpToSeason(ctx, db.AdoptJumpToSeasonParams{
+		ID:                   jumpID,
+		GracePeriodExpiresAt: sql.NullTime{Time: now.Add(10 * time.Minute).UTC(), Valid: true},
+	}); err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
 	if err := qtx.DeleteEvidenceUploadAuthorization(ctx, authorizationID); err != nil {

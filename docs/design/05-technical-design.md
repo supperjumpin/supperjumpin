@@ -249,7 +249,7 @@ Migrations must run in this order due to foreign key and column dependencies:
 | 3 | `jumps.group_id` nullable | Jumps are public by default | ADR-0019 |
 | 4 | Add `jumps.grace_period_expires_at` | Author Grace Period tracking | #107 §2.3 |
 | 5 | `jumps.final_score` → `open_final_score` + `season_final_score` | Multi-score model | ADR-0023 |
-| 6 | Rename judgment columns | `difficulty` → `commitment`, `documentation` → `presentation` | ADR-0020 |
+| 6 | Rename judgment columns (done) | `difficulty` → `commitment`, `documentation` → `presentation` | ADR-0020 |
 | 7 | Update judgment CHECK constraints | 0–10 → 1–4 scale | ADR-0022 |
 | 8 | Add judgment columns | `guest_session_id`, `provenance`, `open_month` | ADR-0021, ADR-0023 |
 | 9 | Update judgment UNIQUE constraints | Split into partial indexes for Player vs. Guest | #107 §5.4 |

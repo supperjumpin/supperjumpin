@@ -148,7 +148,7 @@ export async function submitJudgment({
   baseUrl,
   accessToken,
   jumpId,
-  difficulty,
+  commitment,
   transgression,
   creativity,
   presentation,
@@ -157,7 +157,7 @@ export async function submitJudgment({
   const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/judgment`, {
     method: "POST",
     headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
-    body: JSON.stringify({ difficulty, transgression, creativity, presentation }),
+    body: JSON.stringify({ commitment, transgression, creativity, presentation }),
   });
 
   if (!response.ok) {

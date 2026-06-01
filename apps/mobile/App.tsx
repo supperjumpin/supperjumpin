@@ -49,7 +49,7 @@ export default function App() {
   const [selectedJump, setSelectedJump] = useState<PerformedJumpView | null>(null);
   const [idea, setIdea] = useState<Jump | null>(null);
   const [plannedJump, setPlannedJump] = useState<Jump | null>(null);
-  const [gestureScores, setGestureScores] = useState<{ difficulty: number; transgression: number; creativity: number; presentation: number } | null>(null);
+  const [gestureScores, setGestureScores] = useState<{ commitment: number; transgression: number; creativity: number; presentation: number } | null>(null);
   const [pendingJudgment, setPendingJudgment] = useState<Judgment | null>(null);
   const [isJudging, setIsJudging] = useState(false);
 
@@ -194,19 +194,19 @@ export default function App() {
       return;
     }
     setIsJudging(true);
-    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, presentation: 5 });
+    setGestureScores({ commitment: 5, transgression: 5, creativity: 5, presentation: 5 });
     setSelectedJump(jump);
     setStatus("Use gestures or buttons to set scores. Swipe up/down on each factor.");
   }
 
-  function updateGestureScore(factor: "difficulty" | "transgression" | "creativity" | "presentation", delta: number) {
+  function updateGestureScore(factor: "commitment" | "transgression" | "creativity" | "presentation", delta: number) {
     if (!gestureScores) return;
     const newValue = Math.max(0, Math.min(10, gestureScores[factor] + delta));
     setGestureScores({ ...gestureScores, [factor]: newValue });
   }
 
   function clearGestureScores() {
-    setGestureScores({ difficulty: 5, transgression: 5, creativity: 5, presentation: 5 });
+    setGestureScores({ commitment: 5, transgression: 5, creativity: 5, presentation: 5 });
     setStatus("Gesture scores cleared. Start fresh.");
   }
 
@@ -238,7 +238,7 @@ export default function App() {
     setStatus("Judging cancelled.");
   }
 
-  function createScorePanResponder(factor: "difficulty" | "transgression" | "creativity" | "presentation") {
+  function createScorePanResponder(factor: "commitment" | "transgression" | "creativity" | "presentation") {
     let lastY = 0;
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -257,7 +257,7 @@ export default function App() {
     });
   }
 
-  const difficultyPan = createScorePanResponder("difficulty");
+  const commitmentPan = createScorePanResponder("commitment");
   const transgressionPan = createScorePanResponder("transgression");
   const creativityPan = createScorePanResponder("creativity");
   const presentationPan = createScorePanResponder("presentation");
@@ -360,7 +360,7 @@ export default function App() {
                 {pendingJudgment && selectedJump.jump.id === pendingJudgment.jumpId ? (
                   <View style={styles.judgmentSummary}>
                     <Text style={styles.sectionTitle}>Your Judgment</Text>
-                    <Text style={styles.body}>Difficulty: {pendingJudgment.difficulty}</Text>
+                    <Text style={styles.body}>Commitment: {pendingJudgment.commitment}</Text>
                     <Text style={styles.body}>Transgression: {pendingJudgment.transgression}</Text>
                     <Text style={styles.body}>Creativity: {pendingJudgment.creativity}</Text>
                     <Text style={styles.body}>Presentation: {pendingJudgment.presentation}</Text>
@@ -378,11 +378,11 @@ export default function App() {
               <View style={styles.judgingCard}>
                 <Text style={styles.sectionTitle}>Quick-Judge</Text>
                 <Text style={styles.body}>Swipe up/down on each factor to adjust score (0-10)</Text>
-                <View style={styles.scoreRow} {...difficultyPan.panHandlers} accessibilityLabel="Difficulty score adjustment. Swipe up or down to change value.">
-                  <Text style={styles.scoreLabel}>Difficulty:</Text>
-                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.difficulty} out of 10`}>{gestureScores.difficulty}</Text>
-                  <Button onPress={() => updateGestureScore("difficulty", -1)} title="-" accessibilityLabel="Decrease difficulty score by 1" />
-                  <Button onPress={() => updateGestureScore("difficulty", 1)} title="+" accessibilityLabel="Increase difficulty score by 1" />
+                <View style={styles.scoreRow} {...commitmentPan.panHandlers} accessibilityLabel="Commitment score adjustment. Swipe up or down to change value.">
+                  <Text style={styles.scoreLabel}>Commitment:</Text>
+                  <Text style={styles.scoreValue} accessibilityLabel={`Current score: ${gestureScores.commitment} out of 10`}>{gestureScores.commitment}</Text>
+                  <Button onPress={() => updateGestureScore("commitment", -1)} title="-" accessibilityLabel="Decrease commitment score by 1" />
+                  <Button onPress={() => updateGestureScore("commitment", 1)} title="+" accessibilityLabel="Increase commitment score by 1" />
                 </View>
                 <View style={styles.scoreRow} {...transgressionPan.panHandlers} accessibilityLabel="Transgression score adjustment. Swipe up or down to change value.">
                   <Text style={styles.scoreLabel}>Transgression:</Text>

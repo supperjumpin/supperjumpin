@@ -349,7 +349,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
     baseUrl: "http://api.example.test",
     accessToken: "supabase-access-token",
     jumpId: "jump_123",
-    difficulty: 4,
+    commitment: 4,
     transgression: 5,
     creativity: 3,
     presentation: 2,
@@ -363,7 +363,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
           id: "judgment_123",
           jumpId: "jump_123",
           playerId: "player_456",
-          difficulty: 4,
+          commitment: 4,
           transgression: 5,
           creativity: 3,
           presentation: 2,
@@ -377,7 +377,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
   assert.equal(seen.method, "POST");
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.deepEqual(seen.body, {
-    difficulty: 4,
+    commitment: 4,
     transgression: 5,
     creativity: 3,
     presentation: 2,

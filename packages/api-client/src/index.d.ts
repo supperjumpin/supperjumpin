@@ -115,7 +115,7 @@ export function submitJudgment(args: {
   baseUrl: string;
   accessToken: string;
   jumpId: string;
-  difficulty: number;
+  commitment: number;
   transgression: number;
   creativity: number;
   presentation: number;

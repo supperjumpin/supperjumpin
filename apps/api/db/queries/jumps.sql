@@ -22,7 +22,7 @@ RETURNING id, group_id, player_id, season_id, status, source, destination, food,
 
 -- name: AdoptJumpToSeason :exec
 UPDATE jumps
-SET status = 'Performed Jump'
+SET status = 'Performed Jump', grace_period_expires_at = $2
 WHERE id = $1 AND status = 'Planned Jump';
 
 -- name: ListJumpsForSeason :many
@@ -34,6 +34,11 @@ WHERE season_id = $1;
 UPDATE jumps
 SET status = $2, final_score = $3
 WHERE id = $1;
+
+-- name: AdvanceJumpToJudged :exec
+UPDATE jumps
+SET status = 'Judged Jump'
+WHERE id = $1 AND status = 'Performed Jump';
 
 -- name: UpdateJumpStatusAfterDispute :exec
 UPDATE jumps

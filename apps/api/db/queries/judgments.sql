@@ -1,9 +1,9 @@
 -- name: UpsertJudgment :one
 WITH upsert AS (
-  INSERT INTO judgments (id, jump_id, player_id, difficulty, transgression, creativity, presentation)
+  INSERT INTO judgments (id, jump_id, player_id, commitment, transgression, creativity, presentation)
   VALUES ($1, $2, $3, $4, $5, $6, $7)
   ON CONFLICT (jump_id, player_id) DO UPDATE SET
-    difficulty = EXCLUDED.difficulty,
+    commitment = EXCLUDED.commitment,
     transgression = EXCLUDED.transgression,
     creativity = EXCLUDED.creativity,
     presentation = EXCLUDED.presentation
@@ -12,12 +12,12 @@ WITH upsert AS (
 SELECT created FROM upsert;
 
 -- name: GetJudgment :one
-SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+SELECT id, jump_id, player_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1 AND player_id = $2;
 
 -- name: ListJudgmentsForJump :many
-SELECT id, jump_id, player_id, difficulty, transgression, creativity, presentation
+SELECT id, jump_id, player_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1;
 

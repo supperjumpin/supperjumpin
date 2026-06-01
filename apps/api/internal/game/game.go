@@ -21,11 +21,11 @@ func NewService(judgmentRepo JudgmentRepository) *Service {
 }
 
 // SubmitJudgment evaluates judgment rules and persists the result.
-func (s *Service) SubmitJudgment(ctx context.Context, jumpID, judgePlayerID string, difficulty, transgression, creativity, presentation int) JudgmentResult {
+func (s *Service) SubmitJudgment(ctx context.Context, jumpID, judgePlayerID string, commitment, transgression, creativity, presentation int) JudgmentResult {
 	return SubmitJudgment(ctx, s.JudgmentRepo, JudgmentInput{
 		JumpID:        jumpID,
 		JudgePlayerID: judgePlayerID,
-		Difficulty:    difficulty,
+		Commitment:    commitment,
 		Transgression: transgression,
 		Creativity:    creativity,
 		Presentation:  presentation,
