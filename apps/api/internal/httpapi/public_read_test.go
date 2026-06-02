@@ -327,6 +327,9 @@ func TestPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
+	// Advance past the Author Grace Period so judging is available
+	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
 	// Bob (different player) views detail — should be able to judge
 	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
 	if rec.Code != http.StatusOK {
@@ -351,6 +354,9 @@ func TestPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
 func TestPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
+
+	// Advance past the Author Grace Period before judging
+	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob judges Alice's jump (scores must be 1-4)
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
@@ -380,6 +386,122 @@ func TestPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
 	}
 	if !detail.ViewerContext.HasJudged {
 		t.Fatal("expected HasJudged=true")
+	}
+}
+
+func TestPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token", store.GroupID)
+
+	// Bob views Alice's jump while the Author Grace Period is still active
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var detail struct {
+		ViewerContext *struct {
+			CanJudge          bool       `json:"canJudge"`
+			Reason            string     `json:"reason,omitempty"`
+			GracePeriodEndsAt *time.Time `json:"gracePeriodEndsAt,omitempty"`
+		} `json:"viewerContext"`
+	}
+	decodeResponse(t, rec, &detail)
+	if detail.ViewerContext == nil {
+		t.Fatal("expected viewerContext")
+	}
+	if detail.ViewerContext.CanJudge {
+		t.Fatal("expected grace-period viewer to NOT be able to judge")
+	}
+	if detail.ViewerContext.Reason != "grace-period" {
+		t.Fatalf("expected reason 'grace-period', got %q", detail.ViewerContext.Reason)
+	}
+	if detail.ViewerContext.GracePeriodEndsAt == nil {
+		t.Fatal("expected gracePeriodEndsAt to be populated during grace period")
+	}
+}
+
+func TestPublicFeedGracePeriodViewerContext(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performJump(t, server, "alice-token", store.GroupID)
+
+	// Bob requests the feed while the Author Grace Period is still active
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) == 0 {
+		t.Fatal("expected at least 1 jump in feed")
+	}
+
+	vc := res.Jumps[0].ViewerContext
+	if vc == nil {
+		t.Fatal("expected viewerContext on feed card for authenticated viewer")
+	}
+	if vc.CanJudge {
+		t.Fatal("expected canJudge=false for grace-period jump on feed")
+	}
+	if vc.Reason != "grace-period" {
+		t.Fatalf("expected reason 'grace-period', got %q", vc.Reason)
+	}
+}
+
+func TestPublicFeedSelfJudgingViewerContext(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performJump(t, server, "alice-token", store.GroupID)
+
+	// Alice requests the feed and sees her own jump
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) == 0 {
+		t.Fatal("expected at least 1 jump in feed")
+	}
+
+	vc := res.Jumps[0].ViewerContext
+	if vc == nil {
+		t.Fatal("expected viewerContext on feed card for authenticated viewer")
+	}
+	if vc.CanJudge {
+		t.Fatal("expected canJudge=false for self-judging jump on feed")
+	}
+	if vc.Reason != "self-judging" {
+		t.Fatalf("expected reason 'self-judging', got %q", vc.Reason)
+	}
+}
+
+func TestPublicFeedOtherPlayerCanJudge(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performJump(t, server, "alice-token", store.GroupID)
+
+	// Advance past the Author Grace Period
+	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
+	// Bob requests the feed — should be able to judge
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) == 0 {
+		t.Fatal("expected at least 1 jump in feed")
+	}
+
+	vc := res.Jumps[0].ViewerContext
+	if vc == nil {
+		t.Fatal("expected viewerContext on feed card for authenticated viewer")
+	}
+	if !vc.CanJudge {
+		t.Fatal("expected canJudge=true for other player's jump after grace period")
 	}
 }
 
@@ -443,6 +565,9 @@ func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) 
 func TestPublicFeedAlreadyJudged(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
+
+	// Advance past the Author Grace Period before judging
+	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob judges Alice's jump
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)

@@ -719,7 +719,7 @@ func NewServer(config ServerConfig) http.Handler {
 				return
 			}
 			for i := range cards {
-				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged)
+				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged, config.DB.Now())
 			}
 		}
 
@@ -761,7 +761,7 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		// Attach viewer context for all requests (unauthenticated = default canJudge: true)
-		detail.ViewerContext = computeViewerContext(detail, viewer, config.DB, r.Context())
+		detail.ViewerContext = computeViewerContext(detail, viewer, config.DB, r.Context(), config.DB.Now())
 
 		writeJSON(w, http.StatusOK, detail)
 	})
@@ -776,7 +776,7 @@ func NewServer(config ServerConfig) http.Handler {
 // Guests see the judge UI and are prompted to authenticate before actually
 // submitting. The judgment submission endpoint independently verifies auth;
 // viewerContext is purely a UI hint, not an authorization gate.
-func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence, ctx context.Context) *ViewerContext {
+func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence, ctx context.Context, now time.Time) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 
 	if viewer == nil {
@@ -792,7 +792,7 @@ func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence,
 	}
 
 	// 2. Grace period active
-	if time.Now().Before(detail.GracePeriodExpiresAt) {
+	if now.Before(detail.GracePeriodExpiresAt) {
 		vc.CanJudge = false
 		reason := "grace-period"
 		vc.Reason = &reason
@@ -819,10 +819,10 @@ func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence,
 //
 // Three-state resolution (checked in order):
 //   1. Self-judging — viewer is the performer → canJudge=false, reason="self-judging"
-//   2. Grace period active — time.Now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
+//   2. Grace period active — now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
 //   3. Already judged — judged[card.ID] == true → canJudge=false, hasJudged=true, reason="already-judged"
 //   Default: canJudge=true (viewer can judge, no blocks detected)
-func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool) *ViewerContext {
+func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool, now time.Time) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 
 	// 1. Self-judging
@@ -834,7 +834,7 @@ func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[strin
 	}
 
 	// 2. Grace period active
-	if time.Now().Before(card.GracePeriodExpiresAt) {
+	if now.Before(card.GracePeriodExpiresAt) {
 		vc.CanJudge = false
 		reason := "grace-period"
 		vc.Reason = &reason
