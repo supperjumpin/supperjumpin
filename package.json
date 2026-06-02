@@ -16,8 +16,6 @@
     "db:up": "node ./scripts/db-up.mjs",
     "db:migrate": "node ./scripts/db-migrate.mjs",
     "api:dev": "node ./scripts/api-dev.mjs",
-    "api:test": "node ./scripts/api-test.mjs",
-    "demo:api": "npm run db:up && npm run db:migrate && npm run api:dev",
-    "demo:mobile": "npm --workspace @supperjumpin/mobile run dev"
+    "api:test": "node ./scripts/api-test.mjs"
   }
 }

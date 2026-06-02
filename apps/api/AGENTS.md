@@ -11,6 +11,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 | Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig; call transport helpers in `store.go` |
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
+| Postgres-backed tests | `npm run api:test` | Canonical test path against Postgres; see root AGENTS.md |
 | In-memory tests | `internal/httpapi/memory_store.go` | `MemoryStore` implements full `Persistence` interface |
 | Production persistence | `internal/httpapi/postgres_store*.go` | sqlc-generated queries via `db.Queries`; per-repository files |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
