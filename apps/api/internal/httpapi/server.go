@@ -815,7 +815,13 @@ func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence,
 // computeViewerContextCard determines the viewer's eligibility to judge a Jump
 // from a JumpCard (feed level). Uses the same logic as computeViewerContext but
 // accepts a JumpCard instead of JumpDetail. The judged parameter is a pre-fetched
-// batch map to avoid N+1 queries on the feed.
+// batch map (from HasJudgedJumps) to avoid N+1 queries on the feed.
+//
+// Three-state resolution (checked in order):
+//   1. Self-judging — viewer is the performer → canJudge=false, reason="self-judging"
+//   2. Grace period active — time.Now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
+//   3. Already judged — judged[card.ID] == true → canJudge=false, hasJudged=true, reason="already-judged"
+//   Default: canJudge=true (viewer can judge, no blocks detected)
 func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 
