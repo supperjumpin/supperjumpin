@@ -1141,6 +1141,9 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 		)
 		performed := performJump(t, server, "alice-token", group.Group.ID)
 		score := seasonNumber
+		if score > 4 {
+			score = 4
+		}
 		submitJudgment(t, server, "bob-token", performed.Jump.ID, score, 1, 1, 1, http.StatusCreated)
 		currentTime = currentTime.Add(3 * time.Hour)
 		getGroupHome(t, server, "alice-token", group.Group.ID)
