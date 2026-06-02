@@ -703,7 +703,7 @@ func NewServer(config ServerConfig) http.Handler {
 		// Fetch limit+1 to detect whether there's a next page
 		cards, err := config.DB.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
 		if err != nil {
-			http.Error(w, "Could not load jumps", http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jumps. Please try again.")
 			return
 		}
 
@@ -745,7 +745,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if !found {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Jump not found. It may have been removed."})
+			writeAPIError(w, http.StatusNotFound, "not_found", "Jump not found. It may have been removed.")
 			return
 		}
 
@@ -886,6 +886,10 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	if err := json.NewEncoder(w).Encode(value); err != nil {
 		http.Error(w, "encode response", http.StatusInternalServerError)
 	}
+}
+
+func writeAPIError(w http.ResponseWriter, status int, code string, message string) {
+	writeJSON(w, status, map[string]string{"error": code, "message": message})
 }
 
 func bearerToken(header string) (string, bool) {

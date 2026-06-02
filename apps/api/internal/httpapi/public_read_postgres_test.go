@@ -194,6 +194,17 @@ func TestPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 	if unknownRec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown jump, got %d: %s", unknownRec.Code, unknownRec.Body.String())
 	}
+	var missing struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, unknownRec, &missing)
+	if missing.Error != "not_found" {
+		t.Fatalf("expected not_found error code, got %q", missing.Error)
+	}
+	if missing.Message != "Jump not found. It may have been removed." {
+		t.Fatalf("expected jump not found message, got %q", missing.Message)
+	}
 
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
 	judgedRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)

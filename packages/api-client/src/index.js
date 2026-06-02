@@ -180,7 +180,7 @@ export async function getPublicFeed({ baseUrl, accessToken, cursor, limit = 20, 
   const response = await fetchImpl(`${baseUrl}/v1/feed?${params.toString()}`, { headers });
 
   if (!response.ok) {
-    throw new Error(`getPublicFeed failed with status ${response.status}`);
+    throw new Error(await errorMessage(response, `getPublicFeed failed with status ${response.status}`));
   }
 
   return response.json();
@@ -195,7 +195,7 @@ export async function getJumpDetail({ baseUrl, accessToken, jumpId, fetchImpl = 
   const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}`, { headers });
 
   if (!response.ok) {
-    throw new Error(`getJumpDetail failed with status ${response.status}`);
+    throw new Error(await errorMessage(response, `getJumpDetail failed with status ${response.status}`));
   }
 
   return response.json();
@@ -206,4 +206,19 @@ function authHeaders(accessToken) {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/json",
   };
+}
+
+async function errorMessage(response, fallback) {
+  const body = await response.text();
+  if (body) {
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed.message === "string" && parsed.message) {
+        return parsed.message;
+      }
+    } catch {
+      return body;
+    }
+  }
+  return fallback;
 }

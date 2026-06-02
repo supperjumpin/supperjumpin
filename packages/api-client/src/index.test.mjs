@@ -460,6 +460,41 @@ test("getJumpDetail includes bearer auth when a viewer token is present", async 
   assert.equal(detail.viewerContext.reason, "already-judged");
 });
 
+test("public read helpers surface backend message fields in thrown errors", async () => {
+  await assert.rejects(
+    () =>
+      getPublicFeed({
+        baseUrl: "http://api.example.test",
+        fetchImpl: async () =>
+          Response.json(
+            { error: "internal_error", message: "Could not load jumps. Please try again." },
+            { status: 500 },
+          ),
+      }),
+    (err) => {
+      assert.equal(err.message, "Could not load jumps. Please try again.");
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () =>
+      getJumpDetail({
+        baseUrl: "http://api.example.test",
+        jumpId: "jump_123",
+        fetchImpl: async () =>
+          Response.json(
+            { error: "not_found", message: "Jump not found. It may have been removed." },
+            { status: 404 },
+          ),
+      }),
+    (err) => {
+      assert.equal(err.message, "Jump not found. It may have been removed.");
+      return true;
+    },
+  );
+});
+
 function groupHomeResponse(group, activeSeason = null, recentJumps = []) {
   return {
     group,
