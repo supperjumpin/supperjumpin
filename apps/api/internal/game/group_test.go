@@ -7,14 +7,14 @@ import (
 )
 
 type mockGroupRepo struct {
-	insertGroupFn             func(ctx context.Context, groupID, name string) error
-	insertMembershipFn        func(ctx context.Context, groupID, playerID, role string) error
-	groupFn                   func(ctx context.Context, groupID string) (GroupSnapshot, bool, error)
-	membershipFn              func(ctx context.Context, playerID, groupID string) (GroupMembershipSnapshot, bool, error)
-	membershipsForPlayerFn    func(ctx context.Context, playerID string) ([]MembershipWithGroupSnapshot, error)
-	insertInviteFn            func(ctx context.Context, groupID, createdByPlayerID string, expiresAt int64) (InviteSnapshot, error)
-	inviteByTokenFn           func(ctx context.Context, token string) (InviteSnapshot, bool, error)
-	markInviteUsedFn          func(ctx context.Context, token, playerID string) error
+	insertGroupFn          func(ctx context.Context, groupID, name string) error
+	insertMembershipFn     func(ctx context.Context, groupID, playerID, role string) error
+	groupFn                func(ctx context.Context, groupID string) (GroupSnapshot, bool, error)
+	membershipFn           func(ctx context.Context, playerID, groupID string) (GroupMembershipSnapshot, bool, error)
+	membershipsForPlayerFn func(ctx context.Context, playerID string) ([]MembershipWithGroupSnapshot, error)
+	insertInviteFn         func(ctx context.Context, groupID, createdByPlayerID string, expiresAt int64) (InviteSnapshot, error)
+	inviteByTokenFn        func(ctx context.Context, token string) (InviteSnapshot, bool, error)
+	markInviteUsedFn       func(ctx context.Context, token, playerID string) error
 }
 
 func (m *mockGroupRepo) InsertGroup(_ context.Context, groupID, name string) error {
@@ -49,7 +49,7 @@ func (m *mockGroupRepo) MarkInviteUsed(_ context.Context, token, playerID string
 	return m.markInviteUsedFn(nil, token, playerID)
 }
 
-func TestCreateInvite_NonMemberIsRejected(t *testing.T) {
+func testCreateInvite_NonMemberIsRejected(t *testing.T) {
 	repo := &mockGroupRepo{
 		membershipFn: func(_ context.Context, playerID, groupID string) (GroupMembershipSnapshot, bool, error) {
 			return GroupMembershipSnapshot{}, false, nil
@@ -70,7 +70,7 @@ func TestCreateInvite_NonMemberIsRejected(t *testing.T) {
 	}
 }
 
-func TestCreateInvite_MemberCanCreateInvite(t *testing.T) {
+func testCreateInvite_MemberCanCreateInvite(t *testing.T) {
 	var insertedGroupID, insertedCreatedBy string
 	var insertedExpiresAt int64
 
@@ -116,7 +116,7 @@ func TestCreateInvite_MemberCanCreateInvite(t *testing.T) {
 	}
 }
 
-func TestAcceptInvite_InvalidTokenReturnsInvalid(t *testing.T) {
+func testAcceptInvite_InvalidTokenReturnsInvalid(t *testing.T) {
 	repo := &mockGroupRepo{
 		inviteByTokenFn: func(_ context.Context, token string) (InviteSnapshot, bool, error) {
 			return InviteSnapshot{}, false, nil
@@ -137,7 +137,7 @@ func TestAcceptInvite_InvalidTokenReturnsInvalid(t *testing.T) {
 	}
 }
 
-func TestAcceptInvite_UsedTokenReturnsUsed(t *testing.T) {
+func testAcceptInvite_UsedTokenReturnsUsed(t *testing.T) {
 	usedBy := "alice"
 	repo := &mockGroupRepo{
 		inviteByTokenFn: func(_ context.Context, token string) (InviteSnapshot, bool, error) {
@@ -163,7 +163,7 @@ func TestAcceptInvite_UsedTokenReturnsUsed(t *testing.T) {
 	}
 }
 
-func TestAcceptInvite_ExpiredTokenReturnsExpired(t *testing.T) {
+func testAcceptInvite_ExpiredTokenReturnsExpired(t *testing.T) {
 	repo := &mockGroupRepo{
 		inviteByTokenFn: func(_ context.Context, token string) (InviteSnapshot, bool, error) {
 			return InviteSnapshot{
@@ -187,7 +187,7 @@ func TestAcceptInvite_ExpiredTokenReturnsExpired(t *testing.T) {
 	}
 }
 
-func TestAcceptInvite_ExistingMemberReturnsMember(t *testing.T) {
+func testAcceptInvite_ExistingMemberReturnsMember(t *testing.T) {
 	repo := &mockGroupRepo{
 		inviteByTokenFn: func(_ context.Context, token string) (InviteSnapshot, bool, error) {
 			return InviteSnapshot{
@@ -214,7 +214,7 @@ func TestAcceptInvite_ExistingMemberReturnsMember(t *testing.T) {
 	}
 }
 
-func TestAcceptInvite_ValidTokenCreatesMembershipAndReturnsAccepted(t *testing.T) {
+func testAcceptInvite_ValidTokenCreatesMembershipAndReturnsAccepted(t *testing.T) {
 	var markedToken, markedPlayerID string
 	var insertedGroupID, insertedPlayerID, insertedRole string
 
@@ -273,7 +273,7 @@ func TestAcceptInvite_ValidTokenCreatesMembershipAndReturnsAccepted(t *testing.T
 	}
 }
 
-func TestGroupHome_NonMemberIsRejected(t *testing.T) {
+func testGroupHome_NonMemberIsRejected(t *testing.T) {
 	repo := &mockGroupRepo{
 		groupFn: func(_ context.Context, groupID string) (GroupSnapshot, bool, error) {
 			return GroupSnapshot{ID: groupID, Name: "Breakfast Crew"}, true, nil
@@ -296,7 +296,7 @@ func TestGroupHome_NonMemberIsRejected(t *testing.T) {
 	}
 }
 
-func TestGroupHome_NotFoundIsRejected(t *testing.T) {
+func testGroupHome_NotFoundIsRejected(t *testing.T) {
 	repo := &mockGroupRepo{
 		groupFn: func(_ context.Context, groupID string) (GroupSnapshot, bool, error) {
 			return GroupSnapshot{}, false, nil
@@ -316,7 +316,7 @@ func TestGroupHome_NotFoundIsRejected(t *testing.T) {
 	}
 }
 
-func TestGroupHome_MemberCanViewHome(t *testing.T) {
+func testGroupHome_MemberCanViewHome(t *testing.T) {
 	repo := &mockGroupRepo{
 		groupFn: func(_ context.Context, groupID string) (GroupSnapshot, bool, error) {
 			return GroupSnapshot{ID: groupID, Name: "Breakfast Crew"}, true, nil
@@ -345,7 +345,7 @@ func TestGroupHome_MemberCanViewHome(t *testing.T) {
 	}
 }
 
-func TestListGroups_ReturnsMembershipsForPlayer(t *testing.T) {
+func testListGroups_ReturnsMembershipsForPlayer(t *testing.T) {
 	repo := &mockGroupRepo{
 		membershipsForPlayerFn: func(_ context.Context, playerID string) ([]MembershipWithGroupSnapshot, error) {
 			return []MembershipWithGroupSnapshot{
@@ -370,7 +370,7 @@ func TestListGroups_ReturnsMembershipsForPlayer(t *testing.T) {
 	}
 }
 
-func TestCreateGroup_CreatorBecomesGroupAdmin(t *testing.T) {
+func testCreateGroup_CreatorBecomesGroupAdmin(t *testing.T) {
 	var insertedGroupID, insertedGroupName string
 	var insertedMembershipGroupID, insertedMembershipPlayerID, insertedMembershipRole string
 
@@ -409,4 +409,33 @@ func TestCreateGroup_CreatorBecomesGroupAdmin(t *testing.T) {
 	if insertedMembershipGroupID != "group_1" || insertedMembershipPlayerID != "player_alice" || insertedMembershipRole != "Group Admin" {
 		t.Fatalf("expected InsertMembership called with group_1/player_alice/Group Admin, got %q/%q/%q", insertedMembershipGroupID, insertedMembershipPlayerID, insertedMembershipRole)
 	}
+}
+
+func TestGroup(t *testing.T) {
+	t.Run("create invite", func(t *testing.T) {
+		t.Run("non-member is rejected", testCreateInvite_NonMemberIsRejected)
+		t.Run("member can create invite", testCreateInvite_MemberCanCreateInvite)
+	})
+
+	t.Run("accept invite", func(t *testing.T) {
+		t.Run("invalid token returns invalid", testAcceptInvite_InvalidTokenReturnsInvalid)
+		t.Run("used token returns used", testAcceptInvite_UsedTokenReturnsUsed)
+		t.Run("expired token returns expired", testAcceptInvite_ExpiredTokenReturnsExpired)
+		t.Run("existing member returns member", testAcceptInvite_ExistingMemberReturnsMember)
+		t.Run("valid token creates membership and returns accepted", testAcceptInvite_ValidTokenCreatesMembershipAndReturnsAccepted)
+	})
+
+	t.Run("group home", func(t *testing.T) {
+		t.Run("non-member is rejected", testGroupHome_NonMemberIsRejected)
+		t.Run("not found is rejected", testGroupHome_NotFoundIsRejected)
+		t.Run("member can view home", testGroupHome_MemberCanViewHome)
+	})
+
+	t.Run("list groups", func(t *testing.T) {
+		t.Run("returns memberships for player", testListGroups_ReturnsMembershipsForPlayer)
+	})
+
+	t.Run("create group", func(t *testing.T) {
+		t.Run("creator becomes group admin", testCreateGroup_CreatorBecomesGroupAdmin)
+	})
 }
