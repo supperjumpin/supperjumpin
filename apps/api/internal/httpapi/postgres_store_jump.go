@@ -214,7 +214,7 @@ JOIN players p ON p.id = j.player_id
 LEFT JOIN evidences e ON e.jump_id = j.id
 LEFT JOIN (
     SELECT jump_id,
-           AVG((CAST(difficulty AS numeric(4,2)) + CAST(transgression AS numeric(4,2)) + CAST(creativity AS numeric(4,2)) + CAST(presentation AS numeric(4,2))) / 4.0) AS avg_composite,
+           AVG((CAST(commitment AS numeric(4,2)) + CAST(transgression AS numeric(4,2)) + CAST(creativity AS numeric(4,2)) + CAST(presentation AS numeric(4,2))) / 4.0) AS avg_composite,
            COUNT(*) AS judgment_count
     FROM judgments
     GROUP BY jump_id
@@ -235,7 +235,7 @@ JOIN players p ON p.id = j.player_id
 LEFT JOIN evidences e ON e.jump_id = j.id
 LEFT JOIN (
     SELECT jump_id,
-           AVG((CAST(difficulty AS numeric(4,2)) + CAST(transgression AS numeric(4,2)) + CAST(creativity AS numeric(4,2)) + CAST(presentation AS numeric(4,2))) / 4.0) AS avg_composite,
+           AVG((CAST(commitment AS numeric(4,2)) + CAST(transgression AS numeric(4,2)) + CAST(creativity AS numeric(4,2)) + CAST(presentation AS numeric(4,2))) / 4.0) AS avg_composite,
            COUNT(*) AS judgment_count
     FROM judgments
     GROUP BY jump_id
@@ -294,7 +294,7 @@ JOIN players p ON p.id = j.player_id
 LEFT JOIN evidences e ON e.jump_id = j.id
 LEFT JOIN (
     SELECT jump_id,
-           AVG((CAST(difficulty AS numeric(4,2)) + CAST(transgression AS numeric(4,2)) + CAST(creativity AS numeric(4,2)) + CAST(presentation AS numeric(4,2))) / 4.0) AS avg_composite,
+           AVG((CAST(commitment AS numeric(4,2)) + CAST(transgression AS numeric(4,2)) + CAST(creativity AS numeric(4,2)) + CAST(presentation AS numeric(4,2))) / 4.0) AS avg_composite,
            COUNT(*) AS judgment_count
     FROM judgments
     GROUP BY jump_id
