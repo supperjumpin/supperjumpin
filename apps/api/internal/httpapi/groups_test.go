@@ -1170,6 +1170,16 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	maxIDSeasonNumber := 0
 	maxID := ""
 	foundOutOfOrder := false
+	judgmentScores := [][4]int{
+		{1, 1, 1, 1},
+		{2, 1, 1, 1},
+		{3, 1, 1, 1},
+		{4, 1, 1, 1},
+		{4, 2, 1, 1},
+		{4, 3, 1, 1},
+		{4, 4, 1, 1},
+		{4, 4, 2, 1},
+	}
 	for seasonNumber := 1; seasonNumber <= 8; seasonNumber++ {
 		// Reset clock so performJump creates a consistent grace period, then advance past it
 		store.SetClock(func() time.Time { return currentTime })
@@ -1183,19 +1193,16 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 			currentTime.Add(2*time.Hour),
 		)
 		performed := performJump(t, server, "alice-token", group.Group.ID)
-		score := seasonNumber
-		if score > 4 {
-			score = 4
-		}
+		score := judgmentScores[seasonNumber-1]
 
 		// Advance past the Author Grace Period before judging
 		store.SetClock(func() time.Time { return currentTime.Add(11 * time.Minute) })
 
-		submitJudgment(t, server, "bob-token", performed.Jump.ID, score, 1, 1, 1, http.StatusCreated)
+		submitJudgment(t, server, "bob-token", performed.Jump.ID, score[0], score[1], score[2], score[3], http.StatusCreated)
 		currentTime = currentTime.Add(3 * time.Hour)
 		getGroupHome(t, server, "alice-token", group.Group.ID)
 
-		latestScore = score
+		latestScore = score[0] + score[1] + score[2] + score[3]
 		if maxID == "" || season.ActiveSeason.ID > maxID {
 			maxID = season.ActiveSeason.ID
 			maxIDSeasonNumber = seasonNumber
@@ -1213,7 +1220,7 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	if len(home.Standings) != 1 {
 		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
 	}
-	expectedSeasonScore := latestScore + 3
+	expectedSeasonScore := latestScore
 	if home.Standings[0].SeasonScore != expectedSeasonScore || home.Standings[0].JudgedJumps != 1 {
 		t.Fatalf("expected latest season score %d to drive standings, got %#v", expectedSeasonScore, home.Standings[0])
 	}
