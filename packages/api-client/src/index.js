@@ -167,6 +167,40 @@ export async function submitJudgment({
   return response.json();
 }
 
+export async function getPublicFeed({ baseUrl, accessToken, cursor, limit = 20, fetchImpl = fetch }) {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  params.set("limit", String(limit));
+
+  const headers = { Accept: "application/json" };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetchImpl(`${baseUrl}/v1/feed?${params.toString()}`, { headers });
+
+  if (!response.ok) {
+    throw new Error(`getPublicFeed failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function getJumpDetail({ baseUrl, accessToken, jumpId, fetchImpl = fetch }) {
+  const headers = { Accept: "application/json" };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}`, { headers });
+
+  if (!response.ok) {
+    throw new Error(`getJumpDetail failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 function authHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,

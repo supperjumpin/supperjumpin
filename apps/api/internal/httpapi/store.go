@@ -108,6 +108,17 @@ type Persistence interface {
 	GroupHomeForSeason(ctx context.Context, seasonID string, player Player) (GroupHomeResponse, bool, error)
 	CreateGuestSession(ctx context.Context, id string) error
 	Now() time.Time
+
+	// Public read path
+	FeedJumps(ctx context.Context, cursorTS *time.Time, cursorID string, limit int) ([]JumpCard, error)
+	JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error)
+	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
+	// HasJudgedJumps returns a map of jumpID → true only for jumps the player
+	// has judged. Absent keys mean "not judged by this player" — Do not
+	// distinguish "queried and false" from "not in result set"; it's always
+	// absent for not-judged. Callers check with judgedMap[id] (yields false
+	// for absent keys via Go zero-value semantics, which is correct here).
+	HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error)
 }
 
 // --- Transport-layer DTO helpers (game-command → DTO conversion) ---

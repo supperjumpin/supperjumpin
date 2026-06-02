@@ -314,6 +314,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Feed of recent Jumps (reverse chronological, cursor paginated) */
+        get: operations["getPublicFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jumps/{jumpId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Jump Detail — full read view or tombstone */
+        get: operations["getJumpDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -483,6 +517,67 @@ export interface components {
         };
         ListGroupsResponse: {
             memberships: components["schemas"]["GroupMembershipSummary"][];
+        };
+        PublicFeedResponse: {
+            jumps: components["schemas"]["JumpCard"][];
+            nextCursor: string | null;
+        };
+        JumpCard: {
+            id: string;
+            performerName: string;
+            performerId: string;
+            source: string;
+            destination: string;
+            food: string;
+            caption: string;
+            mediaObjectKey: string;
+            /** @enum {string} */
+            status: "Performed Jump" | "Judged Jump" | "Unjudged Jump" | "Disqualified Jump";
+            /** Format: date-time */
+            gracePeriodExpiresAt: string;
+            /** Format: float */
+            runningAverage: number;
+            judgmentCount: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        JumpDetail: {
+            id: string;
+            performerName: string;
+            performerId: string;
+            source: string;
+            destination: string;
+            food: string;
+            caption: string;
+            mediaObjectKey: string;
+            /** @enum {string} */
+            status: "Performed Jump" | "Judged Jump" | "Unjudged Jump" | "Disqualified Jump";
+            /** Format: date-time */
+            gracePeriodExpiresAt: string;
+            /** Format: float */
+            runningAverage: number;
+            judgmentCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            finalScore?: number | null;
+            disputes?: components["schemas"]["Dispute"][];
+            viewerContext?: components["schemas"]["ViewerContext"];
+        };
+        JumpTombstone: {
+            id: string;
+            /** @enum {string} */
+            status: "Removed Jump";
+            message: string;
+            /** Format: date-time */
+            removedAt: string;
+        };
+        ViewerContext: {
+            canJudge: boolean;
+            /** @enum {string|null} */
+            reason?: "self-judging" | "grace-period" | "already-judged" | null;
+            /** Format: date-time */
+            gracePeriodEndsAt?: string | null;
+            hasJudged: boolean;
         };
     };
     responses: never;
@@ -1364,6 +1459,65 @@ export interface operations {
                 content?: never;
             };
             /** @description Dispute not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPublicFeed: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated Jump cards for the public Feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFeedResponse"];
+                };
+            };
+            /** @description Invalid cursor or limit parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getJumpDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full Jump detail or tombstone response. Live Jumps (Performed, Judged, etc.) return JumpDetail. Removed Jumps return JumpTombstone with no content. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JumpDetail"] | components["schemas"]["JumpTombstone"];
+                };
+            };
+            /** @description Jump not found. */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -155,3 +155,37 @@ func (s *PostgresStore) CreateGuestSession(ctx context.Context, id string) error
 	_, err := s.queries.CreateGuestSession(ctx, id)
 	return err
 }
+
+// HasJudgedJump returns true if the player has already submitted a Judgment for this Jump.
+func (s *PostgresStore) HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM judgments WHERE jump_id = $1 AND player_id = $2)`, jumpID, playerID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// HasJudgedJumps returns a map of jumpID → hasJudged for the given player.
+// Uses a single SQL query with ANY instead of N individual queries.
+func (s *PostgresStore) HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error) {
+	if len(jumpIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT jump_id FROM judgments WHERE player_id = $1 AND jump_id = ANY($2)`, playerID, jumpIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	judged := make(map[string]bool, len(jumpIDs))
+	for rows.Next() {
+		var jid string
+		if err := rows.Scan(&jid); err != nil {
+			return nil, err
+		}
+		judged[jid] = true
+	}
+	return judged, rows.Err()
+}

@@ -178,3 +178,60 @@ const (
 	InviteExpired  InviteAcceptStatus = "expired"
 	InviteMember   InviteAcceptStatus = "member"
 )
+
+// --- Public Feed / Read Path DTOs ---
+
+type JumpCard struct {
+	ID                   string    `json:"id"`
+	PerformerName        string    `json:"performerName"`
+	PerformerID          string    `json:"performerId"`
+	Source               string    `json:"source"`
+	Destination          string    `json:"destination"`
+	Food                 string    `json:"food"`
+	Caption              string    `json:"caption"`
+	MediaObjectKey       string    `json:"mediaObjectKey"`
+	Status               string    `json:"status"`
+	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
+	RunningAverage       float64   `json:"runningAverage"`
+	JudgmentCount        int       `json:"judgmentCount"`
+	CreatedAt            time.Time      `json:"createdAt"`
+	ViewerContext        *ViewerContext `json:"viewerContext,omitempty"`
+}
+
+type JumpDetail struct {
+	ID                   string         `json:"id"`
+	PerformerName        string         `json:"performerName"`
+	PerformerID          string         `json:"performerId"`
+	Source               string         `json:"source"`
+	Destination          string         `json:"destination"`
+	Food                 string         `json:"food"`
+	Caption              string         `json:"caption"`
+	MediaObjectKey       string         `json:"mediaObjectKey"`
+	Status               string         `json:"status"`
+	GracePeriodExpiresAt time.Time      `json:"gracePeriodExpiresAt"`
+	RunningAverage       float64        `json:"runningAverage"`
+	JudgmentCount        int            `json:"judgmentCount"`
+	CreatedAt            time.Time      `json:"createdAt"`
+	FinalScore           *int           `json:"finalScore,omitempty"`
+	Disputes             []Dispute      `json:"disputes,omitempty"`
+	ViewerContext        *ViewerContext `json:"viewerContext,omitempty"`
+}
+
+type JumpTombstone struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	RemovedAt string `json:"removedAt"`
+}
+
+type ViewerContext struct {
+	CanJudge          bool       `json:"canJudge"`
+	Reason            *string    `json:"reason,omitempty"`
+	GracePeriodEndsAt *time.Time `json:"gracePeriodEndsAt,omitempty"`
+	HasJudged         bool       `json:"hasJudged"`
+}
+
+type PublicFeedResponse struct {
+	Jumps      []JumpCard `json:"jumps"`
+	NextCursor *string    `json:"nextCursor"`
+}

@@ -961,3 +961,186 @@ func (s *MemoryStore) recordSeasonHistory(seasonID string, action string, actorP
 		CreatedAt:     s.now().UTC(),
 	})
 }
+
+// FeedJumps returns a page of public Feed Jumps from MemoryStore.
+func (s *MemoryStore) FeedJumps(ctx context.Context, cursorTS *time.Time, cursorID string, limit int) ([]JumpCard, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var visible []Jump
+	for _, jump := range s.jumps {
+		if !visiblePerformedStatus(jump.Status) {
+			continue
+		}
+		visible = append(visible, jump)
+	}
+
+	sort.Slice(visible, func(i, j int) bool {
+		if !visible[i].CreatedAt.Equal(visible[j].CreatedAt) {
+			return visible[i].CreatedAt.After(visible[j].CreatedAt)
+		}
+		return visible[i].ID > visible[j].ID
+	})
+
+	startIdx := 0
+	if cursorTS != nil {
+		cursorMs := cursorTS.UnixMilli()
+		for idx, j := range visible {
+			jMs := j.CreatedAt.UnixMilli()
+			// We want items that are BEFORE the cursor position in the sorted
+			// (DESC CreatedAt, DESC ID) order. Find the cursor item itself,
+			// then start from the next index.
+			if jMs == cursorMs && j.ID == cursorID {
+				startIdx = idx + 1
+				break
+			}
+		}
+	}
+
+	if startIdx >= len(visible) {
+		return []JumpCard{}, nil
+	}
+
+	endIdx := startIdx + limit
+	if endIdx > len(visible) {
+		endIdx = len(visible)
+	}
+
+	cards := make([]JumpCard, 0, endIdx-startIdx)
+	for _, jump := range visible[startIdx:endIdx] {
+		card := s.jumpToCard(jump)
+		cards = append(cards, card)
+	}
+	return cards, nil
+}
+
+// JumpDetail returns the full detail view of a Jump from MemoryStore.
+func (s *MemoryStore) JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	jump, ok := s.jumps[jumpID]
+	if !ok {
+		return JumpDetail{}, false, nil
+	}
+
+	return s.jumpToDetail(jump), true, nil
+}
+
+// HasJudgedJump returns true if the player has already judged this Jump in MemoryStore.
+func (s *MemoryStore) HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, j := range s.judgments {
+		if j.JumpID == jumpID && j.PlayerID == playerID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// HasJudgedJumps returns a map of jumpID → hasJudged for the given player.
+// Uses a single O(n) pass over all judgments instead of N individual lookups.
+func (s *MemoryStore) HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	target := make(map[string]bool, len(jumpIDs))
+	for _, jid := range jumpIDs {
+		target[jid] = true
+	}
+
+	judged := make(map[string]bool, len(jumpIDs))
+	for _, j := range s.judgments {
+		if j.PlayerID == playerID && target[j.JumpID] {
+			judged[j.JumpID] = true
+		}
+	}
+	return judged, nil
+}
+
+// jumpToCard converts a Jump into a JumpCard for the public feed.
+func (s *MemoryStore) jumpToCard(jump Jump) JumpCard {
+	var ra float64
+	var jc int
+
+	// Compute running average from stored judgments
+	var total float64
+	var count int
+	for _, j := range s.judgments {
+		if j.JumpID == jump.ID {
+			composite := float64(j.Commitment+j.Transgression+j.Creativity+j.Presentation) / 4.0
+			total += composite
+			count++
+		}
+	}
+	if count > 0 {
+		ra = total / float64(count)
+	}
+	jc = count
+
+	_ = jc
+
+	pc := Player{}
+	for _, p := range s.players {
+		if p.ID == jump.PlayerID {
+			pc = p
+			break
+		}
+	}
+
+	ev := Evidence{}
+	for _, e := range s.evidences {
+		if e.JumpID == jump.ID {
+			ev = e
+			break
+		}
+	}
+
+	return JumpCard{
+		ID:                   jump.ID,
+		PerformerName:        pc.DisplayName,
+		PerformerID:          jump.PlayerID,
+		Source:               jump.Source,
+		Destination:          jump.Destination,
+		Food:                 jump.Food,
+		Caption:              ev.Caption,
+		MediaObjectKey:       ev.MediaObjectKey,
+		Status:               jump.Status,
+		GracePeriodExpiresAt: jump.GracePeriodExpiresAt,
+		RunningAverage:       ra,
+		JudgmentCount:        count,
+		CreatedAt:            jump.CreatedAt,
+	}
+}
+
+// jumpToDetail converts a Jump into a JumpDetail.
+func (s *MemoryStore) jumpToDetail(jump Jump) JumpDetail {
+	card := s.jumpToCard(jump)
+
+	var disputes []Dispute
+	for _, d := range s.disputes {
+		if d.JumpID == jump.ID {
+			disputes = append(disputes, d)
+		}
+	}
+
+	return JumpDetail{
+		ID:                   card.ID,
+		PerformerName:        card.PerformerName,
+		PerformerID:          card.PerformerID,
+		Source:               card.Source,
+		Destination:          card.Destination,
+		Food:                 card.Food,
+		Caption:              card.Caption,
+		MediaObjectKey:       card.MediaObjectKey,
+		Status:               card.Status,
+		GracePeriodExpiresAt: card.GracePeriodExpiresAt,
+		RunningAverage:       card.RunningAverage,
+		JudgmentCount:        card.JudgmentCount,
+		CreatedAt:            card.CreatedAt,
+		FinalScore:           jump.FinalScore,
+		Disputes:             disputes,
+	}
+}
