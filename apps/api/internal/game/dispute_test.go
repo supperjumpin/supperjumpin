@@ -630,6 +630,54 @@ func testResolveDispute_PlainPlayerNotAllowedToOverride(t *testing.T) {
 	}
 }
 
+func testResolveDispute_JumpNotFoundDuringResolve(t *testing.T) {
+	repo := &mockDisputeRepo{
+		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
+			return DisputeSnapshot{ID: disputeID, JumpID: "jump_1", Status: "Open"}, nil
+		},
+		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return JumpSnapshot{}, false, nil
+		},
+	}
+
+	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
+		PlayerID:         "player_1",
+		DisputeID:        "dispute_1",
+		Resolution:       "No Action",
+		ResolutionReason: "Jump not found.",
+	})
+	if !errors.Is(result.Err, ErrJumpNotFound) {
+		t.Fatalf("expected ErrJumpNotFound, got %v", result.Err)
+	}
+}
+
+func testResolveDispute_PersistenceErrorPropagates(t *testing.T) {
+	repo := &mockDisputeRepo{
+		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
+			return DisputeSnapshot{ID: disputeID, JumpID: "jump_1", Status: "Open"}, nil
+		},
+		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return JumpSnapshot{ID: jumpID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
+		},
+		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
+			return MembershipSnapshot{Role: "Group Admin"}, true, nil
+		},
+		updateDisputeResolutionFn: func(_ context.Context, disputeID, resolution, resolutionReason, resolvedByPlayerID string) error {
+			return errors.New("db error")
+		},
+	}
+
+	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
+		PlayerID:         "player_admin",
+		DisputeID:        "dispute_1",
+		Resolution:       "Removed Jump",
+		ResolutionReason: "Error test.",
+	})
+	if result.Err == nil || result.Err.Error() != "db error" {
+		t.Fatalf("expected db error, got %v", result.Err)
+	}
+}
+
 func TestDispute(t *testing.T) {
 	t.Run("create dispute", func(t *testing.T) {
 		t.Run("group member can raise dispute on performed jump", testCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump)
@@ -654,6 +702,8 @@ func TestDispute(t *testing.T) {
 		t.Run("commissioner can take no action on season-linked jump", testResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedJump)
 		t.Run("non-commissioner player not allowed", testResolveDispute_NonCommissionerPlayerNotAllowed)
 		t.Run("plain player not allowed to override", testResolveDispute_PlainPlayerNotAllowedToOverride)
+		t.Run("jump not found during resolve", testResolveDispute_JumpNotFoundDuringResolve)
+		t.Run("persistence error propagates", testResolveDispute_PersistenceErrorPropagates)
 	})
 }
 

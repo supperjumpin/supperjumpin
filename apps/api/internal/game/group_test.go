@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -370,6 +371,45 @@ func testListGroups_ReturnsMembershipsForPlayer(t *testing.T) {
 	}
 }
 
+func testCreateGroup_InsertGroupErrorPropagates(t *testing.T) {
+	repo := &mockGroupRepo{
+		insertGroupFn: func(_ context.Context, groupID, name string) error {
+			return errors.New("db error")
+		},
+	}
+
+	result := CreateGroup(context.Background(), repo, CreateGroupInput{
+		GroupID:         "group_1",
+		GroupName:       "Breakfast Crew",
+		CreatorPlayerID: "player_alice",
+	})
+
+	if result.Err == nil || result.Err.Error() != "db error" {
+		t.Fatalf("expected db error, got %v", result.Err)
+	}
+}
+
+func testCreateGroup_InsertMembershipErrorPropagates(t *testing.T) {
+	repo := &mockGroupRepo{
+		insertGroupFn: func(_ context.Context, groupID, name string) error {
+			return nil
+		},
+		insertMembershipFn: func(_ context.Context, groupID, playerID, role string) error {
+			return errors.New("db error")
+		},
+	}
+
+	result := CreateGroup(context.Background(), repo, CreateGroupInput{
+		GroupID:         "group_1",
+		GroupName:       "Breakfast Crew",
+		CreatorPlayerID: "player_alice",
+	})
+
+	if result.Err == nil || result.Err.Error() != "db error" {
+		t.Fatalf("expected db error, got %v", result.Err)
+	}
+}
+
 func testCreateGroup_CreatorBecomesGroupAdmin(t *testing.T) {
 	var insertedGroupID, insertedGroupName string
 	var insertedMembershipGroupID, insertedMembershipPlayerID, insertedMembershipRole string
@@ -437,5 +477,7 @@ func TestGroup(t *testing.T) {
 
 	t.Run("create group", func(t *testing.T) {
 		t.Run("creator becomes group admin", testCreateGroup_CreatorBecomesGroupAdmin)
+		t.Run("insert group error propagates", testCreateGroup_InsertGroupErrorPropagates)
+		t.Run("insert membership error propagates", testCreateGroup_InsertMembershipErrorPropagates)
 	})
 }
