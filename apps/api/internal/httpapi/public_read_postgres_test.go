@@ -270,6 +270,156 @@ func TestPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 	}
 }
 
+func TestPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Public Detail Grace Period Crew")
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Grace period is naturally active after performJump; Bob views detail
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var detail struct {
+		ViewerContext *struct {
+			CanJudge          bool    `json:"canJudge"`
+			Reason            string  `json:"reason,omitempty"`
+			GracePeriodEndsAt *string `json:"gracePeriodEndsAt,omitempty"`
+		} `json:"viewerContext"`
+	}
+	decodeResponse(t, rec, &detail)
+	if detail.ViewerContext == nil {
+		t.Fatal("expected viewerContext")
+	}
+	if detail.ViewerContext.CanJudge {
+		t.Fatal("expected canJudge=false during grace period")
+	}
+	if detail.ViewerContext.Reason != "grace-period" {
+		t.Fatalf("expected reason 'grace-period', got %q", detail.ViewerContext.Reason)
+	}
+	if detail.ViewerContext.GracePeriodEndsAt == nil || *detail.ViewerContext.GracePeriodEndsAt == "" {
+		t.Fatal("expected gracePeriodEndsAt to be populated during grace period")
+	}
+}
+
+func TestPostgresPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Public Detail Self Judging Crew")
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Alice views her own jump detail — self-judging should take precedence over grace period
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var detail struct {
+		ViewerContext *struct {
+			CanJudge bool   `json:"canJudge"`
+			Reason   string `json:"reason,omitempty"`
+		} `json:"viewerContext"`
+	}
+	decodeResponse(t, rec, &detail)
+	if detail.ViewerContext == nil {
+		t.Fatal("expected viewerContext")
+	}
+	if detail.ViewerContext.CanJudge {
+		t.Fatal("expected canJudge=false for self-judging")
+	}
+	if detail.ViewerContext.Reason != "self-judging" {
+		t.Fatalf("expected reason 'self-judging', got %q", detail.ViewerContext.Reason)
+	}
+}
+
+func TestPostgresPublicFeedGracePeriodViewerContext(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Public Feed Grace Period Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join Group before public feed setup, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	performJump(t, server, "alice-token", group.Group.ID)
+
+	// Grace period is naturally active; Bob requests the feed
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) == 0 {
+		t.Fatal("expected at least 1 jump in feed")
+	}
+
+	vc := res.Jumps[0].ViewerContext
+	if vc == nil {
+		t.Fatal("expected viewerContext on feed card for authenticated viewer")
+	}
+	if vc.CanJudge {
+		t.Fatal("expected canJudge=false for grace-period jump on feed")
+	}
+	if vc.Reason != "grace-period" {
+		t.Fatalf("expected reason 'grace-period', got %q", vc.Reason)
+	}
+}
+
+func TestPostgresPublicFeedSelfJudgingViewerContext(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Public Feed Self Judging Crew")
+	performJump(t, server, "alice-token", group.Group.ID)
+
+	// Alice requests the feed and sees her own jump
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) == 0 {
+		t.Fatal("expected at least 1 jump in feed")
+	}
+
+	vc := res.Jumps[0].ViewerContext
+	if vc == nil {
+		t.Fatal("expected viewerContext on feed card for authenticated viewer")
+	}
+	if vc.CanJudge {
+		t.Fatal("expected canJudge=false for self-judging jump on feed")
+	}
+	if vc.Reason != "self-judging" {
+		t.Fatalf("expected reason 'self-judging', got %q", vc.Reason)
+	}
+}
+
 func performCustomJump(t *testing.T, server http.Handler, token string, groupID string, food string, caption string) evidenceSubmissionBody {
 	t.Helper()
 	idea := createIdea(t, server, token, groupID, "Taco Bell", "Olive Garden parking lot", food)

@@ -235,6 +235,12 @@ func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 11, 0, 0, time.UTC)
+	})
+
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -329,7 +335,7 @@ func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePerio
 }
 
 func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -344,6 +350,9 @@ func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(
 		t.Fatalf("expected status 200, got %d: %s", closeRec.Code, closeRec.Body.String())
 	}
 
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
 	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 	if judgment.JumpID != performed.Jump.ID || judgment.PlayerID == performed.Jump.PlayerID {
 		t.Fatalf("expected eligible Judge to score existing Performed Jump during Judging Grace Period, got %#v", judgment)
@@ -351,7 +360,7 @@ func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(
 }
 
 func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -360,6 +369,10 @@ func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	closeRec := doJSON(server, http.MethodPost, "/v1/seasons/"+season.ActiveSeason.ID+"/close-submissions", "alice-token", nil)
@@ -632,7 +645,7 @@ func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
 }
 
 func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -640,6 +653,9 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]int{
 		"commitment":    4,
@@ -743,7 +759,7 @@ func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
 }
 
 func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -751,6 +767,9 @@ func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	created := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 	updated := submitJudgment(t, server, "bob-token", performed.Jump.ID, 2, 3, 4, 4, http.StatusOK)
@@ -816,6 +835,9 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
 
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
 	created := submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 	store.SetSeasonStatus(season.ActiveSeason.ID, "Finalized")
 
@@ -868,6 +890,12 @@ func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 11, 0, 0, time.UTC)
+	})
+
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -922,6 +950,12 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStanding
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 11, 0, 0, time.UTC)
+	})
+
 	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -993,6 +1027,12 @@ func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings
 	if offSeasonRec.Code != http.StatusCreated {
 		t.Fatalf("expected Off-Season Evidence status 201, got %d: %s", offSeasonRec.Code, offSeasonRec.Body.String())
 	}
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time {
+		return time.Date(2026, 5, 1, 12, 11, 0, 0, time.UTC)
+	})
+
 	submitJudgment(t, server, "bob-token", offSeasonPlanned.ID, 4, 4, 4, 4, http.StatusCreated)
 
 	store.SetClock(func() time.Time {
@@ -1131,6 +1171,10 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	maxID := ""
 	foundOutOfOrder := false
 	for seasonNumber := 1; seasonNumber <= 8; seasonNumber++ {
+		// Reset clock to currentTime at the start of each iteration so performJump
+		// creates a consistent grace period, then advance past it before judging.
+		store.SetClock(func() time.Time { return currentTime })
+
 		season := startSeasonWithDeadlines(
 			t,
 			server,
@@ -1144,6 +1188,10 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 		if score > 4 {
 			score = 4
 		}
+
+		// Advance past the Author Grace Period before judging
+		store.SetClock(func() time.Time { return currentTime.Add(11 * time.Minute) })
+
 		submitJudgment(t, server, "bob-token", performed.Jump.ID, score, 1, 1, 1, http.StatusCreated)
 		currentTime = currentTime.Add(3 * time.Hour)
 		getGroupHome(t, server, "alice-token", group.Group.ID)
@@ -1896,6 +1944,11 @@ func TestCreatePerformedJumpDirectly(t *testing.T) {
 
 func newGroupsTestServer() http.Handler {
 	return newGroupsTestServerWithPersistence(httpapi.NewMemoryStore())
+}
+
+func newGroupsTestServerAndStore() (http.Handler, *httpapi.MemoryStore) {
+	store := httpapi.NewMemoryStore()
+	return newGroupsTestServerWithPersistence(store), store
 }
 
 func newGroupsTestServerWithStore(store httpapi.Store) http.Handler {
