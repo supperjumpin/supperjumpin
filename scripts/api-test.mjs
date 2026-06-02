@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -10,6 +10,69 @@ import {
   runPsqlCommand,
   waitForPostgresReady,
 } from "./db-helpers.mjs";
+
+const API_MODULE = "github.com/supperjumpin/supperjumpin/apps/api";
+const COVERAGE_SUMMARY_EXCLUSIONS = new Set(["cmd/api", "internal/db"]);
+
+function packageCoverageRows(profilePath) {
+  const packages = new Map();
+  for (const line of readFileSync(profilePath, "utf8").trim().split("\n").slice(1)) {
+    const [range, statementCountText, countText] = line.split(" ");
+    const filePath = range.slice(0, range.lastIndexOf(":"));
+    const packagePath = filePath.slice(0, filePath.lastIndexOf("/"));
+    const packageName = packagePath.startsWith(`${API_MODULE}/`)
+      ? packagePath.slice(API_MODULE.length + 1)
+      : packagePath;
+    const statementCount = Number(statementCountText);
+    const count = Number(countText);
+    const coverage = packages.get(packageName) ?? { covered: 0, total: 0 };
+    coverage.total += statementCount;
+    if (count > 0) {
+      coverage.covered += statementCount;
+    }
+    packages.set(packageName, coverage);
+  }
+
+  return [...packages.entries()]
+    .filter(([packageName]) => !COVERAGE_SUMMARY_EXCLUSIONS.has(packageName))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([packageName, coverage]) => ({
+      packageName,
+      percent: coverage.total === 0 ? 0 : (coverage.covered / coverage.total) * 100,
+    }));
+}
+
+function formatCoverageSummary(rows, totalPercent) {
+  const lines = ["Go API coverage by package:"];
+  for (const row of rows) {
+    const percent = row.percent.toFixed(1);
+    const prefix = percent === "0.0" ? "WARNING: " : "";
+    lines.push(`${prefix}${row.packageName}: ${percent}%`);
+  }
+  lines.push(
+    totalPercent
+      ? `total: (statements) ${totalPercent}%`
+      : "total: (statements) unavailable"
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function filterKnownCoverageNoise(output) {
+  const lines = output.split("\n");
+  const filtered = lines.filter((line) => {
+    const trimmed = line.trim();
+    for (const packageName of COVERAGE_SUMMARY_EXCLUSIONS) {
+      if (
+        trimmed.startsWith(`${API_MODULE}/${packageName}`) &&
+        trimmed.includes("coverage: 0.0% of statements")
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+  return filtered.join("\n");
+}
 
 /**
  * Determine the test database URL from environment.
@@ -100,12 +163,23 @@ function main() {
   }
   goArgs.push("./apps/api/...", ...extraGoArgs);
   const goTestResult = spawnSync("go", goArgs, {
-    stdio: "inherit",
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...env,
       SUPPERJUMPIN_TEST_DATABASE_URL: testDatabaseURL,
     },
   });
+
+  if (goTestResult.stdout) {
+    const stdout = goTestResult.status === 0 && coverageEnabled
+      ? filterKnownCoverageNoise(goTestResult.stdout)
+      : goTestResult.stdout;
+    process.stdout.write(stdout);
+  }
+  if (goTestResult.stderr) {
+    process.stderr.write(goTestResult.stderr);
+  }
 
   if (goTestResult.status === 0 && coverageEnabled) {
     const coverResult = spawnSync("go", ["tool", "cover", "-func=coverage/api.coverprofile"], {
@@ -114,9 +188,6 @@ function main() {
       env,
     });
 
-    if (coverResult.stdout) {
-      process.stdout.write(coverResult.stdout);
-    }
     if (coverResult.stderr) {
       process.stderr.write(coverResult.stderr);
     }
@@ -124,11 +195,13 @@ function main() {
     const summaryMatch = `${coverResult.stdout ?? ""}${coverResult.stderr ?? ""}`.match(
       /total:\s+\(statements\)\s+([\d.]+)%/
     );
+    const coverageSummary = formatCoverageSummary(
+      packageCoverageRows("coverage/api.coverprofile"),
+      summaryMatch?.[1]
+    );
+    process.stdout.write(coverageSummary);
     if (env.GITHUB_STEP_SUMMARY) {
-      const line = summaryMatch
-        ? `Go API coverage: ${summaryMatch[1]}% statement coverage.`
-        : "Go API coverage completed.";
-      appendFileSync(env.GITHUB_STEP_SUMMARY, `### Go API coverage\n${line}\n`);
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `### Go API coverage\n\n\`\`\`\n${coverageSummary}\`\`\`\n`);
     }
   }
 

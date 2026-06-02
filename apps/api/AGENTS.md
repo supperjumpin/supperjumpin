@@ -41,4 +41,4 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 - `PostgresStore` uses `database/sql` with `pgx` driver, not `pgxpool` directly.
 - `stableID(kind, value)` generates deterministic IDs. Never use UUIDs or auto-increment for domain entities.
 - `internal/db/` is the generated sqlc package. It must never import `internal/httpapi` or `internal/game` — CI enforces this with a freshness check.
-- `npm run api:test:coverage` writes `coverage/api.coverprofile` and prints a `go tool cover -func` summary.
+- `npm run api:test:coverage` writes the complete `coverage/api.coverprofile`; the human package summary excludes only `cmd/api` and generated `internal/db` while keeping total coverage visible.
