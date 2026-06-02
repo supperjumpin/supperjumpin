@@ -270,6 +270,102 @@ func TestPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 	}
 }
 
+func TestPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemovalTime(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Removed Tombstone Crew")
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close postgres database: %v", err)
+		}
+	})
+
+	createdAt := time.Now().Add(-48 * time.Hour).UTC().Truncate(time.Second)
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET created_at = $2 WHERE id = $1`, performed.Jump.ID, createdAt); err != nil {
+		t.Fatalf("backdate jump creation time: %v", err)
+	}
+
+	removedAfter := time.Now().UTC().Add(-2 * time.Second)
+	dispute := raiseDispute(t, server, "alice-token", performed.Jump.ID, "House Rules", "Remove this")
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Jump",
+		"resolutionReason": "Postgres tombstone removal test",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on dispute resolution, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+	removedBefore := time.Now().UTC().Add(2 * time.Second)
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for tombstone, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var tombstone map[string]any
+	decodeResponse(t, rec, &tombstone)
+
+	if got := tombstone["status"]; got != "Removed Jump" {
+		t.Fatalf("expected Removed Jump status, got %#v", got)
+	}
+	if got := tombstone["message"]; got != "This Jump is no longer available" {
+		t.Fatalf("expected tombstone message, got %#v", got)
+	}
+	if got := tombstone["id"]; got != performed.Jump.ID {
+		t.Fatalf("expected tombstone ID %q, got %#v", performed.Jump.ID, got)
+	}
+
+	removedAtRaw, ok := tombstone["removedAt"].(string)
+	if !ok || removedAtRaw == "" {
+		t.Fatalf("expected tombstone removedAt string, got %#v", tombstone["removedAt"])
+	}
+	removedAt, err := time.Parse(time.RFC3339, removedAtRaw)
+	if err != nil {
+		t.Fatalf("parse tombstone removedAt: %v", err)
+	}
+	if removedAt.Equal(createdAt) {
+		t.Fatalf("expected removedAt to reflect removal time, not jump creation time %s", createdAt.Format(time.RFC3339))
+	}
+	if removedAt.Before(removedAfter) || removedAt.After(removedBefore) {
+		t.Fatalf("expected removedAt between %s and %s, got %s", removedAfter.Format(time.RFC3339), removedBefore.Format(time.RFC3339), removedAt.Format(time.RFC3339))
+	}
+
+	for _, forbidden := range []string{
+		"performerName",
+		"performerId",
+		"caption",
+		"mediaObjectKey",
+		"source",
+		"destination",
+		"food",
+		"runningAverage",
+		"judgmentCount",
+		"viewerContext",
+		"gracePeriodExpiresAt",
+		"createdAt",
+		"finalScore",
+		"disputes",
+	} {
+		if _, exists := tombstone[forbidden]; exists {
+			t.Fatalf("expected tombstone response to omit %s", forbidden)
+		}
+	}
+
+	if len(tombstone) != 4 {
+		t.Fatalf("expected tombstone to expose only 4 fields, got %#v", tombstone)
+	}
+}
+
 func TestPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {

@@ -751,11 +751,15 @@ func NewServer(config ServerConfig) http.Handler {
 
 		// Tombstone for Removed Jumps
 		if detail.Status == "Removed Jump" {
+			removedAt := detail.CreatedAt
+			if detail.RemovedAt != nil {
+				removedAt = *detail.RemovedAt
+			}
 			writeJSON(w, http.StatusOK, JumpTombstone{
 				ID:        detail.ID,
 				Status:    "Removed Jump",
 				Message:   "This Jump is no longer available",
-				RemovedAt: detail.CreatedAt.Format(time.RFC3339),
+				RemovedAt: removedAt.Format(time.RFC3339),
 			})
 			return
 		}
@@ -818,10 +822,10 @@ func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence,
 // batch map (from HasJudgedJumps) to avoid N+1 queries on the feed.
 //
 // Three-state resolution (checked in order):
-//   1. Self-judging — viewer is the performer → canJudge=false, reason="self-judging"
-//   2. Grace period active — now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
-//   3. Already judged — judged[card.ID] == true → canJudge=false, hasJudged=true, reason="already-judged"
-//   Default: canJudge=true (viewer can judge, no blocks detected)
+//  1. Self-judging — viewer is the performer → canJudge=false, reason="self-judging"
+//  2. Grace period active — now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
+//  3. Already judged — judged[card.ID] == true → canJudge=false, hasJudged=true, reason="already-judged"
+//     Default: canJudge=true (viewer can judge, no blocks detected)
 func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool, now time.Time) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 

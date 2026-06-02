@@ -777,6 +777,12 @@ func (s *MemoryStore) UpdateJumpStatusAfterDispute(ctx context.Context, jumpID, 
 	jump := s.jumps[jumpID]
 	jump.Status = status
 	jump.FinalScore = nil
+	if status == "Removed Jump" {
+		now := s.now()
+		jump.RemovedAt = &now
+	} else {
+		jump.RemovedAt = nil
+	}
 	s.jumps[jump.ID] = jump
 	return nil
 }
@@ -1141,6 +1147,7 @@ func (s *MemoryStore) jumpToDetail(jump Jump) JumpDetail {
 		RunningAverage:       card.RunningAverage,
 		JudgmentCount:        card.JudgmentCount,
 		CreatedAt:            card.CreatedAt,
+		RemovedAt:            jump.RemovedAt,
 		FinalScore:           jump.FinalScore,
 		Disputes:             disputes,
 	}
