@@ -1,10 +1,13 @@
-.PHONY: demo-api demo-mobile api-test
+.PHONY: db-up db-migrate api-dev api-test
 
-demo-api:
-	npm run demo:api
+db-up:
+	npm run db:up
 
-demo-mobile:
-	npm run demo:mobile
+db-migrate:
+	npm run db:migrate
+
+api-dev:
+	npm run api:dev
 
 api-test:
 	npm run api:test

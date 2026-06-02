@@ -21,7 +21,7 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 │   ├── adr/              # Architecture Decision Records
 │   ├── agents/           # Agent-specific docs (issue tracker, triage labels)
 │   └── design/           # Product/UX/technical design docs
-├── scripts/              # demo-api.mjs (Postgres + migrations + Go API)
+├── scripts/              # Local dev and code-generation helpers
 ├── worktrees/            # In-repo Git worktrees (e.g., issue-<number>)
 ├── .agents/ / .claude/   # Agent skills (mattpocock/skills, see skills-lock.json)
 ├── .work-issue/          # Work-issue skill operator config
@@ -74,7 +74,6 @@ These are known compromises that exist for pre-MVP speed but should converge tow
 | Current state | Why it exists | Converge when |
 |---|---|---|
 | Single-file `App.tsx` (~550 lines, no router, no state lib) | Pre-MVP speed; not enough UI surface to justify splitting | There are 2+ screens or 3+ distinct UI sections → split into files + add React Navigation |
-| Custom migration runner in `scripts/demo-api.mjs` (psql exec + hand-rolled schema_migrations table) | Quick early setup before choosing a migration tool | DB is declared stable → adopt golang-migrate or dbmate |
 ## MAINTENANCE CONTRACT
 
 These files are maintained by convention, not automation. Follow these rules in every PR:
@@ -88,14 +87,14 @@ These files are maintained by convention, not automation. Follow these rules in 
 
 ```sh
 # Development
-npm run demo:api          # Docker Compose Postgres + apply migrations + run API on :8080
-npm run api:dev           # Run API against existing DB (skip Postgres setup)
+npm run db:up             # Start Docker Compose Postgres service
+npm run db:migrate        # Apply migrations using repo-local golang-migrate
+npm run api:dev           # Run API against existing DB
 npm run demo:mobile       # expo start (needs .env from .env.example)
-make demo-api             # alias for npm run demo:api
 
 # Testing
 npm run api:test          # go test ./apps/api/...
-npm test                  # npm workspace tests (api-client only)
+npm test                  # npm workspace tests (api-client + scripts)
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 
 # API client regeneration
