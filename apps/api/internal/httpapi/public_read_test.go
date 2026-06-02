@@ -1,6 +1,8 @@
 package httpapi_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -258,6 +260,39 @@ func TestPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown jump, got %d: %s", rec.Code, rec.Body.String())
 	}
+	var missing struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &missing)
+	if missing.Error != "not_found" {
+		t.Fatalf("expected not_found error code, got %q", missing.Error)
+	}
+	if missing.Message != "Jump not found. It may have been removed." {
+		t.Fatalf("expected jump not found message, got %q", missing.Message)
+	}
+}
+
+func TestPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
+	store := &failingPublicReadStore{MemoryStore: httpapi.NewMemoryStoreWithClock(time.Now)}
+	server := newGroupsTestServerWithStore(store)
+
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for feed load failure, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "internal_error" {
+		t.Fatalf("expected internal_error code, got %q", errBody.Error)
+	}
+	if errBody.Message != "Could not load jumps. Please try again." {
+		t.Fatalf("expected public feed error message, got %q", errBody.Message)
+	}
 }
 
 func TestPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
@@ -505,6 +540,14 @@ func TestPublicFeedOtherPlayerCanJudge(t *testing.T) {
 	}
 }
 
+type failingPublicReadStore struct {
+	*httpapi.MemoryStore
+}
+
+func (s *failingPublicReadStore) FeedJumps(_ context.Context, _ *time.Time, _ string, _ int) ([]httpapi.JumpCard, error) {
+	return nil, errors.New("database unavailable")
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -523,13 +566,13 @@ type publicFeedBody struct {
 }
 
 type publicFeedJumpBody struct {
-	ID             string `json:"id"`
-	PerformerName  string `json:"performerName"`
-	Source         string `json:"source"`
-	Destination    string `json:"destination"`
-	Food           string `json:"food"`
-	Caption        string `json:"caption"`
-	MediaObjectKey string `json:"mediaObjectKey"`
+	ID             string  `json:"id"`
+	PerformerName  string  `json:"performerName"`
+	Source         string  `json:"source"`
+	Destination    string  `json:"destination"`
+	Food           string  `json:"food"`
+	Caption        string  `json:"caption"`
+	MediaObjectKey string  `json:"mediaObjectKey"`
 	RunningAverage float64 `json:"runningAverage"`
 	JudgmentCount  int     `json:"judgmentCount"`
 	ViewerContext  *struct {
@@ -560,6 +603,7 @@ func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) 
 		GroupID: group.Group.ID,
 	}
 }
+
 // TestPublicFeedAlreadyJudged asserts that the feed shows already-judged state
 // for authenticated viewers who have judged a jump.
 func TestPublicFeedAlreadyJudged(t *testing.T) {

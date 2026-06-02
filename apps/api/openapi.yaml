@@ -607,6 +607,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicFeedResponse"
+        "500":
+          description: The feed could not be loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Invalid cursor or limit parameter.
   /v1/jumps/{jumpId}:
@@ -633,6 +639,10 @@ paths:
                   - $ref: "#/components/schemas/JumpTombstone"
         "404":
           description: Jump not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -1075,6 +1085,14 @@ components:
         status:
           type: string
           enum: [Removed Jump]
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
         message:
           type: string
         removedAt:

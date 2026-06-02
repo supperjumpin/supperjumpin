@@ -37,12 +37,22 @@ function formatScore(avg: number, count: number): string {
   return `★ ${avg.toFixed(1)} (${count})`;
 }
 
-function formatGraceCountdown(endsAt: string): string {
+function formatCountdown(endsAt: string): string {
   const remaining = new Date(endsAt).getTime() - Date.now();
-  if (remaining <= 0) return "Judging now available";
+  if (remaining <= 0) return "0m 0s";
   const mins = Math.floor(remaining / 60000);
   const secs = Math.floor((remaining % 60000) / 1000);
-  return `Judging opens in ${mins}m ${secs}s`;
+  return `${mins}m ${secs}s`;
+}
+
+function formatGraceCountdown(endsAt: string): string {
+  const countdown = formatCountdown(endsAt);
+  if (countdown === "0m 0s") return "Judging now available";
+  return `Judging opens in ${countdown}`;
+}
+
+function evidenceAltText(caption: string): string {
+  return caption || "Evidence photo";
 }
 
 interface JumpCardProps {
@@ -93,10 +103,10 @@ function JumpCard({
     judgeAccessibility = "You performed this jump. You cannot judge your own entry.";
   } else if (judgeReason === "grace-period") {
     judgeLabel = formatGraceCountdown(gracePeriodExpiresAt);
-    judgeAccessibility = `Judging opens in ${judgeLabel}`;
+    judgeAccessibility = `Judging opens in ${formatCountdown(gracePeriodExpiresAt)}. Not yet available.`;
   } else if (judgeReason === "already-judged") {
     judgeLabel = "You judged this";
-    judgeAccessibility = "You already judged this jump.";
+    judgeAccessibility = "You already judged this jump. Score submitted.";
   } else if (!canJudge) {
     judgeLabel = "Not available";
   }
@@ -118,7 +128,7 @@ function JumpCard({
           <Image
             source={{ uri: mediaUrl(mediaObjectKey) as string }}
             style={styles.mediaImage}
-            accessibilityLabel={`${performerName}'s jump evidence`}
+            accessibilityLabel={evidenceAltText(caption)}
             resizeMode="cover"
           />
         ) : (
@@ -127,7 +137,10 @@ function JumpCard({
           </View>
         )}
         <View style={styles.cardMeta}>
-          <Text style={styles.scoreBadge}>
+          <Text
+            style={styles.scoreBadge}
+            accessibilityLabel={`Running average ${runningAverage.toFixed(1)} out of 4 from ${judgmentCount} judgments`}
+          >
             {formatScore(runningAverage, judgmentCount)}
           </Text>
         </View>
@@ -170,6 +183,11 @@ function JumpCard({
               isGracePeriod && styles.judgeButtonTextGrace,
             ]}
             numberOfLines={1}
+            accessibilityLabel={
+              isGracePeriod
+                ? `Judging opens in ${formatCountdown(gracePeriodExpiresAt)}. Not yet available.`
+                : judgeAccessibility
+            }
           >
             {judgeLabel}
           </Text>
@@ -258,7 +276,7 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer} accessibilityLabel="Loading jumps">
+      <View style={styles.centerContainer} accessible accessibilityLabel="Loading jumps">
         <ActivityIndicator size="large" color="#c1673a" />
         <Text style={styles.loadingText}>Loading jumps...</Text>
       </View>
@@ -267,18 +285,21 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
 
   if (error && jumps.length === 0) {
     return (
-      <View style={styles.centerContainer} accessibilityLabel="Could not load jumps">
-        <Text style={styles.errorText}>Could not load jumps</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={handleRefresh}
-          accessibilityRole="button"
-          accessibilityLabel="Retry loading jumps"
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
+      <View style={styles.centerContainer} accessible accessibilityLabel="Could not load jumps">
+        <Text style={styles.errorText} accessibilityLabel="Could not load jumps. Network error.">
+          Could not load jumps. Network error.
+        </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={handleRefresh}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading jumps"
+            accessibilityHint="Double tap to retry"
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
   }
 
   return (
@@ -300,8 +321,8 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={
-          <View style={styles.centerContainer}>
-            <Text style={styles.emptyText}>No jumps yet. Be the first!</Text>
+          <View style={styles.centerContainer} accessible accessibilityLabel="No jumps yet. The feed is empty." accessibilityHint="Double tap to refresh">
+            <Text style={styles.emptyText}>No jumps yet. The feed is empty.</Text>
           </View>
         }
         ListFooterComponent={

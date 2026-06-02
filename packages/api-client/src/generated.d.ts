@@ -568,8 +568,12 @@ export interface components {
             /** @enum {string} */
             status: "Removed Jump";
             message: string;
+        };
+        ErrorResponse: {
+            error: string;
+            message: string;
             /** Format: date-time */
-            removedAt: string;
+            removedAt?: string;
         };
         ViewerContext: {
             canJudge: boolean;
@@ -1495,6 +1499,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The feed could not be loaded. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     getJumpDetail: {
@@ -1522,7 +1535,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };
