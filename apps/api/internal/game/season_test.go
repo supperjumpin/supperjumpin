@@ -585,6 +585,322 @@ func testSeasonHistory_ReturnsErrorForUnknownSeason(t *testing.T) {
 	}
 }
 
+func testAutoFinalizeSeason_NonFinalizedReturnsNil(t *testing.T) {
+	repo := &mockSeasonRepo{
+		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{ID: seasonID, Status: "Active"}, nil
+		},
+	}
+
+	err := AutoFinalizeSeason(context.Background(), repo, "season_1")
+	if err != nil {
+		t.Fatalf("expected nil for non-finalized season, got %v", err)
+	}
+}
+
+func testAutoFinalizeSeason_FinalizedComputesScores(t *testing.T) {
+	var finalizations []struct {
+		jumpID    string
+		status    string
+		finalScore *int
+	}
+
+	repo := &mockSeasonRepo{
+		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{ID: seasonID, Status: "Finalized"}, nil
+		},
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return []JumpSnapshot{
+				{ID: "jump_1", Status: "Performed Jump"},
+				{ID: "jump_2", Status: "Judged Jump"},
+				{ID: "jump_3", Status: "Idea"},
+			}, nil
+		},
+		judgmentsForJumpFn: func(_ context.Context, jumpID string) ([]Judgment, error) {
+			if jumpID == "jump_2" {
+				return []Judgment{
+					{Commitment: 4, Transgression: 4, Creativity: 4, Presentation: 4},
+					{Commitment: 2, Transgression: 2, Creativity: 2, Presentation: 2},
+				}, nil
+			}
+			return nil, nil
+		},
+		updateJumpFinalizationFn: func(_ context.Context, jumpID string, status string, finalScore *int) error {
+			finalizations = append(finalizations, struct {
+				jumpID    string
+				status    string
+				finalScore *int
+			}{jumpID, status, finalScore})
+			return nil
+		},
+	}
+
+	err := AutoFinalizeSeason(context.Background(), repo, "season_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(finalizations) != 2 {
+		t.Fatalf("expected 2 finalizations, got %d", len(finalizations))
+	}
+
+	// jump_1: no judgments → Unjudged Jump
+	if finalizations[0].jumpID != "jump_1" || finalizations[0].status != "Unjudged Jump" || finalizations[0].finalScore != nil {
+		t.Fatalf("expected jump_1 Unjudged Jump nil, got %+v", finalizations[0])
+	}
+
+	// jump_2: judgments → Judged Jump with score 12 (average of 16 and 8)
+	if finalizations[1].jumpID != "jump_2" || finalizations[1].status != "Judged Jump" || finalizations[1].finalScore == nil || *finalizations[1].finalScore != 12 {
+		t.Fatalf("expected jump_2 Judged Jump 12, got %+v", finalizations[1])
+	}
+}
+
+func testAutoFinalizeSeason_PersistenceErrorPropagates(t *testing.T) {
+	repo := &mockSeasonRepo{
+		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{ID: seasonID, Status: "Finalized"}, nil
+		},
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return nil, errors.New("db error")
+		},
+	}
+
+	err := AutoFinalizeSeason(context.Background(), repo, "season_1")
+	if err == nil || err.Error() != "db error" {
+		t.Fatalf("expected db error, got %v", err)
+	}
+}
+
+func testStandings_NoSeasonReturnsEmpty(t *testing.T) {
+	repo := &mockSeasonRepo{
+		latestSeasonForGroupFn: func(_ context.Context, groupID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{}, nil
+		},
+	}
+
+	standings, err := Standings(context.Background(), repo, "group_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(standings) != 0 {
+		t.Fatalf("expected empty standings, got %d", len(standings))
+	}
+}
+
+func testStandings_ComputesCorrectly(t *testing.T) {
+	scoreA := 10
+	scoreB := 20
+	repo := &mockSeasonRepo{
+		latestSeasonForGroupFn: func(_ context.Context, groupID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{ID: "season_1"}, nil
+		},
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return []JumpSnapshot{
+				{ID: "jump_1", PlayerID: "player_a", Status: "Judged Jump", FinalScore: &scoreA},
+				{ID: "jump_2", PlayerID: "player_b", Status: "Judged Jump", FinalScore: &scoreB},
+				{ID: "jump_3", PlayerID: "player_a", Status: "Judged Jump", FinalScore: &scoreA},
+				{ID: "jump_4", PlayerID: "player_c", Status: "Performed Jump"},
+				{ID: "jump_5", PlayerID: "player_a", Status: "Unjudged Jump"},
+			}, nil
+		},
+		groupPlayersFn: func(_ context.Context, groupID string) ([]PlayerSnapshot, error) {
+			return []PlayerSnapshot{
+				{ID: "player_a", DisplayName: "Alice"},
+				{ID: "player_b", DisplayName: "Bob"},
+				{ID: "player_c", DisplayName: "Charlie"},
+			}, nil
+		},
+	}
+
+	standings, err := Standings(context.Background(), repo, "group_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(standings) != 2 {
+		t.Fatalf("expected 2 standings entries, got %d", len(standings))
+	}
+
+	// Alice should be first (score 20, name before Bob), Bob second (score 20)
+	if standings[0].PlayerID != "player_a" || standings[0].SeasonScore != 20 || standings[0].JudgedJumps != 2 {
+		t.Fatalf("expected Alice first with 20/2, got %+v", standings[0])
+	}
+	if standings[1].PlayerID != "player_b" || standings[1].SeasonScore != 20 || standings[1].JudgedJumps != 1 {
+		t.Fatalf("expected Bob second with 20/1, got %+v", standings[1])
+	}
+}
+
+func testStandings_SortsByScoreThenName(t *testing.T) {
+	score15 := 15
+	score20 := 20
+	score15b := 15
+	repo := &mockSeasonRepo{
+		latestSeasonForGroupFn: func(_ context.Context, groupID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{ID: "season_1"}, nil
+		},
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return []JumpSnapshot{
+				{ID: "jump_1", PlayerID: "player_z", Status: "Judged Jump", FinalScore: &score15},
+				{ID: "jump_2", PlayerID: "player_a", Status: "Judged Jump", FinalScore: &score20},
+				{ID: "jump_3", PlayerID: "player_m", Status: "Judged Jump", FinalScore: &score15b},
+			}, nil
+		},
+		groupPlayersFn: func(_ context.Context, groupID string) ([]PlayerSnapshot, error) {
+			return []PlayerSnapshot{
+				{ID: "player_z", DisplayName: "Zoe"},
+				{ID: "player_a", DisplayName: "Alice"},
+				{ID: "player_m", DisplayName: "Mallory"},
+			}, nil
+		},
+	}
+
+	standings, err := Standings(context.Background(), repo, "group_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(standings) != 3 {
+		t.Fatalf("expected 3 standings entries, got %d", len(standings))
+	}
+
+	// Alice first (20), Mallory second (15, name before Zoe), Zoe third (15)
+	if standings[0].PlayerID != "player_a" {
+		t.Fatalf("expected Alice first, got %s", standings[0].PlayerID)
+	}
+	if standings[1].PlayerID != "player_m" {
+		t.Fatalf("expected Mallory second, got %s", standings[1].PlayerID)
+	}
+	if standings[2].PlayerID != "player_z" {
+		t.Fatalf("expected Zoe third, got %s", standings[2].PlayerID)
+	}
+}
+
+func testStandings_PersistenceErrorPropagates(t *testing.T) {
+	repo := &mockSeasonRepo{
+		latestSeasonForGroupFn: func(_ context.Context, groupID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{}, errors.New("db error")
+		},
+	}
+
+	_, err := Standings(context.Background(), repo, "group_1")
+	if err == nil || err.Error() != "db error" {
+		t.Fatalf("expected db error, got %v", err)
+	}
+}
+
+func testFinalizeJumpsForSeason_JudgedJumpGetsScore(t *testing.T) {
+	var finalizations []struct {
+		jumpID     string
+		status     string
+		finalScore *int
+	}
+
+	repo := &mockSeasonRepo{
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return []JumpSnapshot{
+				{ID: "jump_1", Status: "Judged Jump"},
+			}, nil
+		},
+		judgmentsForJumpFn: func(_ context.Context, jumpID string) ([]Judgment, error) {
+			return []Judgment{
+				{Commitment: 4, Transgression: 4, Creativity: 4, Presentation: 4},
+			}, nil
+		},
+		updateJumpFinalizationFn: func(_ context.Context, jumpID string, status string, finalScore *int) error {
+			finalizations = append(finalizations, struct {
+				jumpID     string
+				status     string
+				finalScore *int
+			}{jumpID, status, finalScore})
+			return nil
+		},
+	}
+
+	err := finalizeJumpsForSeason(context.Background(), repo, "season_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(finalizations) != 1 {
+		t.Fatalf("expected 1 finalization, got %d", len(finalizations))
+	}
+	if finalizations[0].status != "Judged Jump" || finalizations[0].finalScore == nil || *finalizations[0].finalScore != 16 {
+		t.Fatalf("expected Judged Jump with score 16, got %+v", finalizations[0])
+	}
+}
+
+func testFinalizeJumpsForSeason_UnjudgedJumpGetsUnjudgedStatus(t *testing.T) {
+	var finalizations []struct {
+		jumpID     string
+		status     string
+		finalScore *int
+	}
+
+	repo := &mockSeasonRepo{
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return []JumpSnapshot{
+				{ID: "jump_1", Status: "Performed Jump"},
+			}, nil
+		},
+		judgmentsForJumpFn: func(_ context.Context, jumpID string) ([]Judgment, error) {
+			return nil, nil
+		},
+		updateJumpFinalizationFn: func(_ context.Context, jumpID string, status string, finalScore *int) error {
+			finalizations = append(finalizations, struct {
+				jumpID     string
+				status     string
+				finalScore *int
+			}{jumpID, status, finalScore})
+			return nil
+		},
+	}
+
+	err := finalizeJumpsForSeason(context.Background(), repo, "season_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(finalizations) != 1 {
+		t.Fatalf("expected 1 finalization, got %d", len(finalizations))
+	}
+	if finalizations[0].status != "Unjudged Jump" || finalizations[0].finalScore != nil {
+		t.Fatalf("expected Unjudged Jump with nil score, got %+v", finalizations[0])
+	}
+}
+
+func testFinalizeJumpsForSeason_SkipsNonPerformedNonJudged(t *testing.T) {
+	var finalizations []struct {
+		jumpID     string
+		status     string
+		finalScore *int
+	}
+
+	repo := &mockSeasonRepo{
+		jumpsForSeasonFn: func(_ context.Context, seasonID string) ([]JumpSnapshot, error) {
+			return []JumpSnapshot{
+				{ID: "jump_1", Status: "Idea"},
+				{ID: "jump_2", Status: "Planned Jump"},
+				{ID: "jump_3", Status: "Disqualified Jump"},
+			}, nil
+		},
+		judgmentsForJumpFn: func(_ context.Context, jumpID string) ([]Judgment, error) {
+			return nil, nil
+		},
+		updateJumpFinalizationFn: func(_ context.Context, jumpID string, status string, finalScore *int) error {
+			finalizations = append(finalizations, struct {
+				jumpID     string
+				status     string
+				finalScore *int
+			}{jumpID, status, finalScore})
+			return nil
+		},
+	}
+
+	err := finalizeJumpsForSeason(context.Background(), repo, "season_1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(finalizations) != 0 {
+		t.Fatalf("expected 0 finalizations, got %d", len(finalizations))
+	}
+}
+
 func TestSeason(t *testing.T) {
 	t.Run("start season", func(t *testing.T) {
 		t.Run("group member can start season", testStartSeason_GroupMemberCanStartSeason)
@@ -605,6 +921,25 @@ func TestSeason(t *testing.T) {
 		t.Run("group admin can finalize with override", testFinalizeSeason_GroupAdminCanFinalizeWithOverride)
 		t.Run("unauthorised player cannot finalize", testFinalizeSeason_UnauthorisedPlayerCannotFinalize)
 		t.Run("returns error for unknown season", testFinalizeSeason_ReturnsErrorForUnknownSeason)
+	})
+
+	t.Run("auto finalize season", func(t *testing.T) {
+		t.Run("non-finalized returns nil", testAutoFinalizeSeason_NonFinalizedReturnsNil)
+		t.Run("finalized computes scores", testAutoFinalizeSeason_FinalizedComputesScores)
+		t.Run("persistence error propagates", testAutoFinalizeSeason_PersistenceErrorPropagates)
+	})
+
+	t.Run("standings", func(t *testing.T) {
+		t.Run("no season returns empty", testStandings_NoSeasonReturnsEmpty)
+		t.Run("computes correctly", testStandings_ComputesCorrectly)
+		t.Run("sorts by score then name", testStandings_SortsByScoreThenName)
+		t.Run("persistence error propagates", testStandings_PersistenceErrorPropagates)
+	})
+
+	t.Run("finalize jumps for season", func(t *testing.T) {
+		t.Run("judged jump gets score", testFinalizeJumpsForSeason_JudgedJumpGetsScore)
+		t.Run("unjudged jump gets unjudged status", testFinalizeJumpsForSeason_UnjudgedJumpGetsUnjudgedStatus)
+		t.Run("skips non-performed non-judged", testFinalizeJumpsForSeason_SkipsNonPerformedNonJudged)
 	})
 
 	t.Run("season history", func(t *testing.T) {

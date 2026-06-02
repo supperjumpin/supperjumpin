@@ -499,6 +499,148 @@ func testPlayerJudgmentStillWorks(t *testing.T) {
 	}
 }
 
+func testIsOpenSeasonStatus_ActiveAndJudgingGracePeriodAreOpen(t *testing.T) {
+	if !isOpenSeasonStatus("Active") {
+		t.Error("expected Active to be open")
+	}
+	if !isOpenSeasonStatus("Judging Grace Period") {
+		t.Error("expected Judging Grace Period to be open")
+	}
+}
+
+func testIsOpenSeasonStatus_OtherStatusesAreClosed(t *testing.T) {
+	if isOpenSeasonStatus("Finalized") {
+		t.Error("expected Finalized to be closed")
+	}
+	if isOpenSeasonStatus("Closed") {
+		t.Error("expected Closed to be closed")
+	}
+	if isOpenSeasonStatus("") {
+		t.Error("expected empty status to be closed")
+	}
+}
+
+func testSubmitJudgment_SeasonLinkedWithClosedSeasonReturnsError(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 11, 50, 0, 0, time.UTC)
+	seasonID := "season_1"
+
+	repo := &mockJudgmentRepo{
+		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return JumpSnapshot{
+				ID:                   jumpID,
+				GroupID:              "group_1",
+				PlayerID:             "performer_1",
+				Status:               "Performed Jump",
+				GracePeriodExpiresAt: gracePeriodExpiresAt,
+				SeasonID:             &seasonID,
+			}, true, nil
+		},
+		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
+			return SeasonSnapshot{ID: seasonID, Status: "Finalized"}, nil
+		},
+	}
+
+	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
+		JumpID:        "jump_1",
+		JudgePlayerID: "judge_1",
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    3,
+		Presentation:  3,
+	}, now)
+
+	if !errors.Is(result.Err, ErrJudgingWindowClosed) {
+		t.Fatalf("expected ErrJudgingWindowClosed for finalized season, got %v", result.Err)
+	}
+}
+
+func testSubmitJudgment_JudgedJumpAllowsAdditionalJudgments(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 11, 50, 0, 0, time.UTC)
+
+	repo := &mockJudgmentRepo{
+		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return JumpSnapshot{
+				ID:                   jumpID,
+				GroupID:              "group_1",
+				PlayerID:             "performer_1",
+				Status:               "Judged Jump",
+				GracePeriodExpiresAt: gracePeriodExpiresAt,
+			}, true, nil
+		},
+		upsertJudgmentFn: func(_ context.Context, jumpID, playerID, guestSessionID, provenance string, commitment, transgression, creativity, presentation int) (Judgment, bool, error) {
+			return Judgment{ID: "judgment_2", JumpID: jumpID, PlayerID: playerID}, true, nil
+		},
+		advanceJudgedFn: func(_ context.Context, jumpID string) error {
+			return nil
+		},
+	}
+
+	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
+		JumpID:        "jump_1",
+		JudgePlayerID: "judge_2",
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    3,
+		Presentation:  3,
+	}, now)
+
+	if result.Err != nil {
+		t.Fatalf("expected no error, got %v", result.Err)
+	}
+	if !result.Allowed {
+		t.Fatal("expected additional judgment to be allowed on Judged Jump")
+	}
+}
+
+func testSubmitJudgment_ExistingJudgmentEditDoesNotAdvance(t *testing.T) {
+	var advancedJumpID string
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 11, 50, 0, 0, time.UTC)
+
+	repo := &mockJudgmentRepo{
+		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return JumpSnapshot{
+				ID:                   jumpID,
+				GroupID:              "group_1",
+				PlayerID:             "performer_1",
+				Status:               "Judged Jump",
+				GracePeriodExpiresAt: gracePeriodExpiresAt,
+			}, true, nil
+		},
+		upsertJudgmentFn: func(_ context.Context, jumpID, playerID, guestSessionID, provenance string, commitment, transgression, creativity, presentation int) (Judgment, bool, error) {
+			return Judgment{ID: "judgment_existing", JumpID: jumpID, PlayerID: playerID}, false, nil
+		},
+		advanceJudgedFn: func(_ context.Context, jumpID string) error {
+			advancedJumpID = jumpID
+			return nil
+		},
+	}
+
+	result := SubmitJudgment(context.Background(), repo, JudgmentInput{
+		JumpID:        "jump_1",
+		JudgePlayerID: "judge_1",
+		Commitment:    3,
+		Transgression: 3,
+		Creativity:    3,
+		Presentation:  3,
+	}, now)
+
+	if result.Err != nil {
+		t.Fatalf("expected no error, got %v", result.Err)
+	}
+	if !result.Allowed {
+		t.Fatal("expected edit to be allowed")
+	}
+	if result.Created {
+		t.Fatal("expected Created=false for edit")
+	}
+	if advancedJumpID != "" {
+		t.Fatal("expected no jump advancement for edit")
+	}
+}
+
 func TestJudgment(t *testing.T) {
 	t.Run("score validation", func(t *testing.T) {
 		t.Run("accepts boundary values", testValidScore_AcceptsBoundaryValues)
@@ -522,5 +664,16 @@ func TestJudgment(t *testing.T) {
 		t.Run("requires exactly one judge identity", testGuestJudgmentRequiresExactlyOneJudgeIdentity)
 		t.Run("guest cap prevents judging", testGuestCapPreventsJudging)
 		t.Run("guest cannot judge their own jump", testGuestCannotJudgeTheirOwnJump)
+	})
+
+	t.Run("season status", func(t *testing.T) {
+		t.Run("active and judging grace period are open", testIsOpenSeasonStatus_ActiveAndJudgingGracePeriodAreOpen)
+		t.Run("other statuses are closed", testIsOpenSeasonStatus_OtherStatusesAreClosed)
+	})
+
+	t.Run("season-linked jump", func(t *testing.T) {
+		t.Run("closed season returns error", testSubmitJudgment_SeasonLinkedWithClosedSeasonReturnsError)
+		t.Run("judged jump allows additional judgments", testSubmitJudgment_JudgedJumpAllowsAdditionalJudgments)
+		t.Run("existing judgment edit does not advance", testSubmitJudgment_ExistingJudgmentEditDoesNotAdvance)
 	})
 }
