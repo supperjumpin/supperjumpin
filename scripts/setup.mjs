@@ -69,12 +69,16 @@ function capture(command, args) {
   return spawnSync(command, args, { encoding: "utf8" });
 }
 
+function commandOutput(result) {
+  return `${result.stdout ?? ""}${result.stderr ?? ""}`;
+}
+
 function checkTool(name, command, args, extractVersion, requirement, installHint) {
   const result = capture(command, args);
   if (result.status !== 0) {
     return { ok: false, message: `${name} is required but not found. ${installHint}` };
   }
-  const version = extractVersion(result.stdout);
+  const version = extractVersion(commandOutput(result));
   if (!checkVersionRange(version, requirement)) {
     return { ok: false, message: formatFailureMessage(name, version, requirement) + `. ${installHint}` };
   }
@@ -132,6 +136,13 @@ function ensureLocalGoTool(name, binaryName, getVersion, modulePath, expectedVer
       console.error(install.stderr || "");
       process.exit(1);
     }
+
+    const installed = getVersion();
+    if (!installed.ok || !checkExactVersion(installed.version, expectedVersion)) {
+      console.error(`${name} installation produced an unreadable or unexpected binary at ${binPath}.`);
+      process.exit(1);
+    }
+
     console.log(`${name} ${expectedVersion} installed ✅`);
   }
 }
@@ -183,7 +194,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     () => {
       const result = capture("./bin/sqlc", ["version"]);
       if (result.status !== 0) return { ok: false };
-      return { ok: true, version: extractSqlcVersion(result.stdout) };
+      try {
+        return { ok: true, version: extractSqlcVersion(commandOutput(result)) };
+      } catch {
+        return { ok: false };
+      }
     },
     "github.com/sqlc-dev/sqlc/cmd/sqlc",
     TOOL_VERSIONS.sqlc,
