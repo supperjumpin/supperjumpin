@@ -101,7 +101,7 @@ npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 npm run generate:api-client  # openapi-typescript → packages/api-client/src/generated.d.ts
 
 # sqlc query layer
-npm run sqlc:generate        # sqlc generate → apps/api/internal/db/
+npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 ```
 
 ## NOTES

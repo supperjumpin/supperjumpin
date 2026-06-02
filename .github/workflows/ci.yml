@@ -63,4 +63,4 @@ jobs:
           SUPPERJUMPIN_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/supperjumpin_test?sslmode=disable
 
       - name: Verify sqlc generated code is fresh
-        run: npm run sqlc:generate && git diff --exit-code
+        run: npm run generate:sqlc && git diff --exit-code

@@ -12,7 +12,7 @@
     "test": "npm run test --workspaces --if-present",
     "setup": "node ./scripts/setup.mjs",
     "generate:api-client": "npm --workspace @supperjumpin/api-client run generate",
-    "sqlc:generate": "node scripts/run-sqlc-generate.mjs",
+    "generate:sqlc": "node scripts/run-sqlc-generate.mjs",
     "db:up": "node ./scripts/db-up.mjs",
     "db:migrate": "node ./scripts/db-migrate.mjs",
     "api:dev": "node ./scripts/api-dev.mjs",
