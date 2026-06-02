@@ -8,6 +8,9 @@ import type {
   MeResponse,
   PerformedJumpView,
   Jump,
+  PublicFeedResponse,
+  JumpDetail,
+  JumpTombstone,
 } from "./generated";
 
 export type {
@@ -27,6 +30,11 @@ export type {
   Player,
   Season,
   Jump,
+  JumpCard,
+  JumpDetail,
+  JumpTombstone,
+  PublicFeedResponse,
+  ViewerContext,
 } from "./generated";
 
 export function getMe(args: {
@@ -121,3 +129,18 @@ export function submitJudgment(args: {
   presentation: number;
   fetchImpl?: typeof fetch;
 }): Promise<Judgment>;
+
+export function getPublicFeed(args: {
+  baseUrl: string;
+  accessToken?: string;
+  cursor?: string;
+  limit?: number;
+  fetchImpl?: typeof fetch;
+}): Promise<PublicFeedResponse>;
+
+export function getJumpDetail(args: {
+  baseUrl: string;
+  accessToken?: string;
+  jumpId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<JumpDetail | JumpTombstone>;
