@@ -88,6 +88,8 @@ These files are maintained by convention, not automation. Follow these rules in 
 ```sh
 # Development
 npm run db:up             # Start Docker Compose Postgres service
+npm run db:down           # Stop Docker Compose Postgres without deleting data
+npm run db:reset          # Recreate local dev DB and reapply migrations
 npm run db:migrate        # Apply migrations using repo-local golang-migrate
 npm run api:dev           # Run API against existing DB
 
