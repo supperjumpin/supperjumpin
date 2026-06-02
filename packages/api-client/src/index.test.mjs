@@ -9,7 +9,9 @@ import {
   createInvite,
   createPlannedJump,
   getGroupHome,
+  getJumpDetail,
   getMe,
+  getPublicFeed,
   listGroups,
   startSeason,
   submitEvidence,
@@ -384,6 +386,78 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
   });
   assert.equal(judgment.playerId, "player_456");
   assert.equal(judgment.transgression, 5);
+});
+
+test("getPublicFeed fetches the public feed without requiring auth", async () => {
+  const seen = {};
+  const response = await getPublicFeed({
+    baseUrl: "http://api.example.test",
+    cursor: "cursor_123",
+    limit: 10,
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.authorization = init.headers.Authorization;
+      return Response.json({
+        jumps: [
+          {
+            id: "jump_123",
+            performerId: "player_123",
+            performerName: "alice",
+            source: "Taco Bell",
+            destination: "Olive Garden parking lot",
+            food: "Crunchwrap",
+            caption: "Crunchwrap successfully smuggled into the parking lot.",
+            mediaObjectKey: "evidence_object_123",
+            status: "Performed Jump",
+            gracePeriodExpiresAt: "2026-06-01T00:10:00Z",
+            runningAverage: 3.5,
+            judgmentCount: 4,
+            createdAt: "2026-06-01T00:00:00Z",
+          },
+        ],
+        nextCursor: "cursor_456",
+      });
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/feed?cursor=cursor_123&limit=10");
+  assert.equal(seen.authorization, undefined);
+  assert.equal(response.jumps[0].performerName, "alice");
+  assert.equal(response.nextCursor, "cursor_456");
+});
+
+test("getJumpDetail includes bearer auth when a viewer token is present", async () => {
+  const seen = {};
+  const detail = await getJumpDetail({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    jumpId: "jump_123",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.authorization = init.headers.Authorization;
+      return Response.json({
+        id: "jump_123",
+        performerId: "player_123",
+        performerName: "alice",
+        source: "Taco Bell",
+        destination: "Olive Garden parking lot",
+        food: "Crunchwrap",
+        caption: "Crunchwrap successfully smuggled into the parking lot.",
+        mediaObjectKey: "evidence_object_123",
+        status: "Performed Jump",
+        gracePeriodExpiresAt: "2026-06-01T00:10:00Z",
+        runningAverage: 3.5,
+        judgmentCount: 4,
+        createdAt: "2026-06-01T00:00:00Z",
+        viewerContext: { canJudge: false, reason: "already-judged", hasJudged: true },
+      });
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/jumps/jump_123");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(detail.id, "jump_123");
+  assert.equal(detail.viewerContext.reason, "already-judged");
 });
 
 function groupHomeResponse(group, activeSeason = null, recentJumps = []) {

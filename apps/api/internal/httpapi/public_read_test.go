@@ -14,46 +14,64 @@ import (
 
 func TestPublicFeedReturnsJumps(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
-	performJump(t, server, "alice-token", store.GroupID)
+	performed := performJump(t, server, "alice-token", store.GroupID)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var res struct {
-		Jumps      []any  `json:"jumps"`
-		NextCursor string `json:"nextCursor"`
-	}
+	var res publicFeedBody
 	decodeResponse(t, rec, &res)
 	if len(res.Jumps) != 1 {
 		t.Fatalf("expected 1 jump in feed, got %d", len(res.Jumps))
 	}
-	// Unauthenticated feed should have no viewerContext
-	// (JumpCard doesn't include it for unauthenticated requests)
+	card := res.Jumps[0]
+	if card.ID != performed.Jump.ID {
+		t.Fatalf("expected jump ID %q, got %q", performed.Jump.ID, card.ID)
+	}
+	if card.PerformerName != "alice" {
+		t.Fatalf("expected performerName alice, got %q", card.PerformerName)
+	}
+	if card.Source != performed.Jump.Source || card.Destination != performed.Jump.Destination || card.Food != performed.Jump.Food {
+		t.Fatalf("expected route %q -> %q with food %q, got %#v", performed.Jump.Source, performed.Jump.Destination, performed.Jump.Food, card)
+	}
+	if card.Caption != performed.Evidence.Caption {
+		t.Fatalf("expected caption %q, got %q", performed.Evidence.Caption, card.Caption)
+	}
+	if card.MediaObjectKey != performed.Evidence.MediaObjectKey {
+		t.Fatalf("expected mediaObjectKey %q, got %q", performed.Evidence.MediaObjectKey, card.MediaObjectKey)
+	}
+	if card.ViewerContext != nil {
+		t.Fatal("expected unauthenticated feed card to omit viewerContext")
+	}
+	if res.NextCursor != nil {
+		t.Fatalf("expected no nextCursor for single-card feed, got %q", *res.NextCursor)
+	}
 }
 
 func TestPublicFeedReturnsMultipleJumpsInOrder(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
-	// Perform 3 jumps — they will be ordered by CreatedAt DESC
-	for i := 0; i < 3; i++ {
-		performJump(t, server, "alice-token", store.GroupID)
-	}
+	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) })
+	first := performJump(t, server, "alice-token", store.GroupID)
+	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 1, 0, 0, time.UTC) })
+	second := performJump(t, server, "alice-token", store.GroupID)
+	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 2, 0, 0, time.UTC) })
+	third := performJump(t, server, "alice-token", store.GroupID)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var res struct {
-		Jumps []struct {
-			ID string `json:"id"`
-		} `json:"jumps"`
-	}
+	var res publicFeedBody
 	decodeResponse(t, rec, &res)
 	if len(res.Jumps) != 3 {
 		t.Fatalf("expected 3 jumps, got %d", len(res.Jumps))
+	}
+	if res.Jumps[0].ID != third.Jump.ID || res.Jumps[1].ID != second.Jump.ID || res.Jumps[2].ID != first.Jump.ID {
+		t.Fatalf("expected reverse chronological order [%q %q %q], got [%q %q %q]", third.Jump.ID, second.Jump.ID, first.Jump.ID, res.Jumps[0].ID, res.Jumps[1].ID, res.Jumps[2].ID)
 	}
 }
 
@@ -77,9 +95,7 @@ func TestPublicFeedExcludesRemovedJumps(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var res struct {
-		Jumps []any `json:"jumps"`
-	}
+	var res publicFeedBody
 	decodeResponse(t, rec, &res)
 	if len(res.Jumps) != 0 {
 		t.Fatalf("expected 0 jumps (removed), got %d", len(res.Jumps))
@@ -89,9 +105,14 @@ func TestPublicFeedExcludesRemovedJumps(t *testing.T) {
 func TestPublicFeedCursorPagination(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
-	// Create 4 jumps with distinct food names
+	// Create 4 jumps with distinct food names and timestamps.
 	foods := []string{"Crunchwrap", "Taco", "Burrito", "Quesadilla"}
+	var created []string
 	for i := 0; i < 4; i++ {
+		minute := i
+		store.Store.SetClock(func() time.Time {
+			return time.Date(2026, 6, 1, 13, minute, 0, 0, time.UTC)
+		})
 		idea := createIdea(t, server, "alice-token", store.GroupID, "Taco Bell", "Olive Garden parking lot", foods[i])
 		planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
 		auth := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
@@ -102,6 +123,9 @@ func TestPublicFeedCursorPagination(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("expected 201 for jump %d, got %d: %s", i, rec.Code, rec.Body.String())
 		}
+		var submission evidenceSubmissionBody
+		decodeResponse(t, rec, &submission)
+		created = append(created, submission.Jump.ID)
 	}
 
 	// Fetch first page with limit=2 — expect cursor
@@ -110,12 +134,7 @@ func TestPublicFeedCursorPagination(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var page1 struct {
-		Jumps      []struct {
-			ID string `json:"id"`
-		} `json:"jumps"`
-		NextCursor *string `json:"nextCursor"`
-	}
+	var page1 publicFeedBody
 	decodeResponse(t, rec, &page1)
 	if len(page1.Jumps) != 2 {
 		t.Fatalf("expected 2 jumps on page 1, got %d", len(page1.Jumps))
@@ -123,25 +142,26 @@ func TestPublicFeedCursorPagination(t *testing.T) {
 	if page1.NextCursor == nil {
 		t.Fatal("expected nextCursor for pagination, got nil")
 	}
+	if page1.Jumps[0].ID != created[3] || page1.Jumps[1].ID != created[2] {
+		t.Fatalf("expected newest page-1 jumps [%q %q], got [%q %q]", created[3], created[2], page1.Jumps[0].ID, page1.Jumps[1].ID)
+	}
 
-	// Fetch second page with the cursor — expect at least 1 item, no cursor
+	// Fetch second page with the cursor.
 	rec2 := doJSON(server, http.MethodGet, "/v1/feed?cursor="+*page1.NextCursor+"&limit=2", "", nil)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("expected 200 for page 2, got %d: %s", rec2.Code, rec2.Body.String())
 	}
 
-	var page2 struct {
-		Jumps      []struct {
-			ID string `json:"id"`
-		} `json:"jumps"`
-		NextCursor *string `json:"nextCursor"`
-	}
+	var page2 publicFeedBody
 	decodeResponse(t, rec2, &page2)
-	if len(page2.Jumps) == 0 {
-		t.Fatal("expected at least 1 jump on page 2, got 0")
+	if len(page2.Jumps) != 2 {
+		t.Fatalf("expected 2 jumps on page 2, got %d", len(page2.Jumps))
 	}
 	if page2.NextCursor != nil {
 		t.Fatal("expected no nextCursor on last page")
+	}
+	if page2.Jumps[0].ID != created[1] || page2.Jumps[1].ID != created[0] {
+		t.Fatalf("expected older page-2 jumps [%q %q], got [%q %q]", created[1], created[0], page2.Jumps[0].ID, page2.Jumps[1].ID)
 	}
 
 	// Verify no duplicates across pages
@@ -194,12 +214,13 @@ func TestPublicJumpDetailReturnsJump(t *testing.T) {
 	}
 
 	var detail struct {
-		ID            string  `json:"id"`
-		PerformerName string  `json:"performerName"`
-		Source        string  `json:"source"`
-		Destination   string  `json:"destination"`
-		Food          string  `json:"food"`
-		Caption       string  `json:"caption"`
+		ID             string  `json:"id"`
+		PerformerName  string  `json:"performerName"`
+		Source         string  `json:"source"`
+		Destination    string  `json:"destination"`
+		Food           string  `json:"food"`
+		Caption        string  `json:"caption"`
+		MediaObjectKey string  `json:"mediaObjectKey"`
 		RunningAverage float64 `json:"runningAverage"`
 		JudgmentCount  int     `json:"judgmentCount"`
 		ViewerContext  *struct {
@@ -212,6 +233,15 @@ func TestPublicJumpDetailReturnsJump(t *testing.T) {
 	}
 	if detail.PerformerName == "" {
 		t.Fatal("expected performerName to be populated")
+	}
+	if detail.Source != performed.Jump.Source || detail.Destination != performed.Jump.Destination || detail.Food != performed.Jump.Food {
+		t.Fatalf("expected jump route %q -> %q with food %q, got %#v", performed.Jump.Source, performed.Jump.Destination, performed.Jump.Food, detail)
+	}
+	if detail.Caption != performed.Evidence.Caption {
+		t.Fatalf("expected caption %q, got %q", performed.Evidence.Caption, detail.Caption)
+	}
+	if detail.MediaObjectKey != performed.Evidence.MediaObjectKey {
+		t.Fatalf("expected mediaObjectKey %q, got %q", performed.Evidence.MediaObjectKey, detail.MediaObjectKey)
 	}
 	if detail.ViewerContext == nil {
 		t.Fatal("expected viewerContext even for unauthenticated requests")
@@ -365,6 +395,28 @@ type publicReadTestStore struct {
 	GroupID string
 }
 
+type publicFeedBody struct {
+	Jumps      []publicFeedJumpBody `json:"jumps"`
+	NextCursor *string              `json:"nextCursor"`
+}
+
+type publicFeedJumpBody struct {
+	ID             string `json:"id"`
+	PerformerName  string `json:"performerName"`
+	Source         string `json:"source"`
+	Destination    string `json:"destination"`
+	Food           string `json:"food"`
+	Caption        string `json:"caption"`
+	MediaObjectKey string `json:"mediaObjectKey"`
+	RunningAverage float64 `json:"runningAverage"`
+	JudgmentCount  int     `json:"judgmentCount"`
+	ViewerContext  *struct {
+		CanJudge  bool   `json:"canJudge"`
+		Reason    string `json:"reason,omitempty"`
+		HasJudged bool   `json:"hasJudged"`
+	} `json:"viewerContext"`
+}
+
 // newPublicReadTestServer creates a server + store with an established Group
 // and two players (Alice + Bob) so tests can create Jumps and judgments.
 func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) {
@@ -386,10 +438,6 @@ func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) 
 		GroupID: group.Group.ID,
 	}
 }
-
-// Ensure unused import doesn't break build
-var _ = time.Now
-
 // TestPublicFeedAlreadyJudged asserts that the feed shows already-judged state
 // for authenticated viewers who have judged a jump.
 func TestPublicFeedAlreadyJudged(t *testing.T) {
@@ -405,16 +453,7 @@ func TestPublicFeedAlreadyJudged(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var res struct {
-		Jumps []struct {
-			ID            string `json:"id"`
-			ViewerContext *struct {
-				CanJudge  bool   `json:"canJudge"`
-				Reason    string `json:"reason,omitempty"`
-				HasJudged bool   `json:"hasJudged"`
-			} `json:"viewerContext"`
-		} `json:"jumps"`
-	}
+	var res publicFeedBody
 	decodeResponse(t, rec, &res)
 	if len(res.Jumps) == 0 {
 		t.Fatal("expected at least 1 jump in feed")
