@@ -23,6 +23,18 @@ Start the local Postgres service:
 npm run db:up
 ```
 
+Stop the local Postgres service without deleting its data:
+
+```sh
+npm run db:down
+```
+
+Reset the local development database back to a clean migrated baseline:
+
+```sh
+npm run db:reset
+```
+
 Apply API migrations:
 
 ```sh
@@ -34,6 +46,8 @@ Run the Go API with an explicit `DATABASE_URL`:
 ```sh
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable npm run api:dev
 ```
+
+If you want a fresh local starting point, `npm run db:reset` already starts Postgres, recreates the `supperjumpin` database, reapplies migrations, and leaves Postgres running for `npm run api:dev`.
 
 The development bearer token defaults to `dev-token`.
 

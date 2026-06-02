@@ -13,7 +13,9 @@
     "setup": "node ./scripts/setup.mjs",
     "generate:api-client": "npm --workspace @supperjumpin/api-client run generate",
     "generate:sqlc": "node scripts/run-sqlc-generate.mjs",
-    "db:up": "node ./scripts/db-up.mjs",
+    "db:up": "node ./scripts/db-lifecycle.mjs up",
+    "db:down": "node ./scripts/db-lifecycle.mjs down",
+    "db:reset": "node ./scripts/db-reset.mjs",
     "db:migrate": "node ./scripts/db-migrate.mjs",
     "api:dev": "node ./scripts/api-dev.mjs",
     "api:test": "node ./scripts/api-test.mjs"
