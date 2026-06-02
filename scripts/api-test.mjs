@@ -93,9 +93,10 @@ function runMigrations(databaseURL) {
     console.error(`Local migrate binary not found at ${migratePath}. Run \`npm run setup\` first.`);
     return { status: 1 };
   }
+  const migrationsPath = resolve("apps/api/db/migrations");
   return spawnSync(
     migratePath,
-    ["-database", databaseURL, "-path", "apps/api/db/migrations", "up"],
+    ["-database", databaseURL, "-path", migrationsPath, "up"],
     { stdio: "inherit" }
   );
 }
@@ -135,7 +136,11 @@ function main() {
   const adminURL = buildAdminURL(testDatabaseURL);
 
   console.log(`Resetting test database "${dbName}"...`);
-  runPsqlCommand(adminURL, `DROP DATABASE IF EXISTS "${dbName}";`, isLocalDocker);
+  const dropResult = runPsqlCommand(adminURL, `DROP DATABASE IF EXISTS "${dbName}";`, isLocalDocker);
+  if (dropResult.status !== 0) {
+    console.error(`Failed to drop test database "${dbName}".`);
+    console.error(dropResult.stderr?.toString() || "");
+  }
 
   const createResult = runPsqlCommand(
     adminURL,
@@ -144,6 +149,7 @@ function main() {
   );
   if (createResult.status !== 0) {
     console.error(`Failed to create test database "${dbName}".`);
+    console.error(createResult.stderr?.toString() || "");
     process.exit(1);
   }
 

@@ -1406,12 +1406,16 @@ func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 	performed := performJump(t, server, "alice-token", group.Group.ID)
-	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("open Postgres database: %v", err)
 	}
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET grace_period_expires_at = now() - interval '1 minute' WHERE id = $1`, performed.Jump.ID); err != nil {
+		t.Fatalf("expire jump grace period: %v", err)
+	}
+
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 3, 2, http.StatusCreated)
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
 			t.Fatalf("close Postgres database: %v", err)
