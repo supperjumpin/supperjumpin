@@ -11,6 +11,19 @@ jobs:
     name: ci
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -27,6 +40,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
       - name: Run setup
         run: npm run setup
 
@@ -41,8 +57,10 @@ jobs:
       - name: Run mobile typecheck
         run: npm --workspace @supperjumpin/mobile run typecheck
 
-      - name: Run Go tests
-        run: go test ./apps/api/...
+      - name: Run API tests (Postgres-backed)
+        run: npm run api:test
+        env:
+          SUPPERJUMPIN_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/supperjumpin_test?sslmode=disable
 
       - name: Verify sqlc generated code is fresh
         run: npm run sqlc:generate && git diff --exit-code

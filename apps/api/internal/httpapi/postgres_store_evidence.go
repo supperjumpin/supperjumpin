@@ -119,6 +119,9 @@ func (s *PostgresStore) ClaimAndAdvance(ctx context.Context, authorizationID, ju
 		ID:                   jumpID,
 		GracePeriodExpiresAt: sql.NullTime{Time: now.Add(10 * time.Minute).UTC(), Valid: true},
 	}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return game.EvidenceCreateResult{}, game.ErrJumpNotFound
+		}
 		return game.EvidenceCreateResult{}, err
 	}
 	if err := qtx.DeleteEvidenceUploadAuthorization(ctx, authorizationID); err != nil {

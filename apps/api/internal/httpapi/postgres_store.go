@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
@@ -15,6 +16,16 @@ import (
 type PostgresStore struct {
 	db      *sql.DB
 	queries *db.Queries
+}
+
+// isUniqueViolation reports whether err (or one of its wrapped errors) is a
+// Postgres unique-constraint violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }
 
 func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, error) {

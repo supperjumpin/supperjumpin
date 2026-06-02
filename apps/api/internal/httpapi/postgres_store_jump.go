@@ -98,6 +98,9 @@ func (s *PostgresStore) UpdateJumpToPlanned(ctx context.Context, jumpID, playerI
 		ID:       jumpID,
 		SeasonID: seasonParam,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.JumpSnapshot{}, game.ErrJumpNotFound
+	}
 	if err != nil {
 		return game.JumpSnapshot{}, err
 	}

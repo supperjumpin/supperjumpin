@@ -52,6 +52,9 @@ func (s *PostgresStore) InsertSeason(ctx context.Context, groupID, commissionerP
 		SubmissionDeadline:   season.SubmissionDeadline,
 		JudgingDeadline:      season.JudgingDeadline,
 	}); err != nil {
+		if isUniqueViolation(err) {
+			return game.SeasonSnapshot{}, game.ErrSeasonAlreadyOpen
+		}
 		return game.SeasonSnapshot{}, err
 	}
 	return game.SeasonSnapshot{

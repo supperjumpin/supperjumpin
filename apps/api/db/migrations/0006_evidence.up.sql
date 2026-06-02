@@ -14,7 +14,7 @@ CREATE TABLE evidences (
     id TEXT PRIMARY KEY,
     jump_id TEXT NOT NULL UNIQUE REFERENCES jumps(id),
     player_id TEXT NOT NULL REFERENCES players(id),
-    upload_authorization_id TEXT UNIQUE REFERENCES evidence_upload_authorizations(id),
+    upload_authorization_id TEXT UNIQUE REFERENCES evidence_upload_authorizations(id) ON DELETE SET NULL,
     caption TEXT NOT NULL,
     media_object_key TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
