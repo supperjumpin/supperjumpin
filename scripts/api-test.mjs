@@ -94,7 +94,6 @@ function runMigrations(databaseURL) {
     return { status: 1 };
   }
   const migrationsPath = resolve("apps/api/db/migrations");
-  console.log(`Running migrate from ${migratePath} with migrations at ${migrationsPath}`);
   return spawnSync(
     migratePath,
     ["-database", databaseURL, "-path", migrationsPath, "up"],
