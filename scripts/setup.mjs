@@ -61,6 +61,14 @@ export function extractMigrateVersion(stdout) {
   return match[1];
 }
 
+export function checkDockerRunning(captureFn) {
+  const result = captureFn("docker", ["info"]);
+  if (result.status !== 0) {
+    return { ok: false, message: "Docker daemon is not running. Start Docker Desktop/Engine and try again." };
+  }
+  return { ok: true, message: "Docker daemon is running ✅" };
+}
+
 import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { TOOL_VERSIONS } from "./tool-versions.mjs";
@@ -173,12 +181,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       ">=2.0.0",
       "Install Docker Desktop/Engine with Compose from https://docs.docker.com/compose/install/"
     ),
+    () => checkDockerRunning(capture),
   ];
 
   let allOk = true;
   for (const check of checks) {
-    console.log(check.message);
-    if (!check.ok) allOk = false;
+    const result = typeof check === "function" ? check() : check;
+    console.log(result.message);
+    if (!result.ok) allOk = false;
   }
 
   if (!allOk) {
