@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
+func testPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
@@ -23,7 +23,7 @@ func TestPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
 	}
 }
 
-func TestPublicFeedCursorPaginationMultiPage(t *testing.T) {
+func testPublicFeedCursorPaginationMultiPage(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
 	var created []string
@@ -98,7 +98,7 @@ func TestPublicFeedCursorPaginationMultiPage(t *testing.T) {
 	}
 }
 
-func TestPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
+func testPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
 	store.Store.SetClock(func() time.Time {
@@ -161,4 +161,10 @@ func TestPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 	if len(seen) != 5 {
 		t.Fatalf("expected 5 unique jumps, got %d", len(seen))
 	}
+}
+
+func TestPublicFeedPagination(t *testing.T) {
+	t.Run("empty returns empty array and null cursor", testPublicFeedEmptyReturnsEmptyArrayAndNullCursor)
+	t.Run("cursor pagination multi page", testPublicFeedCursorPaginationMultiPage)
+	t.Run("same timestamp tiebroken by id", testPublicFeedSameTimestampTiebrokenByID)
 }

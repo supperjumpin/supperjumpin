@@ -25,7 +25,7 @@ func doJSONUnauthenticated(server http.Handler, method string, path string, body
 	return rec
 }
 
-func TestGuestCanCreateSession(t *testing.T) {
+func testGuestCanCreateSession(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/guest-sessions", nil)
@@ -41,7 +41,7 @@ func TestGuestCanCreateSession(t *testing.T) {
 	}
 }
 
-func TestGuestCanJudgePerformedJump(t *testing.T) {
+func testGuestCanJudgePerformedJump(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 
 	// Create a guest session
@@ -84,7 +84,7 @@ func TestGuestCanJudgePerformedJump(t *testing.T) {
 	}
 }
 
-func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
+func testGuestCapBlocksAdditionalJudgments(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 
 	// Create a guest session
@@ -132,7 +132,7 @@ func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
 	}
 }
 
-func TestAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
+func testAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -151,7 +151,7 @@ func TestAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
 	}
 }
 
-func TestCannotProvideBothAuthAndGuestSession(t *testing.T) {
+func testCannotProvideBothAuthAndGuestSession(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -169,7 +169,7 @@ func TestCannotProvideBothAuthAndGuestSession(t *testing.T) {
 	}
 }
 
-func TestGuestSessionIdRequiredWhenUnauthenticated(t *testing.T) {
+func testGuestSessionIdRequiredWhenUnauthenticated(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -184,4 +184,24 @@ func TestGuestSessionIdRequiredWhenUnauthenticated(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401 when unauthenticated without guestSessionId, got %d: %s", rec.Code, rec.Body.String())
 	}
+}
+
+func TestGuestJudgment(t *testing.T) {
+	t.Run("guest sessions", func(t *testing.T) {
+		t.Run("guest can create session", testGuestCanCreateSession)
+	})
+
+	t.Run("guest judgments", func(t *testing.T) {
+		t.Run("guest can judge performed jump", testGuestCanJudgePerformedJump)
+		t.Run("guest cap blocks additional judgments", testGuestCapBlocksAdditionalJudgments)
+	})
+
+	t.Run("authenticated judgment", func(t *testing.T) {
+		t.Run("authenticated player judgment still works", testAuthenticatedPlayerJudgmentStillWorks)
+	})
+
+	t.Run("request validation", func(t *testing.T) {
+		t.Run("cannot provide both auth and guest session", testCannotProvideBothAuthAndGuestSession)
+		t.Run("guest session id required when unauthenticated", testGuestSessionIdRequiredWhenUnauthenticated)
+	})
 }

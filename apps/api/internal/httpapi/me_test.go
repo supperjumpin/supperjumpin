@@ -9,7 +9,7 @@ import (
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
 
-func TestGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
+func testGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
@@ -74,7 +74,7 @@ func TestGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
 	}
 }
 
-func TestGetMeRejectsMissingBearerToken(t *testing.T) {
+func testGetMeRejectsMissingBearerToken(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth:  httpapi.StaticAuthVerifier{},
@@ -90,4 +90,9 @@ func TestGetMeRejectsMissingBearerToken(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", rec.Code)
 	}
+}
+
+func TestMe(t *testing.T) {
+	t.Run("bootstraps account and player from supabase identity", testGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity)
+	t.Run("rejects missing bearer token", testGetMeRejectsMissingBearerToken)
 }
