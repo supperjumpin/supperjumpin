@@ -3,10 +3,8 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -437,7 +435,6 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "DEBUG: submitEvidence error: %T: %v\n", err, err)
 			http.Error(w, "submit Evidence", http.StatusInternalServerError)
 			return
 		}
@@ -540,7 +537,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 		if err != nil {
-			http.Error(w, fmt.Sprintf("submit Evidence: %v", err), http.StatusInternalServerError)
+			http.Error(w, "submit Judgment", http.StatusInternalServerError)
 			return
 		}
 		if !ok {
