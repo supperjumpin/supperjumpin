@@ -354,7 +354,7 @@ type jumpViewQueryer interface {
 
 func recentPerformedJumpsForGroupQuery(ctx context.Context, queryer jumpViewQueryer, groupID string) ([]PerformedJumpView, error) {
 	rows, err := queryer.QueryContext(ctx, `
-SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score, jumps.grace_period_expires_at,
+SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score, jumps.grace_period_expires_at, jumps.created_at,
        evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
        players.id, players.display_name
 FROM jumps
@@ -384,6 +384,7 @@ ORDER BY evidences.created_at DESC, jumps.id DESC`, groupID)
 			&jump.Food,
 			&jump.FinalScore,
 			&gracePeriodExpiresAt,
+		&jump.CreatedAt,
 			&evidence.ID,
 			&evidence.Caption,
 			&evidence.MediaObjectKey,

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -532,4 +533,232 @@ func performCustomJump(t *testing.T, server http.Handler, token string, groupID 
 	decodeResponse(t, rec, &submission)
 	normalizeEvidenceSubmissionBody(&submission)
 	return submission
+}
+
+func cleanTestDatabase(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.ExecContext(context.Background(), `
+		TRUNCATE TABLE open_standings, season_history, disputes, judgments, guest_sessions,
+		evidence_upload_authorizations, evidences, jumps, invites, seasons,
+		group_memberships, groups, auth_identities, players, accounts CASCADE
+	`); err != nil {
+		t.Fatalf("clean test database: %v", err)
+	}
+}
+
+func TestPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	}()
+	cleanTestDatabase(t, db)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) != 0 {
+		t.Fatalf("expected empty feed, got %d jumps", len(res.Jumps))
+	}
+	if res.NextCursor != nil {
+		t.Fatalf("expected nil cursor for empty feed, got %q", *res.NextCursor)
+	}
+}
+
+func TestPostgresPublicFeedCursorPaginationMultiPage(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	}()
+	cleanTestDatabase(t, db)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Pagination Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	var created []string
+	for i := 0; i < 25; i++ {
+		time.Sleep(5 * time.Millisecond)
+		jump := performCustomJump(t, server, "alice-token", group.Group.ID, "Food"+strconv.Itoa(i), "Jump "+strconv.Itoa(i))
+		created = append(created, jump.Jump.ID)
+	}
+
+	rec := doJSON(server, http.MethodGet, "/v1/feed?limit=10", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var page1 publicFeedBody
+	decodeResponse(t, rec, &page1)
+	if len(page1.Jumps) != 10 {
+		t.Fatalf("expected 10 on page 1, got %d", len(page1.Jumps))
+	}
+	if page1.NextCursor == nil {
+		t.Fatal("expected nextCursor on page 1")
+	}
+	if page1.Jumps[0].ID != created[24] {
+		t.Fatalf("expected newest jump first")
+	}
+
+	rec2 := doJSON(server, http.MethodGet, "/v1/feed?cursor="+*page1.NextCursor+"&limit=10", "", nil)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("expected 200 for page 2, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+	var page2 publicFeedBody
+	decodeResponse(t, rec2, &page2)
+	if len(page2.Jumps) != 10 {
+		t.Fatalf("expected 10 on page 2, got %d", len(page2.Jumps))
+	}
+	if page2.NextCursor == nil {
+		t.Fatal("expected nextCursor on page 2")
+	}
+
+	rec3 := doJSON(server, http.MethodGet, "/v1/feed?cursor="+*page2.NextCursor+"&limit=10", "", nil)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("expected 200 for page 3, got %d: %s", rec3.Code, rec3.Body.String())
+	}
+	var page3 publicFeedBody
+	decodeResponse(t, rec3, &page3)
+	if len(page3.Jumps) != 5 {
+		t.Fatalf("expected 5 on page 3, got %d", len(page3.Jumps))
+	}
+	if page3.NextCursor != nil {
+		t.Fatal("expected nil cursor on last page")
+	}
+
+	seen := map[string]bool{}
+	for _, p := range []publicFeedBody{page1, page2, page3} {
+		for _, j := range p.Jumps {
+			if seen[j.ID] {
+				t.Fatalf("duplicate jump %q across pages", j.ID)
+			}
+			seen[j.ID] = true
+		}
+	}
+	if len(seen) != 25 {
+		t.Fatalf("expected 25 unique jumps, got %d", len(seen))
+	}
+}
+
+func TestPostgresPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open Postgres database: %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close Postgres database: %v", err)
+		}
+	}()
+	cleanTestDatabase(t, db)
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Same Timestamp Crew")
+	invite := createInvite(t, server, "alice-token", group.Group.ID)
+	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
+	if acceptRec.Code != http.StatusOK {
+		t.Fatalf("expected Bob to join, got %d: %s", acceptRec.Code, acceptRec.Body.String())
+	}
+
+	var created []string
+	for i := 0; i < 5; i++ {
+		time.Sleep(5 * time.Millisecond)
+		jump := performCustomJump(t, server, "alice-token", group.Group.ID, "Food"+strconv.Itoa(i), "Jump "+strconv.Itoa(i))
+		created = append(created, jump.Jump.ID)
+	}
+
+	// Force all created_at to the same value
+	sameTime := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	for _, id := range created {
+		if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET created_at = $1 WHERE id = $2`, sameTime, id); err != nil {
+			t.Fatalf("set same created_at: %v", err)
+		}
+	}
+
+	rec1 := doJSON(server, http.MethodGet, "/v1/feed?limit=3", "", nil)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec1.Code, rec1.Body.String())
+	}
+	var page1 publicFeedBody
+	decodeResponse(t, rec1, &page1)
+	if len(page1.Jumps) != 3 {
+		t.Fatalf("expected 3 on page 1, got %d", len(page1.Jumps))
+	}
+	if page1.NextCursor == nil {
+		t.Fatal("expected nextCursor on page 1")
+	}
+
+	rec1b := doJSON(server, http.MethodGet, "/v1/feed?limit=3", "", nil)
+	if rec1b.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec1b.Code, rec1b.Body.String())
+	}
+	var page1b publicFeedBody
+	decodeResponse(t, rec1b, &page1b)
+	for i := 0; i < 3; i++ {
+		if page1.Jumps[i].ID != page1b.Jumps[i].ID {
+			t.Fatalf("deterministic order violated at index %d: %q vs %q", i, page1.Jumps[i].ID, page1b.Jumps[i].ID)
+		}
+	}
+
+	rec2 := doJSON(server, http.MethodGet, "/v1/feed?cursor="+*page1.NextCursor+"&limit=3", "", nil)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("expected 200 for page 2, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+	var page2 publicFeedBody
+	decodeResponse(t, rec2, &page2)
+	if len(page2.Jumps) != 2 {
+		t.Fatalf("expected 2 on page 2, got %d", len(page2.Jumps))
+	}
+	if page2.NextCursor != nil {
+		t.Fatal("expected nil cursor on last page")
+	}
+
+	seen := map[string]bool{}
+	for _, j := range page1.Jumps {
+		seen[j.ID] = true
+	}
+	for _, j := range page2.Jumps {
+		if seen[j.ID] {
+			t.Fatalf("duplicate jump %q across pages", j.ID)
+		}
+		seen[j.ID] = true
+	}
+	if len(seen) != 5 {
+		t.Fatalf("expected 5 unique jumps, got %d", len(seen))
+	}
 }
