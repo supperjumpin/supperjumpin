@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -36,6 +37,8 @@ function main() {
   const dbName = parseDatabaseName(testDatabaseURL);
   const allowUnsafe = env.SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET === "1";
   const isLocalDocker = !env.SUPPERJUMPIN_TEST_DATABASE_URL;
+  const coverageEnabled = process.argv.includes("--coverage");
+  const extraGoArgs = process.argv.slice(2).filter((arg) => arg !== "--coverage");
 
   if (!isSafeToReset(dbName, allowUnsafe)) {
     console.error(
@@ -90,7 +93,12 @@ function main() {
   }
 
   console.log("Running Go tests...");
-  const goArgs = ["test", "./apps/api/...", ...process.argv.slice(2)];
+  const goArgs = ["test"];
+  if (coverageEnabled) {
+    mkdirSync("coverage", { recursive: true });
+    goArgs.push("-covermode=atomic", "-coverprofile=coverage/api.coverprofile");
+  }
+  goArgs.push("./apps/api/...", ...extraGoArgs);
   const goTestResult = spawnSync("go", goArgs, {
     stdio: "inherit",
     env: {
@@ -98,6 +106,31 @@ function main() {
       SUPPERJUMPIN_TEST_DATABASE_URL: testDatabaseURL,
     },
   });
+
+  if (goTestResult.status === 0 && coverageEnabled) {
+    const coverResult = spawnSync("go", ["tool", "cover", "-func=coverage/api.coverprofile"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+    });
+
+    if (coverResult.stdout) {
+      process.stdout.write(coverResult.stdout);
+    }
+    if (coverResult.stderr) {
+      process.stderr.write(coverResult.stderr);
+    }
+
+    const summaryMatch = `${coverResult.stdout ?? ""}${coverResult.stderr ?? ""}`.match(
+      /total:\s+\(statements\)\s+([\d.]+)%/
+    );
+    if (env.GITHUB_STEP_SUMMARY) {
+      const line = summaryMatch
+        ? `Go API coverage: ${summaryMatch[1]}% statement coverage.`
+        : "Go API coverage completed.";
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `### Go API coverage\n${line}\n`);
+    }
+  }
 
   process.exit(goTestResult.status ?? 0);
 }
