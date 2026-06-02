@@ -104,6 +104,172 @@ func TestPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJum
 	}
 }
 
+func TestPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *testing.T) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
+	}
+
+	store := newPostgresTestStore(t, databaseURL)
+	server := newGroupsTestServerWithStore(store)
+	group := createGroup(t, server, "alice-token", "Public Detail Crew")
+	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatalf("open postgres database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("close postgres database: %v", err)
+		}
+	})
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET grace_period_expires_at = now() - interval '1 minute' WHERE id = $1`, performed.Jump.ID); err != nil {
+		t.Fatalf("expire jump grace period: %v", err)
+	}
+
+	detailRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", detailRec.Code, detailRec.Body.String())
+	}
+
+	var detail struct {
+		ID                   string    `json:"id"`
+		PerformerName        string    `json:"performerName"`
+		PerformerID          string    `json:"performerId"`
+		Source               string    `json:"source"`
+		Destination          string    `json:"destination"`
+		Food                 string    `json:"food"`
+		Caption              string    `json:"caption"`
+		MediaObjectKey       string    `json:"mediaObjectKey"`
+		Status               string    `json:"status"`
+		GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
+		RunningAverage       float64   `json:"runningAverage"`
+		JudgmentCount        int       `json:"judgmentCount"`
+		CreatedAt            time.Time `json:"createdAt"`
+		ViewerContext        *struct {
+			CanJudge bool `json:"canJudge"`
+		} `json:"viewerContext"`
+	}
+	decodeResponse(t, detailRec, &detail)
+	if detail.ID != performed.Jump.ID {
+		t.Fatalf("expected jump ID %q, got %q", performed.Jump.ID, detail.ID)
+	}
+	if detail.PerformerName == "" {
+		t.Fatal("expected performerName to be populated")
+	}
+	if detail.PerformerID == "" {
+		t.Fatal("expected performerId to be populated")
+	}
+	if detail.Source != "Taco Bell" || detail.Destination != "Olive Garden parking lot" || detail.Food != "Crunchwrap" {
+		t.Fatalf("expected source/destination/food in detail, got %+v", detail)
+	}
+	if detail.Caption == "" {
+		t.Fatal("expected caption to be populated")
+	}
+	if detail.MediaObjectKey == "" {
+		t.Fatal("expected mediaObjectKey to be populated")
+	}
+	if detail.Status != "Performed Jump" {
+		t.Fatalf("expected status 'Performed Jump', got %q", detail.Status)
+	}
+	if detail.GracePeriodExpiresAt.IsZero() {
+		t.Fatal("expected gracePeriodExpiresAt to be populated")
+	}
+	if detail.CreatedAt.IsZero() {
+		t.Fatal("expected createdAt to be populated")
+	}
+	if detail.RunningAverage != 0 {
+		t.Fatalf("expected runningAverage 0 before judgments, got %v", detail.RunningAverage)
+	}
+	if detail.JudgmentCount != 0 {
+		t.Fatalf("expected judgmentCount 0 before judgments, got %d", detail.JudgmentCount)
+	}
+	if detail.ViewerContext == nil || !detail.ViewerContext.CanJudge {
+		t.Fatal("expected anonymous viewer to see judge CTA")
+	}
+
+	unknownRec := doJSON(server, http.MethodGet, "/v1/jumps/not-found", "", nil)
+	if unknownRec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown jump, got %d: %s", unknownRec.Code, unknownRec.Body.String())
+	}
+
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
+	judgedRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	if judgedRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 after judgment, got %d: %s", judgedRec.Code, judgedRec.Body.String())
+	}
+
+	var judged struct {
+		RunningAverage float64 `json:"runningAverage"`
+		JudgmentCount  int     `json:"judgmentCount"`
+		ViewerContext  *struct {
+			CanJudge  bool   `json:"canJudge"`
+			Reason    string `json:"reason,omitempty"`
+			HasJudged bool   `json:"hasJudged"`
+		} `json:"viewerContext"`
+	}
+	decodeResponse(t, judgedRec, &judged)
+	if judged.RunningAverage != 2.5 {
+		t.Fatalf("expected runningAverage 2.5 after one judgment, got %v", judged.RunningAverage)
+	}
+	if judged.JudgmentCount != 1 {
+		t.Fatalf("expected judgmentCount 1 after one judgment, got %d", judged.JudgmentCount)
+	}
+	if judged.ViewerContext == nil {
+		t.Fatal("expected viewerContext for signed-in viewer")
+	}
+	if judged.ViewerContext.CanJudge {
+		t.Fatal("expected already-judged viewer to not be able to judge")
+	}
+	if judged.ViewerContext.Reason != "already-judged" {
+		t.Fatalf("expected reason 'already-judged', got %q", judged.ViewerContext.Reason)
+	}
+	if !judged.ViewerContext.HasJudged {
+		t.Fatal("expected hasJudged=true after judgment")
+	}
+
+	dispute := raiseDispute(t, server, "alice-token", performed.Jump.ID, "House Rules", "Remove this")
+	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
+		"resolution":       "Removed Jump",
+		"resolutionReason": "Test removal",
+	})
+	if resolutionRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on dispute resolution, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
+	}
+
+	tombstoneRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
+	if tombstoneRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for tombstone, got %d: %s", tombstoneRec.Code, tombstoneRec.Body.String())
+	}
+
+	var tombstone struct {
+		ID      string `json:"id"`
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, tombstoneRec, &tombstone)
+	if tombstone.Status != "Removed Jump" {
+		t.Fatalf("expected Removed Jump status, got %q", tombstone.Status)
+	}
+	if tombstone.Message != "This Jump is no longer available" {
+		t.Fatalf("expected tombstone message, got %q", tombstone.Message)
+	}
+
+	tombstoneRec = doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
+	var tombstoneMap map[string]any
+	decodeResponse(t, tombstoneRec, &tombstoneMap)
+	if _, ok := tombstoneMap["performerName"]; ok {
+		t.Fatal("expected tombstone response to omit performerName")
+	}
+	if _, ok := tombstoneMap["caption"]; ok {
+		t.Fatal("expected tombstone response to omit caption")
+	}
+	if _, ok := tombstoneMap["mediaObjectKey"]; ok {
+		t.Fatal("expected tombstone response to omit mediaObjectKey")
+	}
+}
+
 func performCustomJump(t *testing.T, server http.Handler, token string, groupID string, food string, caption string) evidenceSubmissionBody {
 	t.Helper()
 	idea := createIdea(t, server, token, groupID, "Taco Bell", "Olive Garden parking lot", food)

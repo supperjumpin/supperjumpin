@@ -170,19 +170,19 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 	}
 
 	jumpSnap := game.JumpSnapshot{
-		ID:                  jumpID,
-		GroupID:             params.GroupID,
-		PlayerID:            params.PlayerID,
-		Status:              "Performed Jump",
-		SeasonID:            params.SeasonID,
-		Source:              params.Source,
-		Destination:         params.Destination,
-		Food:                params.Food,
+		ID:                   jumpID,
+		GroupID:              params.GroupID,
+		PlayerID:             params.PlayerID,
+		Status:               "Performed Jump",
+		SeasonID:             params.SeasonID,
+		Source:               params.Source,
+		Destination:          params.Destination,
+		Food:                 params.Food,
 		GracePeriodExpiresAt: params.GracePeriodExpiresAt,
 	}
 	evidenceSnap := game.EvidenceSnapshot{
 		ID:             evidenceID,
-		JumpID:        jumpID,
+		JumpID:         jumpID,
 		PlayerID:       params.PlayerID,
 		MediaObjectKey: params.MediaObjectKey,
 		Caption:        params.Caption,
