@@ -48,7 +48,6 @@ When creating issues from PRDs, add them to this project and set all custom fiel
 
 Default new implementation issues to:
 
-- **Assignee**: current GitHub user (`@me`) unless the user specifies otherwise.
 - **Status**: `Todo`.
 - **Priority**: unset (determined during triage).
 - **Area**: the primary layer touched by the slice. Pick one even when the slice crosses layers.
@@ -79,7 +78,6 @@ For each PRD breakdown:
 - Create sub-issues in dependency order.
 - Attach each created issue to the PRD as a GitHub sub-issue.
 - Add explicit blocker relationships between sub-issues when one cannot start before another lands.
-- Assign each issue to the current operator by default.
 - Set every custom project field before reporting completion.
 
 ## Decomposition Policy
