@@ -84,6 +84,9 @@ func TestPostgresStoreLatestSeasonForGroupPrefersCreationOrderOverIDOrder(t *tes
 	if err != nil {
 		t.Fatalf("insert first target season: %v", err)
 	}
+	if err := store.UpdateSeasonStatus(ctx, first.ID, "Season Finalized", targetGroup.Membership.PlayerID, "Group Admin", false, "Active", "Finalized"); err != nil {
+		t.Fatalf("finalize first target season: %v", err)
+	}
 
 	for i := firstOffset + 1; i < secondOffset; i++ {
 		makeFillerSeason(i)
