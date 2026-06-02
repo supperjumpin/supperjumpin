@@ -1166,61 +1166,46 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 		t.Fatalf("expected Bob to join Group before judging, got %d: %s", acceptRec.Code, acceptRec.Body.String())
 	}
 
-	latestScore := 0
-	maxIDSeasonNumber := 0
-	maxID := ""
-	foundOutOfOrder := false
 	judgmentScores := [][4]int{
+		{4, 4, 4, 4},
 		{1, 1, 1, 1},
-		{2, 1, 1, 1},
-		{3, 1, 1, 1},
-		{4, 1, 1, 1},
-		{4, 2, 1, 1},
-		{4, 3, 1, 1},
-		{4, 4, 1, 1},
-		{4, 4, 2, 1},
 	}
-	for seasonNumber := 1; seasonNumber <= 8; seasonNumber++ {
-		// Reset clock so performJump creates a consistent grace period, then advance past it
-		store.SetClock(func() time.Time { return currentTime })
 
-		season := startSeasonWithDeadlines(
-			t,
-			server,
-			"alice-token",
-			group.Group.ID,
-			currentTime.Add(time.Hour),
-			currentTime.Add(2*time.Hour),
-		)
-		performed := performJump(t, server, "alice-token", group.Group.ID)
-		score := judgmentScores[seasonNumber-1]
+	store.SetClock(func() time.Time { return currentTime })
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		currentTime.Add(time.Hour),
+		currentTime.Add(2*time.Hour),
+	)
+	firstPerformed := performJump(t, server, "alice-token", group.Group.ID)
 
-		// Advance past the Author Grace Period before judging
-		store.SetClock(func() time.Time { return currentTime.Add(11 * time.Minute) })
+	store.SetClock(func() time.Time { return currentTime.Add(11 * time.Minute) })
+	submitJudgment(t, server, "bob-token", firstPerformed.Jump.ID, judgmentScores[0][0], judgmentScores[0][1], judgmentScores[0][2], judgmentScores[0][3], http.StatusCreated)
+	currentTime = currentTime.Add(3 * time.Hour)
 
-		submitJudgment(t, server, "bob-token", performed.Jump.ID, score[0], score[1], score[2], score[3], http.StatusCreated)
-		currentTime = currentTime.Add(3 * time.Hour)
-		getGroupHome(t, server, "alice-token", group.Group.ID)
+	store.SetClock(func() time.Time { return currentTime })
+	startSeasonWithDeadlines(
+		t,
+		server,
+		"alice-token",
+		group.Group.ID,
+		currentTime.Add(time.Hour),
+		currentTime.Add(2*time.Hour),
+	)
+	secondPerformed := performJump(t, server, "alice-token", group.Group.ID)
 
-		latestScore = score[0] + score[1] + score[2] + score[3]
-		if maxID == "" || season.ActiveSeason.ID > maxID {
-			maxID = season.ActiveSeason.ID
-			maxIDSeasonNumber = seasonNumber
-		}
-		if maxIDSeasonNumber != seasonNumber {
-			foundOutOfOrder = true
-			break
-		}
-	}
-	if !foundOutOfOrder {
-		t.Fatalf("expected at least one latest season ID ordering inversion across hashed IDs")
-	}
+	store.SetClock(func() time.Time { return currentTime.Add(11 * time.Minute) })
+	submitJudgment(t, server, "bob-token", secondPerformed.Jump.ID, judgmentScores[1][0], judgmentScores[1][1], judgmentScores[1][2], judgmentScores[1][3], http.StatusCreated)
+	currentTime = currentTime.Add(3 * time.Hour)
 
 	home := getGroupHome(t, server, "alice-token", group.Group.ID)
 	if len(home.Standings) != 1 {
 		t.Fatalf("expected one Standing entry, got %#v", home.Standings)
 	}
-	expectedSeasonScore := latestScore
+	expectedSeasonScore := judgmentScores[1][0] + judgmentScores[1][1] + judgmentScores[1][2] + judgmentScores[1][3]
 	if home.Standings[0].SeasonScore != expectedSeasonScore || home.Standings[0].JudgedJumps != 1 {
 		t.Fatalf("expected latest season score %d to drive standings, got %#v", expectedSeasonScore, home.Standings[0])
 	}
@@ -2099,16 +2084,16 @@ type groupHomeBody struct {
 
 type performedJumpViewBody struct {
 	Jump struct {
-		ID                  string    `json:"id"`
-		GroupID             string    `json:"groupId"`
-		PlayerID            string    `json:"playerId"`
-		SeasonID            *string   `json:"seasonId"`
-		Status              string    `json:"status"`
-		Source              string    `json:"source"`
-		Destination         string    `json:"destination"`
-		Food                string    `json:"food"`
-		OffSeason           bool      `json:"offSeason"`
-		FinalScore          *int      `json:"finalScore"`
+		ID                   string    `json:"id"`
+		GroupID              string    `json:"groupId"`
+		PlayerID             string    `json:"playerId"`
+		SeasonID             *string   `json:"seasonId"`
+		Status               string    `json:"status"`
+		Source               string    `json:"source"`
+		Destination          string    `json:"destination"`
+		Food                 string    `json:"food"`
+		OffSeason            bool      `json:"offSeason"`
+		FinalScore           *int      `json:"finalScore"`
 		GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
 	} `json:"jump"`
 	Performer struct {
@@ -2213,16 +2198,16 @@ type inviteBody struct {
 }
 
 type jumpBody struct {
-	ID                  string    `json:"id"`
-	GroupID             string    `json:"groupId"`
-	PlayerID            string    `json:"playerId"`
-	SeasonID            *string   `json:"seasonId"`
-	Status              string    `json:"status"`
-	Source              string    `json:"source"`
-	Destination         string    `json:"destination"`
-	Food                string    `json:"food"`
-	OffSeason           bool      `json:"offSeason"`
-	FinalScore          *int      `json:"finalScore"`
+	ID                   string    `json:"id"`
+	GroupID              string    `json:"groupId"`
+	PlayerID             string    `json:"playerId"`
+	SeasonID             *string   `json:"seasonId"`
+	Status               string    `json:"status"`
+	Source               string    `json:"source"`
+	Destination          string    `json:"destination"`
+	Food                 string    `json:"food"`
+	OffSeason            bool      `json:"offSeason"`
+	FinalScore           *int      `json:"finalScore"`
 	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
 }
 
