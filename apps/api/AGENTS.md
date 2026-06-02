@@ -24,7 +24,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 - **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` header.
 - **Transport helpers** in `store.go` bridge between game snapshots and JSON DTOs from `dto.go`. Example: `createGroup()` calls `game.CreateGroup()` then assembles `GroupHomeResponse`.
 - **Error mapping**: `mapGameErr()` in `store.go` translates domain errors (`game.ErrInvalidJudgmentScore`) to transport errors (`httpapi.ErrInvalidJudgmentScore`) for HTTP status codes.
-- **sqlc for queries**: All repository interface methods in `postgres_store_*.go` delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run sqlc:generate`.
+- **sqlc for queries**: All repository interface methods in `postgres_store_*.go` delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run generate:sqlc`.
 - **Transactions**: Multi-step DB operations use `BeginTx` + `defer tx.Rollback()` + `tx.Commit()` with `qtx := s.queries.WithTx(tx)` for sqlc-generated queries inside the transaction.
 - **Complex query helpers**: Multi-table DTO assembly queries (e.g., `recentPerformedJumpsForGroupQuery`) and helpers with business logic interleaved (e.g., `ensureSeasonStatusesForGroupInTx`) stay as hand-written raw SQL — they're not repository interface methods.
 

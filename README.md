@@ -48,7 +48,7 @@ Copy `apps/mobile/.env.example` to `apps/mobile/.env` and set the Supabase proje
 Regenerate the API's Go query layer from the SQL query files:
 
 ```sh
-npm run sqlc:generate
+npm run generate:sqlc
 ```
 
 ## Runnable scaffold
