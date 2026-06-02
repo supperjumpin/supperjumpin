@@ -165,3 +165,27 @@ func (s *PostgresStore) HasJudgedJump(ctx context.Context, jumpID, playerID stri
 	}
 	return exists, nil
 }
+
+// HasJudgedJumps returns a map of jumpID → hasJudged for the given player.
+// Uses a single SQL query with ANY instead of N individual queries.
+func (s *PostgresStore) HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error) {
+	if len(jumpIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT jump_id FROM judgments WHERE player_id = $1 AND jump_id = ANY($2)`, playerID, jumpIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	judged := make(map[string]bool, len(jumpIDs))
+	for rows.Next() {
+		var jid string
+		if err := rows.Scan(&jid); err != nil {
+			return nil, err
+		}
+		judged[jid] = true
+	}
+	return judged, rows.Err()
+}

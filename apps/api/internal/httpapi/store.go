@@ -113,6 +113,7 @@ type Persistence interface {
 	FeedJumps(ctx context.Context, cursorTS *time.Time, cursorID string, limit int) ([]JumpCard, error)
 	JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error)
 	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
+	HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error)
 }
 
 // --- Transport-layer DTO helpers (game-command → DTO conversion) ---

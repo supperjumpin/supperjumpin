@@ -389,3 +389,48 @@ func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) 
 
 // Ensure unused import doesn't break build
 var _ = time.Now
+
+// TestPublicFeedAlreadyJudged asserts that the feed shows already-judged state
+// for authenticated viewers who have judged a jump.
+func TestPublicFeedAlreadyJudged(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token", store.GroupID)
+
+	// Bob judges Alice's jump
+	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
+
+	// Bob requests the feed — should see already-judged
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res struct {
+		Jumps []struct {
+			ID            string `json:"id"`
+			ViewerContext *struct {
+				CanJudge  bool   `json:"canJudge"`
+				Reason    string `json:"reason,omitempty"`
+				HasJudged bool   `json:"hasJudged"`
+			} `json:"viewerContext"`
+		} `json:"jumps"`
+	}
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) == 0 {
+		t.Fatal("expected at least 1 jump in feed")
+	}
+
+	vc := res.Jumps[0].ViewerContext
+	if vc == nil {
+		t.Fatal("expected viewerContext on feed card for authenticated viewer")
+	}
+	if vc.CanJudge {
+		t.Fatal("expected canJudge=false for already-judged jump on feed")
+	}
+	if !vc.HasJudged {
+		t.Fatal("expected hasJudged=true for already-judged jump on feed")
+	}
+	if vc.Reason != "already-judged" {
+		t.Fatalf("expected reason 'already-judged', got %q", vc.Reason)
+	}
+}

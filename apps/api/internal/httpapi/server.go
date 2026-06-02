@@ -707,10 +707,19 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		// Attach viewer context to each card
+		// Attach viewer context to each card — batch already-judged check
 		if viewer != nil {
+			cardIDs := make([]string, len(cards))
+			for i, c := range cards {
+				cardIDs[i] = c.ID
+			}
+			judged, err := config.DB.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
+			if err != nil {
+				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
+				return
+			}
 			for i := range cards {
-				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, config.DB, r.Context())
+				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged)
 			}
 		}
 
@@ -762,6 +771,11 @@ func NewServer(config ServerConfig) http.Handler {
 
 // computeViewerContext determines the viewer's eligibility to judge a Jump.
 // viewer may be nil (unauthenticated) — returns default canJudge: true.
+//
+// Security boundary: canJudge:true for nil (guest) auth is intentional.
+// Guests see the judge UI and are prompted to authenticate before actually
+// submitting. The judgment submission endpoint independently verifies auth;
+// viewerContext is purely a UI hint, not an authorization gate.
 func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence, ctx context.Context) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 
@@ -800,9 +814,9 @@ func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence,
 
 // computeViewerContextCard determines the viewer's eligibility to judge a Jump
 // from a JumpCard (feed level). Uses the same logic as computeViewerContext but
-// accepts a JumpCard instead of JumpDetail. Does not perform an expensive
-// per-card HasJudgedJump query — only uses self-judging and grace period checks.
-func computeViewerContextCard(card JumpCard, viewer MeResponse, db Persistence, ctx context.Context) *ViewerContext {
+// accepts a JumpCard instead of JumpDetail. The judged parameter is a pre-fetched
+// batch map to avoid N+1 queries on the feed.
+func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 
 	// 1. Self-judging
@@ -822,9 +836,15 @@ func computeViewerContextCard(card JumpCard, viewer MeResponse, db Persistence, 
 		return vc
 	}
 
-	// Note: already-judged check is deferred to the detail screen to avoid
-	// an N+1 query per card on the feed. Feed cards show grace-period and
-	// self-judging states; detail covers already-judged.
+	// 3. Already judged (from pre-fetched batch map)
+	if judged[card.ID] {
+		vc.CanJudge = false
+		vc.HasJudged = true
+		reason := "already-judged"
+		vc.Reason = &reason
+		return vc
+	}
+
 	return vc
 }
 

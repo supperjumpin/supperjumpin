@@ -1040,6 +1040,26 @@ func (s *MemoryStore) HasJudgedJump(ctx context.Context, jumpID, playerID string
 	return false, nil
 }
 
+// HasJudgedJumps returns a map of jumpID → hasJudged for the given player.
+// Uses a single O(n) pass over all judgments instead of N individual lookups.
+func (s *MemoryStore) HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	target := make(map[string]bool, len(jumpIDs))
+	for _, jid := range jumpIDs {
+		target[jid] = true
+	}
+
+	judged := make(map[string]bool, len(jumpIDs))
+	for _, j := range s.judgments {
+		if j.PlayerID == playerID && target[j.JumpID] {
+			judged[j.JumpID] = true
+		}
+	}
+	return judged, nil
+}
+
 // jumpToCard converts a Jump into a JumpCard for the public feed.
 func (s *MemoryStore) jumpToCard(jump Jump) JumpCard {
 	var ra float64
