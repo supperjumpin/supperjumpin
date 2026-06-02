@@ -93,7 +93,7 @@ npm run api:dev           # Run API against existing DB
 npm run demo:mobile       # expo start (needs .env from .env.example)
 
 # Testing
-npm run api:test          # go test ./apps/api/...
+npm run api:test          # Run Go API tests against Postgres (local Docker or SUPPERJUMPIN_TEST_DATABASE_URL)
 npm test                  # npm workspace tests (api-client + scripts)
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 
@@ -109,7 +109,7 @@ npm run sqlc:generate        # sqlc generate → apps/api/internal/db/
 - `DATABASE_URL` is mandatory — API refuses to start without it.
 - Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
 - Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`.
-- Postgres-backed tests exist behind `SUPPERJUMPIN_TEST_DATABASE_URL`; they skip if unset.
+- `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
 - No production deployment configs (Dockerfile, K8s, Terraform) exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`). See `docs/agents/issue-tracker.md`.
 - Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
