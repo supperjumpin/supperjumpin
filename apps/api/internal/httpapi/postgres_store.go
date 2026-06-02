@@ -17,6 +17,22 @@ type PostgresStore struct {
 	queries *db.Queries
 }
 
+// pgError matches the Code() method of *pgconn.PgError so we can detect Postgres
+// error codes without importing pgconn directly.
+type pgError interface {
+	Code() string
+}
+
+// isUniqueViolation reports whether err (or one of its wrapped errors) is a
+// Postgres unique-constraint violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	var pgErr pgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code() == "23505"
+	}
+	return false
+}
+
 func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, error) {
 	d, err := sql.Open("pgx", databaseURL)
 	if err != nil {
