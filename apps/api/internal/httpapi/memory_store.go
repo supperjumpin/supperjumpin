@@ -567,7 +567,6 @@ func (s *MemoryStore) ClaimAndAdvance(ctx context.Context, authorizationID, jump
 
 	jump := s.jumps[jumpID]
 	jump.Status = "Performed Jump"
-	jump.GracePeriodExpiresAt = s.now().Add(10 * time.Minute).UTC()
 	s.jumps[jump.ID] = jump
 
 	evidenceID := stableID("evidence", jumpID+":"+authorizationID)
