@@ -90,10 +90,9 @@ These files are maintained by convention, not automation. Follow these rules in 
 npm run db:up             # Start Docker Compose Postgres service
 npm run db:migrate        # Apply migrations using repo-local golang-migrate
 npm run api:dev           # Run API against existing DB
-npm run demo:mobile       # expo start (needs .env from .env.example)
 
 # Testing
-npm run api:test          # Run Go API tests against Postgres (local Docker or SUPPERJUMPIN_TEST_DATABASE_URL)
+npm run api:test          # Run Go API tests against Postgres (local Docker or SUPPERJUMPIN_TEST_DATABASE_URL); canonical test path
 npm test                  # npm workspace tests (api-client + scripts)
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 

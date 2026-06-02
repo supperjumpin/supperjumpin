@@ -2,7 +2,7 @@
 
 A social mobile game about planning, performing, documenting, and judging absurd food-location stunts.
 
-## Demo locally
+## Local development
 
 Prerequisites:
 
@@ -17,13 +17,25 @@ Install JavaScript dependencies once from the repo root:
 npm install
 ```
 
-Start the local demo API:
+Start the local Postgres service:
 
 ```sh
-npm run demo:api
+npm run db:up
 ```
 
-That command starts Postgres with Docker Compose, applies API migrations, and runs the Go API with the development bearer token `dev-token`.
+Apply API migrations:
+
+```sh
+npm run db:migrate
+```
+
+Run the Go API with an explicit `DATABASE_URL`:
+
+```sh
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable npm run api:dev
+```
+
+The development bearer token defaults to `dev-token`.
 
 Smoke-test it from another terminal:
 
@@ -31,29 +43,17 @@ Smoke-test it from another terminal:
 curl -H "Authorization: Bearer dev-token" http://localhost:8080/v1/me
 ```
 
-Optional Make aliases are available on systems with `make`:
-
-```sh
-make demo-api
-```
-
 Start the Expo app separately if you want to inspect the current mobile shell:
 
 ```sh
-npm run demo:mobile
+npm --workspace @supperjumpin/mobile run dev
 ```
 
 Copy `apps/mobile/.env.example` to `apps/mobile/.env` and set the Supabase project URL, anon key, and API base URL before using mobile auth.
 
-Regenerate the API's Go query layer from the SQL query files:
-
-```sh
-npm run generate:sqlc
-```
-
 ## Runnable scaffold
 
-Run the backend behavior tests:
+Run the backend behavior tests against Postgres:
 
 ```sh
 npm run api:test
@@ -65,18 +65,16 @@ Regenerate the TypeScript client types from the OpenAPI contract:
 npm run generate:api-client
 ```
 
+Regenerate the API's Go query layer from the SQL query files:
+
+```sh
+npm run generate:sqlc
+```
+
 Run the API locally against an already configured database:
 
 ```sh
 npm run api:dev
-```
-
-Set `DATABASE_URL` first when using `api:dev` directly. For most local demos, prefer `npm run demo:api`.
-
-Start the Expo app:
-
-```sh
-npm --workspace @supperjumpin/mobile run dev
 ```
 
 ## First playable slice
