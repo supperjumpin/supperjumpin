@@ -16,6 +16,7 @@ import (
 type PostgresStore struct {
 	db      *sql.DB
 	queries *db.Queries
+	now     func() time.Time
 }
 
 // isUniqueViolation reports whether err (or one of its wrapped errors) is a
@@ -40,10 +41,19 @@ func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, 
 	return &PostgresStore{
 		db:      d,
 		queries: db.New(d),
+		now:     time.Now,
 	}, nil
 }
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
+}
+
+func (s *PostgresStore) SetClock(now func() time.Time) {
+	s.now = now
+}
+
+func (s *PostgresStore) SetSeasonStatus(seasonID string, status string) {
+	_, _ = s.db.ExecContext(context.Background(), `UPDATE seasons SET status = $2 WHERE id = $1`, seasonID, status)
 }
 func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -90,7 +100,10 @@ func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIden
 	return MeResponse{Account: account, Player: player}, nil
 }
 func (s *PostgresStore) Now() time.Time {
-	return time.Now()
+	if s.now == nil {
+		return time.Now()
+	}
+	return s.now()
 }
 func (s *PostgresStore) GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error) {
 	newlyFinalized, err := s.ensureSeasonStatusesForGroup(ctx, groupID)
@@ -188,7 +201,7 @@ func (s *PostgresStore) ensureSeasonStatusesForGroup(ctx context.Context, groupI
 		return nil, err
 	}
 	defer tx.Rollback()
-	newlyFinalized, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID)
+	newlyFinalized, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID, s.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +223,7 @@ func (s *PostgresStore) ensureSeasonStatusesForJump(ctx context.Context, jumpID 
 		}
 		return err
 	}
-	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
+	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID, s.Now()); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -228,7 +241,7 @@ func (s *PostgresStore) ensureSeasonStatusesForSeason(ctx context.Context, seaso
 		}
 		return err
 	}
-	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID); err != nil {
+	if _, err := ensureSeasonStatusesForGroupInTx(ctx, tx, groupID, s.Now()); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -253,7 +266,7 @@ WHERE group_memberships.group_id = $1 AND group_memberships.player_id = $2`, gro
 }
 
 // --- Package-level helpers for PostgresStore ---
-func ensureSeasonStatusesForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string) ([]string, error) {
+func ensureSeasonStatusesForGroupInTx(ctx context.Context, tx *sql.Tx, groupID string, now time.Time) ([]string, error) {
 	// TODO: If Groups/Seasons become active again, move deadline-based status
 	// progression into a pure game helper and let adapters only persist changes.
 	rows, err := tx.QueryContext(ctx, `
@@ -282,7 +295,6 @@ WHERE group_id = $1`, groupID)
 		return nil, err
 	}
 	var newlyFinalized []string
-	now := time.Now()
 	for _, season := range seasons {
 		newStatus := season.status
 		if newStatus == "Active" && now.After(season.submissionDeadline) {

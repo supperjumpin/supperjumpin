@@ -49,7 +49,7 @@ func (s *PostgresStore) CreateAuthorization(ctx context.Context, jumpID, playerI
 	defer tx.Rollback()
 	qtx := s.queries.WithTx(tx)
 
-	now := time.Now()
+	now := s.Now()
 	id, err := randomToken("evidence_upload")
 	if err != nil {
 		return game.AuthorizationSnapshot{}, err
@@ -98,12 +98,12 @@ func (s *PostgresStore) ClaimAndAdvance(ctx context.Context, authorizationID, ju
 	if err != nil {
 		return game.EvidenceCreateResult{}, err
 	}
-	if auth.PlayerID != playerID || time.Now().After(auth.ExpiresAt) {
+	if auth.PlayerID != playerID || s.Now().After(auth.ExpiresAt) {
 		return game.EvidenceCreateResult{}, game.ErrEvidenceUploadAuthorizationNotFound
 	}
 
 	evidenceID := stableID("evidence", jumpID+":"+authorizationID)
-	now := time.Now().UTC()
+	now := s.Now().UTC()
 	if err := qtx.InsertEvidence(ctx, db.InsertEvidenceParams{
 		ID:                    evidenceID,
 		JumpID:                jumpID,

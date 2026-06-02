@@ -92,7 +92,8 @@ type Store interface {
 }
 
 // Persistence combines game repository interfaces with transport-layer DTO
-// assembly queries. Both MemoryStore and PostgresStore implement this interface.
+// assembly queries. PostgresStore implements this interface; unit tests should
+// use small per-test fakes or mocks instead of a shared in-memory store.
 // TODO: As non-Group/non-Season flows are touched, narrow helper parameters to
 // flow-specific interfaces instead of passing this broad composed seam around.
 type Persistence interface {

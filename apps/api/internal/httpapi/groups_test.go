@@ -19,7 +19,7 @@ import (
 )
 
 func TestCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	createRec := doJSON(server, http.MethodPost, "/v1/groups", "alice-token", map[string]string{"name": "Breakfast Crew"})
 	if createRec.Code != http.StatusCreated {
@@ -82,7 +82,7 @@ func TestCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.
 }
 
 func TestSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	breakfast := createGroup(t, server, "alice-token", "Breakfast Crew")
 	dinner := createGroup(t, server, "alice-token", "Dinner Weirdos")
@@ -118,7 +118,7 @@ func TestSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
 }
 
 func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	rec := doJSON(server, http.MethodGet, "/v1/groups/"+aliceGroup.Group.ID+"/home", "bob-token", nil)
@@ -128,7 +128,7 @@ func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
 }
 
 func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	bobExistingGroup := createGroup(t, server, "bob-token", "Dinner Weirdos")
 
@@ -158,7 +158,7 @@ func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistin
 }
 
 func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
 
@@ -174,7 +174,7 @@ func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
 }
 
 func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
 
@@ -190,7 +190,8 @@ func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) 
 }
 
 func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -207,7 +208,7 @@ func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
 }
 
 func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodPost, "/v1/invites/not-a-real-invite/accept", "bob-token", nil)
 	if rec.Code != http.StatusNotFound {
@@ -216,7 +217,8 @@ func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
 }
 
 func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -262,7 +264,7 @@ func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 }
 
 func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	rec := doJSON(server, http.MethodPost, "/v1/groups/"+aliceGroup.Group.ID+"/invites", "bob-token", nil)
@@ -272,7 +274,7 @@ func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
 }
 
 func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	startRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
@@ -308,7 +310,7 @@ func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
 }
 
 func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePeriod(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
@@ -335,7 +337,7 @@ func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePerio
 }
 
 func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -360,7 +362,7 @@ func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(
 }
 
 func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -405,7 +407,7 @@ func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 }
 
 func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "bob-token", "Breakfast Crew")
 	invite := createInvite(t, server, "bob-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "alice-token", nil)
@@ -451,7 +453,7 @@ func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
 }
 
 func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
 
@@ -493,7 +495,7 @@ func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *
 }
 
 func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	startSeason(t, server, "alice-token", group.Group.ID)
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Waffle House", "movie theater", "hash browns")
@@ -510,7 +512,7 @@ func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
 }
 
 func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
 
@@ -526,7 +528,7 @@ func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
 }
 
 func TestPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	createGroup(t, server, "bob-token", "Side Judges")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
@@ -559,7 +561,7 @@ func TestPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
 }
 
 func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -578,7 +580,7 @@ func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
 }
 
 func TestAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
 	planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
@@ -621,7 +623,7 @@ func TestAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testin
 }
 
 func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
-	store := httpapi.NewMemoryStore()
+	store := newCleanPostgresTestStore(t)
 	server := newGroupsTestServerWithStore(store)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -645,7 +647,7 @@ func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
 }
 
 func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -681,7 +683,7 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
 }
 
 func TestGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -720,7 +722,7 @@ func TestGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
 }
 
 func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -743,7 +745,7 @@ func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
 }
 
 func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)
 
@@ -759,7 +761,7 @@ func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
 }
 
 func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -783,7 +785,7 @@ func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 }
 
 func TestJudgmentScoresMustStayInRange(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -804,7 +806,7 @@ func TestJudgmentScoresMustStayInRange(t *testing.T) {
 }
 
 func TestJudgmentRequiresAllScoreFields(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -824,7 +826,7 @@ func TestJudgmentRequiresAllScoreFields(t *testing.T) {
 }
 
 func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) {
-	store := httpapi.NewMemoryStore()
+	store := newCleanPostgresTestStore(t)
 	server := newGroupsTestServerWithStore(store)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -871,7 +873,8 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 }
 
 func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -931,7 +934,8 @@ func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 }
 
 func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStandings(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -997,7 +1001,8 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStanding
 }
 
 func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -1059,7 +1064,8 @@ func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings
 }
 
 func TestGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -1117,7 +1123,7 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility
 }
 
 func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
 	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
@@ -1155,7 +1161,8 @@ func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
 
 func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	currentTime := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return currentTime
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -1212,7 +1219,7 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 }
 
 func TestIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Burger King", "bowling alley", "Whopper")
 
@@ -1232,7 +1239,7 @@ func TestIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
 }
 
 func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	firstRec := doJSON(server, http.MethodPost, "/v1/groups/"+group.Group.ID+"/seasons", "alice-token", map[string]string{
@@ -1685,7 +1692,7 @@ func TestPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing
 }
 
 func TestCreatePerformedJumpWithoutGroupIdIsOffSeason(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
@@ -1714,7 +1721,8 @@ func TestCreatePerformedJumpWithoutGroupIdIsOffSeason(t *testing.T) {
 
 func TestCreatePerformedJumpGracePeriodUsesInjectableClock(t *testing.T) {
 	now := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return now
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -1762,7 +1770,8 @@ func TestCreatePerformedJumpGracePeriodUsesInjectableClock(t *testing.T) {
 }
 
 func TestCreatePerformedJumpLinksToActiveSeason(t *testing.T) {
-	store := httpapi.NewMemoryStoreWithClock(func() time.Time {
+	store := newCleanPostgresTestStore(t)
+	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
 	})
 	server := newGroupsTestServerWithStore(store)
@@ -1799,7 +1808,7 @@ func TestCreatePerformedJumpLinksToActiveSeason(t *testing.T) {
 }
 
 func TestCreatePerformedJumpAppearsInGroupHome(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
@@ -1833,7 +1842,7 @@ func TestCreatePerformedJumpAppearsInGroupHome(t *testing.T) {
 }
 
 func TestCreatePerformedJumpThenSelfJudgmentBlocked(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
@@ -1862,7 +1871,7 @@ func TestCreatePerformedJumpThenSelfJudgmentBlocked(t *testing.T) {
 }
 
 func TestCreatePerformedJumpRejectsUnauthenticated(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "", map[string]any{
 		"source":         "Taco Bell",
@@ -1877,7 +1886,7 @@ func TestCreatePerformedJumpRejectsUnauthenticated(t *testing.T) {
 }
 
 func TestCreatePerformedJumpRejectsMissingFields(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
 		"source":  "Taco Bell",
@@ -1890,7 +1899,7 @@ func TestCreatePerformedJumpRejectsMissingFields(t *testing.T) {
 }
 
 func TestCreatePerformedJumpDirectly(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
@@ -1933,12 +1942,12 @@ func TestCreatePerformedJumpDirectly(t *testing.T) {
 	}
 }
 
-func newGroupsTestServer() http.Handler {
-	return newGroupsTestServerWithPersistence(httpapi.NewMemoryStore())
+func newGroupsTestServer(t *testing.T) http.Handler {
+	return newGroupsTestServerWithPersistence(newCleanPostgresTestStore(t))
 }
 
-func newGroupsTestServerAndStore() (http.Handler, *httpapi.MemoryStore) {
-	store := httpapi.NewMemoryStore()
+func newGroupsTestServerAndStore(t *testing.T) (http.Handler, *httpapi.PostgresStore) {
+	store := newCleanPostgresTestStore(t)
 	return newGroupsTestServerWithPersistence(store), store
 }
 
@@ -1956,20 +1965,6 @@ func newGroupsTestServerWithPersistence(db httpapi.Persistence) http.Handler {
 		Store: db.(httpapi.Store),
 		DB:    db,
 	})
-}
-
-func newPostgresTestStore(t *testing.T, databaseURL string) httpapi.Store {
-	t.Helper()
-	store, err := httpapi.NewPostgresStore(context.Background(), databaseURL)
-	if err != nil {
-		t.Fatalf("new Postgres store: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Fatalf("close Postgres store: %v", err)
-		}
-	})
-	return store
 }
 
 func installSlowSeasonInsertTrigger(t *testing.T, databaseURL string) {

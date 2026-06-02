@@ -23,7 +23,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 - **Input/Result structs**: Every operation has explicit `XxxInput` and `XxxResult{Allowed, Created, Err}` structs.
 - **Allowed bool**: Authorization failures return `Allowed=false`. HTTP layer maps this to 403.
 - **Snapshot pattern**: Read-only views use `XxxSnapshot` structs. Persistence layers assemble these from DB rows.
-- **Clock injection**: Time-dependent logic accepts `func() time.Time` (e.g., `Service.Now`, `MemoryStore` clock).
+- **Clock injection**: Time-dependent logic accepts `func() time.Time` (e.g., `Service.Now`, `PostgresStore` clock).
 - **Error naming**: Sentinel errors use `ErrXxx` (e.g., `ErrInvalidJudgmentScore`, `ErrJumpNotFound`).
 
 ## ANTI-PATTERNS

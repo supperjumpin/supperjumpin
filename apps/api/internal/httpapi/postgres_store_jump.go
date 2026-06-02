@@ -151,7 +151,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 	}
 
 	evidenceID := stableID("evidence", jumpID+":"+params.MediaObjectKey)
-	now := time.Now().UTC()
+	now := s.Now().UTC()
 	qtx := s.queries.WithTx(tx)
 	if err := qtx.InsertEvidence(ctx, db.InsertEvidenceParams{
 		ID:                    evidenceID,
