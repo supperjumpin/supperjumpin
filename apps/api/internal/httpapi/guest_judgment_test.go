@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func doJSONUnauthenticated(server http.Handler, method string, path string, body any) *httptest.ResponseRecorder {
@@ -41,7 +42,7 @@ func TestGuestCanCreateSession(t *testing.T) {
 }
 
 func TestGuestCanJudgePerformedJump(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 
 	// Create a guest session
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -57,6 +58,9 @@ func TestGuestCanJudgePerformedJump(t *testing.T) {
 	// Create a group and a performed jump by Alice
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Guest judges the jump
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
@@ -81,7 +85,7 @@ func TestGuestCanJudgePerformedJump(t *testing.T) {
 }
 
 func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 
 	// Create a guest session
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -95,7 +99,13 @@ func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
 
 	// Guest submits 5 judgments (cap)
 	for i := 0; i < 5; i++ {
+		// Reset clock so performJump creates a consistent grace period, then advance past it
+		store.SetClock(time.Now)
 		performed := performJump(t, server, "alice-token", group.Group.ID)
+
+		// Advance past the Author Grace Period before judging
+		store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
 		rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
 			"guestSessionId": guestSessionID,
 			"commitment":     2,
@@ -123,10 +133,13 @@ func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
 }
 
 func TestAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
-	server := newGroupsTestServer()
+	server, store := newGroupsTestServerAndStore()
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)
+
+	// Advance past the Author Grace Period before judging
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob (authenticated) judges Alice's jump
 	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 2, 3, 3, 4, http.StatusCreated)
