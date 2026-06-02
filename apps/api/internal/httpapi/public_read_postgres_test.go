@@ -12,7 +12,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func TestPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJumps(t *testing.T) {
+func testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJumps(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -105,7 +105,7 @@ func TestPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJum
 	}
 }
 
-func TestPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *testing.T) {
+func testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -282,7 +282,7 @@ func TestPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 	}
 }
 
-func TestPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemovalTime(t *testing.T) {
+func testPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemovalTime(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -378,7 +378,7 @@ func TestPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemov
 	}
 }
 
-func TestPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
+func testPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -417,7 +417,7 @@ func TestPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	}
 }
 
-func TestPostgresPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
+func testPostgresPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -452,7 +452,7 @@ func TestPostgresPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
 	}
 }
 
-func TestPostgresPublicFeedGracePeriodViewerContext(t *testing.T) {
+func testPostgresPublicFeedGracePeriodViewerContext(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -493,7 +493,7 @@ func TestPostgresPublicFeedGracePeriodViewerContext(t *testing.T) {
 	}
 }
 
-func TestPostgresPublicFeedSelfJudgingViewerContext(t *testing.T) {
+func testPostgresPublicFeedSelfJudgingViewerContext(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -546,7 +546,7 @@ func performCustomJump(t *testing.T, server http.Handler, token string, groupID 
 	return submission
 }
 
-func TestPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
+func testPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -580,7 +580,7 @@ func TestPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
 	}
 }
 
-func TestPostgresPublicFeedCursorPaginationMultiPage(t *testing.T) {
+func testPostgresPublicFeedCursorPaginationMultiPage(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -669,7 +669,7 @@ func TestPostgresPublicFeedCursorPaginationMultiPage(t *testing.T) {
 	}
 }
 
-func TestPostgresPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
+func testPostgresPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -761,4 +761,22 @@ func TestPostgresPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 	if len(seen) != 5 {
 		t.Fatalf("expected 5 unique jumps, got %d", len(seen))
 	}
+}
+
+func TestPostgresPublicRead(t *testing.T) {
+	t.Run("public feed", func(t *testing.T) {
+		t.Run("survives restart orders newest first and excludes removed jumps", testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJumps)
+		t.Run("grace period viewer context", testPostgresPublicFeedGracePeriodViewerContext)
+		t.Run("self judging viewer context", testPostgresPublicFeedSelfJudgingViewerContext)
+		t.Run("empty returns empty array and null cursor", testPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor)
+		t.Run("cursor pagination multi page", testPostgresPublicFeedCursorPaginationMultiPage)
+		t.Run("same timestamp tiebroken by id", testPostgresPublicFeedSameTimestampTiebrokenByID)
+	})
+
+	t.Run("public jump detail", func(t *testing.T) {
+		t.Run("covers visible jump tombstone and missing jump", testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump)
+		t.Run("removed jump returns content free tombstone with removal time", testPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemovalTime)
+		t.Run("grace period viewer context", testPostgresPublicJumpDetailGracePeriodViewerContext)
+		t.Run("self judging viewer context", testPostgresPublicJumpDetailSelfJudgingViewerContext)
+	})
 }

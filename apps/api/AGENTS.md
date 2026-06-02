@@ -11,7 +11,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 | Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig; call transport helpers in `store.go` |
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
-| Postgres-backed tests | `npm run api:test` | Canonical test path against Postgres; see root AGENTS.md |
+| Postgres-backed tests | `npm run api:test` / `npm run api:test:coverage` | Canonical test path against Postgres; see root AGENTS.md |
 | Persistence adapter | `internal/httpapi/postgres_store*.go` | sqlc-generated queries via `db.Queries`; per-repository files |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | DB schema | `db/migrations/*.sql` | 9 numbered migrations; pre-stable: fold changes into existing |
@@ -41,3 +41,4 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 - `PostgresStore` uses `database/sql` with `pgx` driver, not `pgxpool` directly.
 - `stableID(kind, value)` generates deterministic IDs. Never use UUIDs or auto-increment for domain entities.
 - `internal/db/` is the generated sqlc package. It must never import `internal/httpapi` or `internal/game` — CI enforces this with a freshness check.
+- `npm run api:test:coverage` writes `coverage/api.coverprofile` and prints a `go tool cover -func` summary.

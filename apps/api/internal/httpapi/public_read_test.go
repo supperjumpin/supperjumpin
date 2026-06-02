@@ -14,7 +14,7 @@ import (
 // Public Feed tests (GET /v1/feed)
 // ---------------------------------------------------------------------------
 
-func TestPublicFeedReturnsJumps(t *testing.T) {
+func testPublicFeedReturnsJumps(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -52,7 +52,7 @@ func TestPublicFeedReturnsJumps(t *testing.T) {
 	}
 }
 
-func TestPublicFeedReturnsMultipleJumpsInOrder(t *testing.T) {
+func testPublicFeedReturnsMultipleJumpsInOrder(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
 	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) })
@@ -77,7 +77,7 @@ func TestPublicFeedReturnsMultipleJumpsInOrder(t *testing.T) {
 	}
 }
 
-func TestPublicFeedExcludesRemovedJumps(t *testing.T) {
+func testPublicFeedExcludesRemovedJumps(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -104,7 +104,7 @@ func TestPublicFeedExcludesRemovedJumps(t *testing.T) {
 	}
 }
 
-func TestPublicFeedCursorPagination(t *testing.T) {
+func testPublicFeedCursorPagination(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
 	// Create 4 jumps with distinct food names and timestamps.
@@ -179,7 +179,7 @@ func TestPublicFeedCursorPagination(t *testing.T) {
 	}
 }
 
-func TestPublicFeedInvalidCursorReturns400(t *testing.T) {
+func testPublicFeedInvalidCursorReturns400(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?cursor=not-base64", "", nil)
@@ -188,7 +188,7 @@ func TestPublicFeedInvalidCursorReturns400(t *testing.T) {
 	}
 }
 
-func TestPublicFeedInvalidLimitReturns400(t *testing.T) {
+func testPublicFeedInvalidLimitReturns400(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?limit=abc", "", nil)
@@ -206,7 +206,7 @@ func TestPublicFeedInvalidLimitReturns400(t *testing.T) {
 // Public Jump Detail tests (GET /v1/jumps/{jumpID})
 // ---------------------------------------------------------------------------
 
-func TestPublicJumpDetailReturnsJump(t *testing.T) {
+func testPublicJumpDetailReturnsJump(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -253,7 +253,7 @@ func TestPublicJumpDetailReturnsJump(t *testing.T) {
 	}
 }
 
-func TestPublicJumpDetailUnknownIDReturns404(t *testing.T) {
+func testPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/jumps/unknown-id", "", nil)
@@ -273,7 +273,7 @@ func TestPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 	}
 }
 
-func TestPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
+func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
 	store := &failingPublicReadStore{PostgresStore: newCleanPostgresTestStore(t)}
 	store.SetClock(time.Now)
 	server := newGroupsTestServerWithStore(store)
@@ -296,7 +296,7 @@ func TestPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
 	}
 }
 
-func TestPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
+func testPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -331,7 +331,7 @@ func TestPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
 // Viewer Context tests
 // ---------------------------------------------------------------------------
 
-func TestPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
+func testPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -359,7 +359,7 @@ func TestPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
 	}
 }
 
-func TestPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
+func testPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -387,7 +387,7 @@ func TestPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
 	}
 }
 
-func TestPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
+func testPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -425,7 +425,7 @@ func TestPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
 	}
 }
 
-func TestPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
+func testPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -457,7 +457,7 @@ func TestPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	}
 }
 
-func TestPublicFeedGracePeriodViewerContext(t *testing.T) {
+func testPublicFeedGracePeriodViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performJump(t, server, "alice-token", store.GroupID)
 
@@ -485,7 +485,7 @@ func TestPublicFeedGracePeriodViewerContext(t *testing.T) {
 	}
 }
 
-func TestPublicFeedSelfJudgingViewerContext(t *testing.T) {
+func testPublicFeedSelfJudgingViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performJump(t, server, "alice-token", store.GroupID)
 
@@ -513,7 +513,7 @@ func TestPublicFeedSelfJudgingViewerContext(t *testing.T) {
 	}
 }
 
-func TestPublicFeedOtherPlayerCanJudge(t *testing.T) {
+func testPublicFeedOtherPlayerCanJudge(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performJump(t, server, "alice-token", store.GroupID)
 
@@ -607,7 +607,7 @@ func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) 
 
 // TestPublicFeedAlreadyJudged asserts that the feed shows already-judged state
 // for authenticated viewers who have judged a jump.
-func TestPublicFeedAlreadyJudged(t *testing.T) {
+func testPublicFeedAlreadyJudged(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 	performed := performJump(t, server, "alice-token", store.GroupID)
 
@@ -642,4 +642,30 @@ func TestPublicFeedAlreadyJudged(t *testing.T) {
 	if vc.Reason != "already-judged" {
 		t.Fatalf("expected reason 'already-judged', got %q", vc.Reason)
 	}
+}
+
+func TestPublicRead(t *testing.T) {
+	t.Run("public feed", func(t *testing.T) {
+		t.Run("returns jumps", testPublicFeedReturnsJumps)
+		t.Run("returns multiple jumps in order", testPublicFeedReturnsMultipleJumpsInOrder)
+		t.Run("excludes removed jumps", testPublicFeedExcludesRemovedJumps)
+		t.Run("cursor pagination", testPublicFeedCursorPagination)
+		t.Run("invalid cursor returns 400", testPublicFeedInvalidCursorReturns400)
+		t.Run("invalid limit returns 400", testPublicFeedInvalidLimitReturns400)
+		t.Run("internal error returns message envelope", testPublicFeedInternalErrorReturnsMessageEnvelope)
+		t.Run("grace period viewer context", testPublicFeedGracePeriodViewerContext)
+		t.Run("self judging viewer context", testPublicFeedSelfJudgingViewerContext)
+		t.Run("other player can judge", testPublicFeedOtherPlayerCanJudge)
+		t.Run("already judged", testPublicFeedAlreadyJudged)
+	})
+
+	t.Run("public jump detail", func(t *testing.T) {
+		t.Run("returns jump", testPublicJumpDetailReturnsJump)
+		t.Run("unknown id returns 404", testPublicJumpDetailUnknownIDReturns404)
+		t.Run("removed jump returns tombstone", testPublicJumpDetailRemovedJumpReturnsTombstone)
+		t.Run("self judging viewer context", testPublicJumpDetailSelfJudgingViewerContext)
+		t.Run("other player can judge", testPublicJumpDetailOtherPlayerCanJudge)
+		t.Run("already judged viewer context", testPublicDetailAlreadyJudgedViewerContext)
+		t.Run("grace period viewer context", testPublicJumpDetailGracePeriodViewerContext)
+	})
 }

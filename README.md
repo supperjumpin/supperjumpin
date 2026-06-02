@@ -71,6 +71,8 @@ Run the backend behavior tests against Postgres:
 
 ```sh
 npm run api:test
+npm run api:test:coverage
+npm run test:coverage
 ```
 
 Regenerate the TypeScript client types from the OpenAPI contract:

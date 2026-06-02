@@ -53,6 +53,7 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 - **OpenAPI sync gate**: CI runs `generate:api-client` then `git diff --exit-code`. Any OpenAPI change without regeneration breaks CI.
 - **Hand-rolled mocks**: Go tests use inline `mock*Repo` structs with function fields. No testify/mock or gomock.
 - **Co-located tests**: `*_test.go` alongside source. Node tests use `node --test` with `*.test.mjs`.
+- **Coverage commands**: `npm run test:coverage` and `npm run api:test:coverage` emit coverage summaries and write files under `coverage/`.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -95,7 +96,9 @@ npm run api:dev           # Run API against existing DB
 
 # Testing
 npm run api:test          # Run Go API tests against Postgres (local Docker or SUPPERJUMPIN_TEST_DATABASE_URL); canonical test path
+npm run api:test:coverage  # Run Go API tests with coverage output and summary
 npm test                  # npm workspace tests (api-client + scripts)
+npm run test:coverage     # npm workspace tests with coverage output and summary
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 
 # API client regeneration
@@ -111,6 +114,8 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 - Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
 - Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`.
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
+- `npm run api:test:coverage` writes `coverage/api.coverprofile`, prints `go tool cover -func` output, and appends a summary when `GITHUB_STEP_SUMMARY` is set.
+- `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.
 - No production deployment configs (Dockerfile, K8s, Terraform) exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`). See `docs/agents/issue-tracker.md`.
 - Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.

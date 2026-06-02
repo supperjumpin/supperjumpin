@@ -7,13 +7,13 @@ import (
 )
 
 type mockDisputeRepo struct {
-	jumpByIDFn                func(ctx context.Context, jumpID string) (JumpSnapshot, bool, error)
-	seasonFn                   func(ctx context.Context, seasonID string) (SeasonSnapshot, error)
-	groupMembershipFn          func(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
-	insertDisputeFn            func(ctx context.Context, jumpID, raisedByPlayerID, concern, details string) (DisputeSnapshot, error)
-	disputeFn                  func(ctx context.Context, disputeID string) (DisputeSnapshot, error)
-	updateDisputeResolutionFn  func(ctx context.Context, disputeID, resolution, resolutionReason, resolvedByPlayerID string) error
-	updateDisputeOverrideFn    func(ctx context.Context, disputeID, overrideResolution, overrideReason, overrideByPlayerID string) error
+	jumpByIDFn                     func(ctx context.Context, jumpID string) (JumpSnapshot, bool, error)
+	seasonFn                       func(ctx context.Context, seasonID string) (SeasonSnapshot, error)
+	groupMembershipFn              func(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
+	insertDisputeFn                func(ctx context.Context, jumpID, raisedByPlayerID, concern, details string) (DisputeSnapshot, error)
+	disputeFn                      func(ctx context.Context, disputeID string) (DisputeSnapshot, error)
+	updateDisputeResolutionFn      func(ctx context.Context, disputeID, resolution, resolutionReason, resolvedByPlayerID string) error
+	updateDisputeOverrideFn        func(ctx context.Context, disputeID, overrideResolution, overrideReason, overrideByPlayerID string) error
 	updateJumpStatusAfterDisputeFn func(ctx context.Context, jumpID, status string) error
 }
 
@@ -49,7 +49,7 @@ func (m *mockDisputeRepo) UpdateJumpStatusAfterDispute(_ context.Context, jumpID
 	return m.updateJumpStatusAfterDisputeFn(nil, jumpID, status)
 }
 
-func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump(t *testing.T) {
+func testCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump(t *testing.T) {
 	var insertedJumpID, insertedPlayerID string
 	repo := &mockDisputeRepo{
 		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
@@ -63,7 +63,7 @@ func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump(t *testing.T) {
 			insertedPlayerID = raisedByPlayerID
 			return DisputeSnapshot{
 				ID:               "dispute_abc123",
-				JumpID:          jumpID,
+				JumpID:           jumpID,
 				RaisedByPlayerID: raisedByPlayerID,
 				Concern:          concern,
 				Details:          details,
@@ -74,7 +74,7 @@ func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_bob",
-		JumpID:  "jump_1",
+		JumpID:   "jump_1",
 		Concern:  "House Rules",
 		Details:  "This blocked the emergency exit.",
 	})
@@ -99,7 +99,7 @@ func TestCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump(t *testing.T) {
 	}
 }
 
-func TestCreateDispute_NonMemberNotAllowed(t *testing.T) {
+func testCreateDispute_NonMemberNotAllowed(t *testing.T) {
 	repo := &mockDisputeRepo{
 		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{ID: jumpID, GroupID: "group_1", Status: "Performed Jump"}, true, nil
@@ -111,7 +111,7 @@ func TestCreateDispute_NonMemberNotAllowed(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_stranger",
-		JumpID:  "jump_1",
+		JumpID:   "jump_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
@@ -123,12 +123,12 @@ func TestCreateDispute_NonMemberNotAllowed(t *testing.T) {
 	}
 }
 
-func TestCreateDispute_InvalidConcernReturnsError(t *testing.T) {
+func testCreateDispute_InvalidConcernReturnsError(t *testing.T) {
 	repo := &mockDisputeRepo{}
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		JumpID:  "jump_1",
+		JumpID:   "jump_1",
 		Concern:  "Invalid Concern",
 		Details:  "Details.",
 	})
@@ -137,7 +137,7 @@ func TestCreateDispute_InvalidConcernReturnsError(t *testing.T) {
 	}
 }
 
-func TestCreateDispute_RemovedJumpNotDisputable(t *testing.T) {
+func testCreateDispute_RemovedJumpNotDisputable(t *testing.T) {
 	repo := &mockDisputeRepo{
 		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{ID: jumpID, GroupID: "group_1", Status: "Removed Jump"}, true, nil
@@ -146,7 +146,7 @@ func TestCreateDispute_RemovedJumpNotDisputable(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		JumpID:  "jump_1",
+		JumpID:   "jump_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
@@ -155,7 +155,7 @@ func TestCreateDispute_RemovedJumpNotDisputable(t *testing.T) {
 	}
 }
 
-func TestCreateDispute_IdeaNotDisputable(t *testing.T) {
+func testCreateDispute_IdeaNotDisputable(t *testing.T) {
 	repo := &mockDisputeRepo{
 		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{ID: jumpID, GroupID: "group_1", Status: "Idea"}, true, nil
@@ -164,7 +164,7 @@ func TestCreateDispute_IdeaNotDisputable(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		JumpID:  "jump_1",
+		JumpID:   "jump_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
@@ -173,7 +173,7 @@ func TestCreateDispute_IdeaNotDisputable(t *testing.T) {
 	}
 }
 
-func TestCreateDispute_AllValidConcernsAccepted(t *testing.T) {
+func testCreateDispute_AllValidConcernsAccepted(t *testing.T) {
 	for _, concern := range []string{"House Rules", "Credibility", "Source", "Destination", "Food", "duplicate", "other"} {
 		t.Run(concern, func(t *testing.T) {
 			repo := &mockDisputeRepo{
@@ -190,7 +190,7 @@ func TestCreateDispute_AllValidConcernsAccepted(t *testing.T) {
 
 			result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 				PlayerID: "player_1",
-				JumpID:  "jump_1",
+				JumpID:   "jump_1",
 				Concern:  concern,
 				Details:  "Test.",
 			})
@@ -204,7 +204,7 @@ func TestCreateDispute_AllValidConcernsAccepted(t *testing.T) {
 	}
 }
 
-func TestCreateDispute_JumpNotFound(t *testing.T) {
+func testCreateDispute_JumpNotFound(t *testing.T) {
 	repo := &mockDisputeRepo{
 		jumpByIDFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{}, false, nil
@@ -213,7 +213,7 @@ func TestCreateDispute_JumpNotFound(t *testing.T) {
 
 	result := CreateDispute(context.Background(), repo, CreateDisputeInput{
 		PlayerID: "player_1",
-		JumpID:  "jump_1",
+		JumpID:   "jump_1",
 		Concern:  "House Rules",
 		Details:  "Issues.",
 	})
@@ -222,7 +222,7 @@ func TestCreateDispute_JumpNotFound(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_CommissionerCanDisqualifySeasonLinkedJump(t *testing.T) {
+func testResolveDispute_CommissionerCanDisqualifySeasonLinkedJump(t *testing.T) {
 	seasonID := "season_1"
 	var resolvedResolution string
 	var updatedStatus string
@@ -285,7 +285,7 @@ func TestResolveDispute_CommissionerCanDisqualifySeasonLinkedJump(t *testing.T) 
 	}
 }
 
-func TestResolveDispute_CommissionerCannotRemoveSeasonLinkedJump(t *testing.T) {
+func testResolveDispute_CommissionerCannotRemoveSeasonLinkedJump(t *testing.T) {
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
@@ -316,7 +316,7 @@ func TestResolveDispute_CommissionerCannotRemoveSeasonLinkedJump(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_GroupAdminCanRemoveOffSeasonJump(t *testing.T) {
+func testResolveDispute_GroupAdminCanRemoveOffSeasonJump(t *testing.T) {
 	var updatedStatus string
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
@@ -361,7 +361,7 @@ func TestResolveDispute_GroupAdminCanRemoveOffSeasonJump(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_GroupAdminCannotDisqualifyOffSeasonJump(t *testing.T) {
+func testResolveDispute_GroupAdminCannotDisqualifyOffSeasonJump(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{ID: disputeID, JumpID: "jump_1", Status: "Open"}, nil
@@ -388,7 +388,7 @@ func TestResolveDispute_GroupAdminCannotDisqualifyOffSeasonJump(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_NonMemberNotAllowed(t *testing.T) {
+func testResolveDispute_NonMemberNotAllowed(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{ID: disputeID, JumpID: "jump_1", Status: "Open"}, nil
@@ -415,7 +415,7 @@ func TestResolveDispute_NonMemberNotAllowed(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_GroupAdminCanOverrideResolvedDispute(t *testing.T) {
+func testResolveDispute_GroupAdminCanOverrideResolvedDispute(t *testing.T) {
 	var overriddenResolution string
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
@@ -467,7 +467,7 @@ func TestResolveDispute_GroupAdminCanOverrideResolvedDispute(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_GroupAdminCannotOverrideWithNoAction(t *testing.T) {
+func testResolveDispute_GroupAdminCannotOverrideWithNoAction(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{
@@ -497,7 +497,7 @@ func TestResolveDispute_GroupAdminCannotOverrideWithNoAction(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_InvalidResolutionReturnsError(t *testing.T) {
+func testResolveDispute_InvalidResolutionReturnsError(t *testing.T) {
 	repo := &mockDisputeRepo{}
 
 	result := ResolveDispute(context.Background(), repo, ResolveDisputeInput{
@@ -511,7 +511,7 @@ func TestResolveDispute_InvalidResolutionReturnsError(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_DisputeNotFound(t *testing.T) {
+func testResolveDispute_DisputeNotFound(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{}, nil
@@ -529,7 +529,7 @@ func TestResolveDispute_DisputeNotFound(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedJump(t *testing.T) {
+func testResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedJump(t *testing.T) {
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
@@ -569,7 +569,7 @@ func TestResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedJump(t *testing
 	}
 }
 
-func TestResolveDispute_NonCommissionerPlayerNotAllowed(t *testing.T) {
+func testResolveDispute_NonCommissionerPlayerNotAllowed(t *testing.T) {
 	seasonID := "season_1"
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
@@ -600,7 +600,7 @@ func TestResolveDispute_NonCommissionerPlayerNotAllowed(t *testing.T) {
 	}
 }
 
-func TestResolveDispute_PlainPlayerNotAllowedToOverride(t *testing.T) {
+func testResolveDispute_PlainPlayerNotAllowedToOverride(t *testing.T) {
 	repo := &mockDisputeRepo{
 		disputeFn: func(_ context.Context, disputeID string) (DisputeSnapshot, error) {
 			return DisputeSnapshot{
@@ -628,6 +628,33 @@ func TestResolveDispute_PlainPlayerNotAllowedToOverride(t *testing.T) {
 	if result.Allowed {
 		t.Fatal("expected Allowed=false for non-admin override")
 	}
+}
+
+func TestDispute(t *testing.T) {
+	t.Run("create dispute", func(t *testing.T) {
+		t.Run("group member can raise dispute on performed jump", testCreateDispute_GroupMemberCanRaiseDisputeOnPerformedJump)
+		t.Run("non-member not allowed", testCreateDispute_NonMemberNotAllowed)
+		t.Run("invalid concern returns error", testCreateDispute_InvalidConcernReturnsError)
+		t.Run("removed jump not disputable", testCreateDispute_RemovedJumpNotDisputable)
+		t.Run("idea not disputable", testCreateDispute_IdeaNotDisputable)
+		t.Run("all valid concerns accepted", testCreateDispute_AllValidConcernsAccepted)
+		t.Run("jump not found", testCreateDispute_JumpNotFound)
+	})
+
+	t.Run("resolve dispute", func(t *testing.T) {
+		t.Run("commissioner can disqualify season-linked jump", testResolveDispute_CommissionerCanDisqualifySeasonLinkedJump)
+		t.Run("commissioner cannot remove season-linked jump", testResolveDispute_CommissionerCannotRemoveSeasonLinkedJump)
+		t.Run("group admin can remove off-season jump", testResolveDispute_GroupAdminCanRemoveOffSeasonJump)
+		t.Run("group admin cannot disqualify off-season jump", testResolveDispute_GroupAdminCannotDisqualifyOffSeasonJump)
+		t.Run("non-member not allowed", testResolveDispute_NonMemberNotAllowed)
+		t.Run("group admin can override resolved dispute", testResolveDispute_GroupAdminCanOverrideResolvedDispute)
+		t.Run("group admin cannot override with no action", testResolveDispute_GroupAdminCannotOverrideWithNoAction)
+		t.Run("invalid resolution returns error", testResolveDispute_InvalidResolutionReturnsError)
+		t.Run("dispute not found", testResolveDispute_DisputeNotFound)
+		t.Run("commissioner can take no action on season-linked jump", testResolveDispute_CommissionerCanTakeNoActionOnSeasonLinkedJump)
+		t.Run("non-commissioner player not allowed", testResolveDispute_NonCommissionerPlayerNotAllowed)
+		t.Run("plain player not allowed to override", testResolveDispute_PlainPlayerNotAllowedToOverride)
+	})
 }
 
 func stringPtr(s string) *string {

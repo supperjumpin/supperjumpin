@@ -8,17 +8,17 @@ import (
 )
 
 type mockSeasonRepo struct {
-	groupMembershipFn         func(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
-	openSeasonForGroupFn      func(ctx context.Context, groupID string) (SeasonSnapshot, error)
-	insertSeasonFn            func(ctx context.Context, groupID, commissionerPlayerID string, submissionDeadline, judgingDeadline time.Time) (SeasonSnapshot, error)
-	seasonFn                  func(ctx context.Context, seasonID string) (SeasonSnapshot, error)
-	updateSeasonStatusFn      func(ctx context.Context, seasonID, action, actorPlayerID, actorRole string, override bool, fromStatus, toStatus string) error
-	seasonHistoryEntriesFn    func(ctx context.Context, seasonID string) ([]SeasonHistoryEntry, error)
+	groupMembershipFn        func(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error)
+	openSeasonForGroupFn     func(ctx context.Context, groupID string) (SeasonSnapshot, error)
+	insertSeasonFn           func(ctx context.Context, groupID, commissionerPlayerID string, submissionDeadline, judgingDeadline time.Time) (SeasonSnapshot, error)
+	seasonFn                 func(ctx context.Context, seasonID string) (SeasonSnapshot, error)
+	updateSeasonStatusFn     func(ctx context.Context, seasonID, action, actorPlayerID, actorRole string, override bool, fromStatus, toStatus string) error
+	seasonHistoryEntriesFn   func(ctx context.Context, seasonID string) ([]SeasonHistoryEntry, error)
 	jumpsForSeasonFn         func(ctx context.Context, seasonID string) ([]JumpSnapshot, error)
 	judgmentsForJumpFn       func(ctx context.Context, jumpID string) ([]Judgment, error)
 	updateJumpFinalizationFn func(ctx context.Context, jumpID string, status string, finalScore *int) error
-	latestSeasonForGroupFn    func(ctx context.Context, groupID string) (SeasonSnapshot, error)
-	groupPlayersFn            func(ctx context.Context, groupID string) ([]PlayerSnapshot, error)
+	latestSeasonForGroupFn   func(ctx context.Context, groupID string) (SeasonSnapshot, error)
+	groupPlayersFn           func(ctx context.Context, groupID string) ([]PlayerSnapshot, error)
 }
 
 func (m *mockSeasonRepo) GroupMembership(ctx context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
@@ -65,9 +65,9 @@ func (m *mockSeasonRepo) SeasonHistoryEntries(ctx context.Context, seasonID stri
 	return m.seasonHistoryEntriesFn(ctx, seasonID)
 }
 
-func TestStartSeason_GroupMemberCanStartSeason(t *testing.T) {
+func testStartSeason_GroupMemberCanStartSeason(t *testing.T) {
 	var insertedGroupID, insertedCommissionerPlayerID string
-	
+
 	repo := &mockSeasonRepo{
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
@@ -91,7 +91,7 @@ func TestStartSeason_GroupMemberCanStartSeason(t *testing.T) {
 
 	submissionDeadline := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	judgingDeadline := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-	
+
 	result := StartSeason(context.Background(), repo, StartSeasonInput{
 		GroupID:            "group_1",
 		PlayerID:           "player_1",
@@ -122,7 +122,7 @@ func TestStartSeason_GroupMemberCanStartSeason(t *testing.T) {
 	}
 }
 
-func TestStartSeason_NonMemberCannotStartSeason(t *testing.T) {
+func testStartSeason_NonMemberCannotStartSeason(t *testing.T) {
 	repo := &mockSeasonRepo{
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{}, false, nil
@@ -142,7 +142,7 @@ func TestStartSeason_NonMemberCannotStartSeason(t *testing.T) {
 	}
 }
 
-func TestStartSeason_ReturnsErrorWhenOpenSeasonExists(t *testing.T) {
+func testStartSeason_ReturnsErrorWhenOpenSeasonExists(t *testing.T) {
 	repo := &mockSeasonRepo{
 		groupMembershipFn: func(_ context.Context, playerID, groupID string) (MembershipSnapshot, bool, error) {
 			return MembershipSnapshot{Role: "Player"}, true, nil
@@ -165,7 +165,7 @@ func TestStartSeason_ReturnsErrorWhenOpenSeasonExists(t *testing.T) {
 	}
 }
 
-func TestCloseSeasonSubmissions_CommissionerCanClose(t *testing.T) {
+func testCloseSeasonSubmissions_CommissionerCanClose(t *testing.T) {
 	var updatedSeasonID, updatedAction, updatedActorPlayerID string
 	var updatedOverride bool
 	var updatedFromStatus, updatedToStatus string
@@ -227,7 +227,7 @@ func TestCloseSeasonSubmissions_CommissionerCanClose(t *testing.T) {
 	}
 }
 
-func TestCloseSeasonSubmissions_GroupAdminCanCloseWithOverride(t *testing.T) {
+func testCloseSeasonSubmissions_GroupAdminCanCloseWithOverride(t *testing.T) {
 	var updatedOverride bool
 	var updatedActorPlayerID string
 
@@ -269,7 +269,7 @@ func TestCloseSeasonSubmissions_GroupAdminCanCloseWithOverride(t *testing.T) {
 	}
 }
 
-func TestCloseSeasonSubmissions_UnauthorisedPlayerCannotClose(t *testing.T) {
+func testCloseSeasonSubmissions_UnauthorisedPlayerCannotClose(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{
@@ -297,7 +297,7 @@ func TestCloseSeasonSubmissions_UnauthorisedPlayerCannotClose(t *testing.T) {
 	}
 }
 
-func TestCloseSeasonSubmissions_ReturnsErrorForUnknownSeason(t *testing.T) {
+func testCloseSeasonSubmissions_ReturnsErrorForUnknownSeason(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{}, nil
@@ -314,7 +314,7 @@ func TestCloseSeasonSubmissions_ReturnsErrorForUnknownSeason(t *testing.T) {
 	}
 }
 
-func TestFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
+func testFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
 	var updatedSeasonID string
 	var jumpsQueried bool
 
@@ -368,7 +368,7 @@ func TestFinalizeSeason_CommissionerCanFinalize(t *testing.T) {
 	}
 }
 
-func TestFinalizeSeason_CommissionerCanFinalizeFromAnyStatus(t *testing.T) {
+func testFinalizeSeason_CommissionerCanFinalizeFromAnyStatus(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{
@@ -411,7 +411,7 @@ func TestFinalizeSeason_CommissionerCanFinalizeFromAnyStatus(t *testing.T) {
 	}
 }
 
-func TestFinalizeSeason_GroupAdminCanFinalizeWithOverride(t *testing.T) {
+func testFinalizeSeason_GroupAdminCanFinalizeWithOverride(t *testing.T) {
 	var updatedOverride bool
 
 	repo := &mockSeasonRepo{
@@ -457,7 +457,7 @@ func TestFinalizeSeason_GroupAdminCanFinalizeWithOverride(t *testing.T) {
 	}
 }
 
-func TestFinalizeSeason_UnauthorisedPlayerCannotFinalize(t *testing.T) {
+func testFinalizeSeason_UnauthorisedPlayerCannotFinalize(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{
@@ -485,7 +485,7 @@ func TestFinalizeSeason_UnauthorisedPlayerCannotFinalize(t *testing.T) {
 	}
 }
 
-func TestFinalizeSeason_ReturnsErrorForUnknownSeason(t *testing.T) {
+func testFinalizeSeason_ReturnsErrorForUnknownSeason(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{}, nil
@@ -502,7 +502,7 @@ func TestFinalizeSeason_ReturnsErrorForUnknownSeason(t *testing.T) {
 	}
 }
 
-func TestSeasonHistory_GroupMemberCanViewHistory(t *testing.T) {
+func testSeasonHistory_GroupMemberCanViewHistory(t *testing.T) {
 	expectedEntries := []SeasonHistoryEntry{
 		{ID: "entry_1", Action: "Submissions Closed", FromStatus: "Active", ToStatus: "Judging Grace Period"},
 		{ID: "entry_2", Action: "Season Finalized", FromStatus: "Judging Grace Period", ToStatus: "Finalized"},
@@ -542,7 +542,7 @@ func TestSeasonHistory_GroupMemberCanViewHistory(t *testing.T) {
 	}
 }
 
-func TestSeasonHistory_NonMemberCannotViewHistory(t *testing.T) {
+func testSeasonHistory_NonMemberCannotViewHistory(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{
@@ -568,7 +568,7 @@ func TestSeasonHistory_NonMemberCannotViewHistory(t *testing.T) {
 	}
 }
 
-func TestSeasonHistory_ReturnsErrorForUnknownSeason(t *testing.T) {
+func testSeasonHistory_ReturnsErrorForUnknownSeason(t *testing.T) {
 	repo := &mockSeasonRepo{
 		seasonFn: func(_ context.Context, seasonID string) (SeasonSnapshot, error) {
 			return SeasonSnapshot{}, nil
@@ -583,4 +583,33 @@ func TestSeasonHistory_ReturnsErrorForUnknownSeason(t *testing.T) {
 	if !errors.Is(result.Err, ErrSeasonNotFound) {
 		t.Fatalf("expected ErrSeasonNotFound, got %v", result.Err)
 	}
+}
+
+func TestSeason(t *testing.T) {
+	t.Run("start season", func(t *testing.T) {
+		t.Run("group member can start season", testStartSeason_GroupMemberCanStartSeason)
+		t.Run("non-member cannot start season", testStartSeason_NonMemberCannotStartSeason)
+		t.Run("returns error when open season exists", testStartSeason_ReturnsErrorWhenOpenSeasonExists)
+	})
+
+	t.Run("close season submissions", func(t *testing.T) {
+		t.Run("commissioner can close", testCloseSeasonSubmissions_CommissionerCanClose)
+		t.Run("group admin can close with override", testCloseSeasonSubmissions_GroupAdminCanCloseWithOverride)
+		t.Run("unauthorised player cannot close", testCloseSeasonSubmissions_UnauthorisedPlayerCannotClose)
+		t.Run("returns error for unknown season", testCloseSeasonSubmissions_ReturnsErrorForUnknownSeason)
+	})
+
+	t.Run("finalize season", func(t *testing.T) {
+		t.Run("commissioner can finalize", testFinalizeSeason_CommissionerCanFinalize)
+		t.Run("commissioner can finalize from any status", testFinalizeSeason_CommissionerCanFinalizeFromAnyStatus)
+		t.Run("group admin can finalize with override", testFinalizeSeason_GroupAdminCanFinalizeWithOverride)
+		t.Run("unauthorised player cannot finalize", testFinalizeSeason_UnauthorisedPlayerCannotFinalize)
+		t.Run("returns error for unknown season", testFinalizeSeason_ReturnsErrorForUnknownSeason)
+	})
+
+	t.Run("season history", func(t *testing.T) {
+		t.Run("group member can view history", testSeasonHistory_GroupMemberCanViewHistory)
+		t.Run("non-member cannot view history", testSeasonHistory_NonMemberCannotViewHistory)
+		t.Run("returns error for unknown season", testSeasonHistory_ReturnsErrorForUnknownSeason)
+	})
 }
