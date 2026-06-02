@@ -75,20 +75,21 @@ type PerformedJumpView struct {
 }
 
 type Jump struct {
-	ID                   string    `json:"id"`
-	GroupID              string    `json:"groupId"`
-	PlayerID             string    `json:"playerId"`
-	SeasonID             *string   `json:"seasonId"`
-	Status               string    `json:"status"`
-	Source               string    `json:"source"`
-	Destination          string    `json:"destination"`
-	Food                 string    `json:"food"`
-	OffSeason            bool      `json:"offSeason"`
-	FinalScore           *int      `json:"finalScore"`
-	OpenFinalScore       *int      `json:"openFinalScore"`
-	SeasonFinalScore     *int      `json:"seasonFinalScore"`
-	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
-	CreatedAt            time.Time `json:"createdAt"`
+	ID                   string     `json:"id"`
+	GroupID              string     `json:"groupId"`
+	PlayerID             string     `json:"playerId"`
+	SeasonID             *string    `json:"seasonId"`
+	Status               string     `json:"status"`
+	Source               string     `json:"source"`
+	Destination          string     `json:"destination"`
+	Food                 string     `json:"food"`
+	OffSeason            bool       `json:"offSeason"`
+	FinalScore           *int       `json:"finalScore"`
+	OpenFinalScore       *int       `json:"openFinalScore"`
+	SeasonFinalScore     *int       `json:"seasonFinalScore"`
+	RemovedAt            *time.Time `json:"-"`
+	GracePeriodExpiresAt time.Time  `json:"gracePeriodExpiresAt"`
+	CreatedAt            time.Time  `json:"createdAt"`
 }
 
 type EvidenceUploadAuthorization struct {
@@ -182,18 +183,18 @@ const (
 // --- Public Feed / Read Path DTOs ---
 
 type JumpCard struct {
-	ID                   string    `json:"id"`
-	PerformerName        string    `json:"performerName"`
-	PerformerID          string    `json:"performerId"`
-	Source               string    `json:"source"`
-	Destination          string    `json:"destination"`
-	Food                 string    `json:"food"`
-	Caption              string    `json:"caption"`
-	MediaObjectKey       string    `json:"mediaObjectKey"`
-	Status               string    `json:"status"`
-	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
-	RunningAverage       float64   `json:"runningAverage"`
-	JudgmentCount        int       `json:"judgmentCount"`
+	ID                   string         `json:"id"`
+	PerformerName        string         `json:"performerName"`
+	PerformerID          string         `json:"performerId"`
+	Source               string         `json:"source"`
+	Destination          string         `json:"destination"`
+	Food                 string         `json:"food"`
+	Caption              string         `json:"caption"`
+	MediaObjectKey       string         `json:"mediaObjectKey"`
+	Status               string         `json:"status"`
+	GracePeriodExpiresAt time.Time      `json:"gracePeriodExpiresAt"`
+	RunningAverage       float64        `json:"runningAverage"`
+	JudgmentCount        int            `json:"judgmentCount"`
 	CreatedAt            time.Time      `json:"createdAt"`
 	ViewerContext        *ViewerContext `json:"viewerContext,omitempty"`
 }
@@ -212,6 +213,7 @@ type JumpDetail struct {
 	RunningAverage       float64        `json:"runningAverage"`
 	JudgmentCount        int            `json:"judgmentCount"`
 	CreatedAt            time.Time      `json:"createdAt"`
+	RemovedAt            *time.Time     `json:"-"`
 	FinalScore           *int           `json:"finalScore,omitempty"`
 	Disputes             []Dispute      `json:"disputes,omitempty"`
 	ViewerContext        *ViewerContext `json:"viewerContext,omitempty"`

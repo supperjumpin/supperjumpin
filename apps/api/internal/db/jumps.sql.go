@@ -286,7 +286,9 @@ func (q *Queries) UpdateJumpFinalization(ctx context.Context, arg UpdateJumpFina
 
 const updateJumpStatusAfterDispute = `-- name: UpdateJumpStatusAfterDispute :exec
 UPDATE jumps
-SET status = $2, final_score = NULL
+SET status = $2,
+    final_score = NULL,
+    removed_at = CASE WHEN $2 = 'Removed Jump' THEN now() ELSE NULL END
 WHERE id = $1
 `
 

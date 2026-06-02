@@ -42,7 +42,9 @@ WHERE id = $1 AND status = 'Performed Jump';
 
 -- name: UpdateJumpStatusAfterDispute :exec
 UPDATE jumps
-SET status = $2, final_score = NULL
+SET status = $2,
+    final_score = NULL,
+    removed_at = CASE WHEN $2 = 'Removed Jump' THEN now() ELSE NULL END
 WHERE id = $1;
 
 -- name: ListPerformedJumpsForGroup :many

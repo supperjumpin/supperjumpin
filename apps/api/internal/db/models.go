@@ -112,6 +112,7 @@ type Jump struct {
 	FinalScore           sql.NullInt32
 	OpenFinalScore       sql.NullInt32
 	SeasonFinalScore     sql.NullInt32
+	RemovedAt            sql.NullTime
 	GracePeriodExpiresAt sql.NullTime
 	CreatedAt            time.Time
 }

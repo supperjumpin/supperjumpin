@@ -284,7 +284,7 @@ LIMIT $3`, *cursorTS, cursorID, limit)
 func (s *PostgresStore) JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT j.id, j.group_id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
-       j.final_score, j.grace_period_expires_at, j.created_at,
+       j.final_score, j.removed_at, j.grace_period_expires_at, j.created_at,
        COALESCE(e.id, '') AS evidence_id, COALESCE(e.caption, '') AS caption, COALESCE(e.media_object_key, '') AS media_object_key,
        p.id AS performer_id, p.display_name AS performer_name,
        COALESCE(jg.avg_composite, 0) AS running_average,
@@ -305,12 +305,13 @@ WHERE j.id = $1`, jumpID)
 	var groupID sql.NullString
 	var seasonID sql.NullString
 	var finalScore sql.NullInt32
+	var removedAt sql.NullTime
 	var evidenceID sql.NullString
 
 	err := row.Scan(
 		&detail.ID, &groupID, &detail.PerformerID, &seasonID,
 		&detail.Status, &detail.Source, &detail.Destination, &detail.Food,
-		&finalScore, &detail.GracePeriodExpiresAt, &detail.CreatedAt,
+		&finalScore, &removedAt, &detail.GracePeriodExpiresAt, &detail.CreatedAt,
 		&evidenceID, &detail.Caption, &detail.MediaObjectKey,
 		&detail.PerformerID, &detail.PerformerName,
 		&detail.RunningAverage, &detail.JudgmentCount,
@@ -327,6 +328,10 @@ WHERE j.id = $1`, jumpID)
 	if finalScore.Valid {
 		v := int(finalScore.Int32)
 		detail.FinalScore = &v
+	}
+	if removedAt.Valid {
+		t := removedAt.Time
+		detail.RemovedAt = &t
 	}
 	return detail, true, nil
 }
