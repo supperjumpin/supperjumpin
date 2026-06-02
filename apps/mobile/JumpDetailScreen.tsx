@@ -11,6 +11,13 @@ import {
 import { getJumpDetail } from "@supperjumpin/api-client";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const STORAGE_BUCKET = "evidence";
+
+function mediaUrl(key: string): string | null {
+  if (!key || !SUPABASE_URL) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, {
@@ -131,10 +138,19 @@ export default function JumpDetailScreen({
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Evidence photo placeholder */}
-        <View style={styles.heroImage}>
-          <Text style={styles.heroImageText}>📸</Text>
-        </View>
+        {/* Evidence photo */}
+        {mediaUrl(detail.mediaObjectKey) ? (
+          <Image
+            source={{ uri: mediaUrl(detail.mediaObjectKey) as string }}
+            style={styles.heroImageReal}
+            accessibilityLabel={`${detail.performerName}'s jump evidence`}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.heroImage}>
+            <Text style={styles.heroImageText}>📸</Text>
+          </View>
+        )}
 
         {/* Performer + timestamp */}
         <View style={styles.performerRow}>
@@ -241,6 +257,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
+  },
+  heroImageReal: {
+    width: "100%",
+    height: 250,
+    borderRadius: 16,
   },
   heroImageText: {
     fontSize: 64,

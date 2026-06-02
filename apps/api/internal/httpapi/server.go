@@ -674,8 +674,9 @@ func NewServer(config ServerConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "computed"})
 	})
 
-	// GET /v1/feed — public, unauthenticated Feed
+	// GET /v1/feed — public Feed with optional auth
 	mux.HandleFunc("GET /v1/feed", func(w http.ResponseWriter, r *http.Request) {
+		viewer := optionalProfile(r, config)
 		cursorStr := r.URL.Query().Get("cursor")
 		limit := 20
 		if l := r.URL.Query().Get("limit"); l != "" {
@@ -704,6 +705,13 @@ func NewServer(config ServerConfig) http.Handler {
 		if err != nil {
 			http.Error(w, "Could not load jumps", http.StatusInternalServerError)
 			return
+		}
+
+		// Attach viewer context to each card
+		if viewer != nil {
+			for i := range cards {
+				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, config.DB, r.Context())
+			}
 		}
 
 		var nextCursor *string
@@ -743,10 +751,8 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		// Attach viewer context if viewer is authenticated
-		if viewer != nil {
-			detail.ViewerContext = computeViewerContext(detail, *viewer, config.DB, r.Context())
-		}
+		// Attach viewer context for all requests (unauthenticated = default canJudge: true)
+		detail.ViewerContext = computeViewerContext(detail, viewer, config.DB, r.Context())
 
 		writeJSON(w, http.StatusOK, detail)
 	})
@@ -755,8 +761,13 @@ func NewServer(config ServerConfig) http.Handler {
 }
 
 // computeViewerContext determines the viewer's eligibility to judge a Jump.
-func computeViewerContext(detail JumpDetail, viewer MeResponse, db Persistence, ctx context.Context) *ViewerContext {
+// viewer may be nil (unauthenticated) — returns default canJudge: true.
+func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence, ctx context.Context) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
+
+	if viewer == nil {
+		return vc
+	}
 
 	// 1. Self-judging
 	if viewer.Player.ID == detail.PerformerID {
@@ -784,6 +795,36 @@ func computeViewerContext(detail JumpDetail, viewer MeResponse, db Persistence, 
 		vc.Reason = &reason
 	}
 
+	return vc
+}
+
+// computeViewerContextCard determines the viewer's eligibility to judge a Jump
+// from a JumpCard (feed level). Uses the same logic as computeViewerContext but
+// accepts a JumpCard instead of JumpDetail. Does not perform an expensive
+// per-card HasJudgedJump query — only uses self-judging and grace period checks.
+func computeViewerContextCard(card JumpCard, viewer MeResponse, db Persistence, ctx context.Context) *ViewerContext {
+	vc := &ViewerContext{CanJudge: true}
+
+	// 1. Self-judging
+	if viewer.Player.ID == card.PerformerID {
+		vc.CanJudge = false
+		reason := "self-judging"
+		vc.Reason = &reason
+		return vc
+	}
+
+	// 2. Grace period active
+	if time.Now().Before(card.GracePeriodExpiresAt) {
+		vc.CanJudge = false
+		reason := "grace-period"
+		vc.Reason = &reason
+		vc.GracePeriodEndsAt = &card.GracePeriodExpiresAt
+		return vc
+	}
+
+	// Note: already-judged check is deferred to the detail screen to avoid
+	// an N+1 query per card on the feed. Feed cards show grace-period and
+	// self-judging states; detail covers already-judged.
 	return vc
 }
 

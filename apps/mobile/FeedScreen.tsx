@@ -12,6 +12,13 @@ import {
 import { getPublicFeed } from "@supperjumpin/api-client";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const STORAGE_BUCKET = "evidence";
+
+function mediaUrl(key: string): string | null {
+  if (!key || !SUPABASE_URL) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+}
 
 function formatTimeAgo(dateStr: string): string {
   const now = Date.now();
@@ -107,9 +114,18 @@ function JumpCard({
       accessibilityHint="Opens jump detail"
     >
       <View style={styles.cardHeader}>
-        <View style={styles.mediaPlaceholder}>
-          <Text style={styles.mediaPlaceholderText}>📸</Text>
-        </View>
+        {mediaUrl(mediaObjectKey) ? (
+          <Image
+            source={{ uri: mediaUrl(mediaObjectKey) as string }}
+            style={styles.mediaImage}
+            accessibilityLabel={`${performerName}'s jump evidence`}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.mediaPlaceholder}>
+            <Text style={styles.mediaPlaceholderText}>📸</Text>
+          </View>
+        )}
         <View style={styles.cardMeta}>
           <Text style={styles.scoreBadge}>
             {formatScore(runningAverage, judgmentCount)}
@@ -374,6 +390,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#e8ddd2",
     justifyContent: "center",
     alignItems: "center",
+  },
+  mediaImage: {
+    width: "100%",
+    height: 180,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   mediaPlaceholderText: {
     fontSize: 48,

@@ -194,7 +194,8 @@ type JumpCard struct {
 	GracePeriodExpiresAt time.Time `json:"gracePeriodExpiresAt"`
 	RunningAverage       float64   `json:"runningAverage"`
 	JudgmentCount        int       `json:"judgmentCount"`
-	CreatedAt            time.Time `json:"createdAt"`
+	CreatedAt            time.Time      `json:"createdAt"`
+	ViewerContext        *ViewerContext `json:"viewerContext,omitempty"`
 }
 
 type JumpDetail struct {

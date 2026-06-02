@@ -984,9 +984,14 @@ func (s *MemoryStore) FeedJumps(ctx context.Context, cursorTS *time.Time, cursor
 
 	startIdx := 0
 	if cursorTS != nil {
+		cursorMs := cursorTS.UnixMilli()
 		for idx, j := range visible {
-			if j.CreatedAt.Before(*cursorTS) || (j.CreatedAt.Equal(*cursorTS) && j.ID < cursorID) {
-				startIdx = idx
+			jMs := j.CreatedAt.UnixMilli()
+			// We want items that are BEFORE the cursor position in the sorted
+			// (DESC CreatedAt, DESC ID) order. Find the cursor item itself,
+			// then start from the next index.
+			if jMs == cursorMs && j.ID == cursorID {
+				startIdx = idx + 1
 				break
 			}
 		}
