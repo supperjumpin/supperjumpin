@@ -26,7 +26,7 @@ func doJSONUnauthenticated(server http.Handler, method string, path string, body
 }
 
 func TestGuestCanCreateSession(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/guest-sessions", nil)
 	if rec.Code != http.StatusCreated {
@@ -42,7 +42,7 @@ func TestGuestCanCreateSession(t *testing.T) {
 }
 
 func TestGuestCanJudgePerformedJump(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 
 	// Create a guest session
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -85,7 +85,7 @@ func TestGuestCanJudgePerformedJump(t *testing.T) {
 }
 
 func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 
 	// Create a guest session
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -133,7 +133,7 @@ func TestGuestCapBlocksAdditionalJudgments(t *testing.T) {
 }
 
 func TestAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
-	server, store := newGroupsTestServerAndStore()
+	server, store := newGroupsTestServerAndStore(t)
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)
@@ -152,7 +152,7 @@ func TestAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
 }
 
 func TestCannotProvideBothAuthAndGuestSession(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)
@@ -170,7 +170,7 @@ func TestCannotProvideBothAuthAndGuestSession(t *testing.T) {
 }
 
 func TestGuestSessionIdRequiredWhenUnauthenticated(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)

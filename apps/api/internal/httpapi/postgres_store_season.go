@@ -14,6 +14,16 @@ import (
 // game.SeasonRepository adapter methods for PostgresStore
 
 func (s *PostgresStore) OpenSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
+	newlyFinalized, err := s.ensureSeasonStatusesForGroup(ctx, groupID)
+	if err != nil {
+		return game.SeasonSnapshot{}, err
+	}
+	for _, id := range newlyFinalized {
+		if err := game.AutoFinalizeSeason(ctx, s, id); err != nil {
+			return game.SeasonSnapshot{}, err
+		}
+	}
+
 	season, err := s.queries.GetOpenSeasonForGroup(ctx, groupID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return game.SeasonSnapshot{}, nil

@@ -44,11 +44,11 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 ## CONVENTIONS
 
 - **Hexagonal architecture**: Domain logic in `internal/game/` (pure functions, injected repo interfaces). Transport in `internal/httpapi/` (routing, JSON, DTO conversion). Domain must never import `net/http` or `database/sql`.
-- **Repository-per-flow**: Each `game/*.go` defines its own small repository interface (e.g., `JudgmentRepository`). Both `MemoryStore` and `PostgresStore` implement the composed `Persistence` interface.
+- **Repository-per-flow**: Each `game/*.go` defines its own small repository interface (e.g., `JudgmentRepository`). `PostgresStore` implements the composed `Persistence` interface; tests should use per-test fakes or Postgres-backed fixtures.
 - **Result pattern**: Domain functions return `XxxResult{Allowed, Created, Err}` structs. `Allowed=false` maps to HTTP 403.
 - **Snapshot pattern**: Read-only views use `XxxSnapshot` structs (e.g., `JumpSnapshot`, `SeasonSnapshot`).
 - **Stable IDs**: `stableID(kind, value)` generates SHA256-based deterministic IDs, not UUIDs.
-- **Clock injection**: `func() time.Time` is injected for testability (e.g., `MemoryStore` accepts `now`).
+- **Clock injection**: `func() time.Time` is injected for testability (e.g., `PostgresStore` accepts `now`).
 - **Pre-stable migrations**: Fold schema changes into existing migration files. Do not create standalone numbered migrations until DB is declared stable.
 - **OpenAPI sync gate**: CI runs `generate:api-client` then `git diff --exit-code`. Any OpenAPI change without regeneration breaks CI.
 - **Hand-rolled mocks**: Go tests use inline `mock*Repo` structs with function fields. No testify/mock or gomock.

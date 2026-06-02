@@ -7,7 +7,7 @@ import (
 )
 
 func TestPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {

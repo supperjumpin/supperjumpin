@@ -10,7 +10,7 @@ import (
 )
 
 func TestGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
-	store := httpapi.NewMemoryStore()
+	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
 			"valid-token": {Provider: "supabase", Subject: "auth-user-123", Email: "player@example.com"},
@@ -75,7 +75,7 @@ func TestGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
 }
 
 func TestGetMeRejectsMissingBearerToken(t *testing.T) {
-	store := httpapi.NewMemoryStore()
+	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth:  httpapi.StaticAuthVerifier{},
 		Store: store,

@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion, and both persistence implementations (`MemoryStore` + `PostgresStore`).
+HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion, and the Postgres-backed persistence implementation.
 
 ## WHERE TO LOOK
 
@@ -12,23 +12,21 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Change JSON request/response shape | `dto.go` | camelCase `json:"groupId"` tags |
 | Fix game error → HTTP status mapping | `store.go` (mapGameErr) | e.g., `ErrInvalidJudgmentScore` → 400 |
 | Add transport helper | `store.go` | Wraps game function + assembles DTO response |
-| In-memory test double | `memory_store.go` | Full `Persistence` implementation using maps |
 | Shared transport helpers | `helpers.go` | ID generation, DTO/snapshot mapping, small package helpers |
 | Production persistence | `postgres_store.go` (PostgresStore) | Raw SQL implementing same `Persistence` interface |
-| Integration tests | `groups_test.go`, `me_test.go` | `httptest` + `MemoryStore`; comprehensive lifecycle tests |
+| Integration tests | `groups_test.go`, `me_test.go` | `httptest` + Postgres-backed fixtures; comprehensive lifecycle tests |
 
 ## CONVENTIONS
 
 - **Handler closures** over `ServerConfig` — no global state. Each route captures `config`.
 - **DTO structs** use camelCase JSON tags. Domain snapshots use PascalCase Go fields.
-- **MemoryStore** is map-backed with clock injection (`NewMemoryStoreWithClock`). Used for fast, isolated tests.
-- **PostgresStore** mirrors MemoryStore's behavior exactly using raw SQL. Any logic discrepancy is a bug.
+- **PostgresStore** is the canonical persistence path and supports clock injection in tests (`SetClock`).
+- Unit tests should use narrow per-test fakes or mocks when they do not need durable Postgres behavior.
 
 ## ANTI-PATTERNS
 
 - Adding game rules to transport helpers. Transport helpers should only marshal/unmarshal and call `game.*` functions.
-- Adding HTTP-specific logic (status codes, headers) to `MemoryStore` or `PostgresStore`.
-- Changing `MemoryStore` behavior without updating `PostgresStore` (or vice versa).
+- Adding HTTP-specific logic (status codes, headers) to `PostgresStore`.
 
 ## NOTES
 

@@ -180,7 +180,7 @@ func TestPublicFeedCursorPagination(t *testing.T) {
 }
 
 func TestPublicFeedInvalidCursorReturns400(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?cursor=not-base64", "", nil)
 	if rec.Code != http.StatusBadRequest {
@@ -189,7 +189,7 @@ func TestPublicFeedInvalidCursorReturns400(t *testing.T) {
 }
 
 func TestPublicFeedInvalidLimitReturns400(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?limit=abc", "", nil)
 	if rec.Code != http.StatusBadRequest {
@@ -254,7 +254,7 @@ func TestPublicJumpDetailReturnsJump(t *testing.T) {
 }
 
 func TestPublicJumpDetailUnknownIDReturns404(t *testing.T) {
-	server := newGroupsTestServer()
+	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/jumps/unknown-id", "", nil)
 	if rec.Code != http.StatusNotFound {
@@ -274,7 +274,8 @@ func TestPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 }
 
 func TestPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
-	store := &failingPublicReadStore{MemoryStore: httpapi.NewMemoryStoreWithClock(time.Now)}
+	store := &failingPublicReadStore{PostgresStore: newCleanPostgresTestStore(t)}
+	store.SetClock(time.Now)
 	server := newGroupsTestServerWithStore(store)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
@@ -541,7 +542,7 @@ func TestPublicFeedOtherPlayerCanJudge(t *testing.T) {
 }
 
 type failingPublicReadStore struct {
-	*httpapi.MemoryStore
+	*httpapi.PostgresStore
 }
 
 func (s *failingPublicReadStore) FeedJumps(_ context.Context, _ *time.Time, _ string, _ int) ([]httpapi.JumpCard, error) {
@@ -552,10 +553,10 @@ func (s *failingPublicReadStore) FeedJumps(_ context.Context, _ *time.Time, _ st
 // Helpers
 // ---------------------------------------------------------------------------
 
-// publicReadTestStore holds a pre-setup MemoryStore and a Group that tests can
+// publicReadTestStore holds a pre-setup PostgresStore and a Group that tests can
 // use to create Jumps without repeating setup.
 type publicReadTestStore struct {
-	Store   *httpapi.MemoryStore
+	Store   *httpapi.PostgresStore
 	DB      httpapi.Persistence
 	GroupID string
 }
@@ -586,7 +587,7 @@ type publicFeedJumpBody struct {
 // and two players (Alice + Bob) so tests can create Jumps and judgments.
 func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) {
 	t.Helper()
-	store := httpapi.NewMemoryStore()
+	store := newCleanPostgresTestStore(t)
 	server := newGroupsTestServerWithPersistence(store)
 	group := createGroup(t, server, "alice-token", "Read Test Group")
 
