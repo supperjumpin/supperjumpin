@@ -34,18 +34,6 @@ SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgr
 FROM judgments
 WHERE jump_id = $1;
 
--- name: ListJumpsForJudging :many
-SELECT j.id, j.player_id, j.source, j.destination, j.food
-FROM jumps j
-WHERE j.group_id = $1
-  AND j.status = 'Performed Jump'
-  AND j.player_id != $2
-  AND NOT EXISTS (
-      SELECT 1 FROM judgments sub
-      WHERE sub.jump_id = j.id AND sub.player_id = $2
-  )
-ORDER BY j.created_at DESC;
-
 -- name: CreateGuestSession :one
 INSERT INTO guest_sessions (id)
 VALUES ($1)

@@ -1,34 +1,20 @@
 import type {
   EvidenceSubmission,
   EvidenceUploadAuthorization,
-  GroupHomeResponse,
-  Invite,
   Judgment,
-  ListGroupsResponse,
   MeResponse,
-  PerformedJumpView,
-  Jump,
   PublicFeedResponse,
   JumpDetail,
   JumpTombstone,
 } from "./generated";
 
 export type {
-  Account,
-  Group,
-  GroupHomeResponse,
-  GroupMembership,
-  GroupMembershipSummary,
   Evidence,
   EvidenceSubmission,
   EvidenceUploadAuthorization,
-  Invite,
   Judgment,
-  ListGroupsResponse,
   MeResponse,
-  PerformedJumpView,
   Player,
-  Season,
   Jump,
   JumpCard,
   JumpDetail,
@@ -42,65 +28,6 @@ export function getMe(args: {
   accessToken: string;
   fetchImpl?: typeof fetch;
 }): Promise<MeResponse>;
-
-export function createGroup(args: {
-  baseUrl: string;
-  accessToken: string;
-  name: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function listGroups(args: {
-  baseUrl: string;
-  accessToken: string;
-  fetchImpl?: typeof fetch;
-}): Promise<ListGroupsResponse>;
-
-export function getGroupHome(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function createInvite(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<Invite>;
-
-export function acceptInvite(args: {
-  baseUrl: string;
-  accessToken: string;
-  token: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function startSeason(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function createIdea(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  source: string;
-  destination: string;
-  food: string;
-  fetchImpl?: typeof fetch;
-}): Promise<Jump>;
-
-export function createPlannedJump(args: {
-  baseUrl: string;
-  accessToken: string;
-  ideaId: string;
-  offSeason?: boolean;
-  fetchImpl?: typeof fetch;
-}): Promise<Jump>;
 
 export function authorizeEvidenceUpload(args: {
   baseUrl: string;

@@ -12,20 +12,14 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJumps(t *testing.T) {
+func testPostgresPublicFeedSurvivesRestartOrdersNewestFirst(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
 	}
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Public Feed Crew")
-	invite := createInvite(t, server, "alice-token", group.Group.ID)
-	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-	if acceptRec.Code != http.StatusOK {
-		t.Fatalf("expected Bob to join Group before public feed setup, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-	}
+	server := newTestServerWithStore(store)
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -37,28 +31,17 @@ func testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJum
 		}
 	})
 
-	first := performCustomJump(t, server, "alice-token", group.Group.ID, "Crunchwrap", "First visible jump")
-	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET grace_period_expires_at = now() - interval '1 minute' WHERE id = $1`, first.Jump.ID); err != nil {
+	first := performCustomJump(t, server, "alice-token", "Crunchwrap", "First visible jump")
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET grace_period_expires_at = now() - interval '1 minute' WHERE id = $1`, first.ID); err != nil {
 		t.Fatalf("expire jump grace period: %v", err)
 	}
-	submitJudgment(t, server, "bob-token", first.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", first.ID, 4, 3, 2, 1, http.StatusCreated)
 
 	time.Sleep(5 * time.Millisecond)
-	removed := performCustomJump(t, server, "alice-token", group.Group.ID, "Burrito", "This jump should be removed")
-	dispute := raiseDispute(t, server, "bob-token", removed.Jump.ID, "House Rules", "Remove this jump from the public feed")
-	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
-		"resolution":       "Removed Jump",
-		"resolutionReason": "Postgres public feed test removal",
-	})
-	if resolutionRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on dispute resolution, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
-	}
-
-	time.Sleep(5 * time.Millisecond)
-	latest := performCustomJump(t, server, "alice-token", group.Group.ID, "Quesadilla", "Latest visible jump")
+	latest := performCustomJump(t, server, "alice-token", "Quesadilla", "Latest visible jump")
 
 	restartedStore := newPostgresTestStore(t, databaseURL)
-	restartedServer := newGroupsTestServerWithStore(restartedStore)
+	restartedServer := newTestServerWithStore(restartedStore)
 
 	rec := doJSON(restartedServer, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
@@ -70,13 +53,13 @@ func testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJum
 	latestIndex := -1
 	firstIndex := -1
 	for i, card := range res.Jumps {
-		if card.ID == latest.Jump.ID {
+		if card.ID == latest.ID {
 			latestIndex = i
 		}
-		if card.ID == first.Jump.ID {
+		if card.ID == first.ID {
 			firstIndex = i
-			if card.Caption != first.Evidence.Caption {
-				t.Fatalf("expected first visible caption %q, got %q", first.Evidence.Caption, card.Caption)
+			if card.Caption != "First visible jump" {
+				t.Fatalf("expected first visible caption %q, got %q", "First visible jump", card.Caption)
 			}
 			if card.ViewerContext != nil {
 				t.Fatal("expected unauthenticated Postgres feed card to omit viewerContext")
@@ -90,31 +73,25 @@ func testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJum
 		}
 	}
 	if latestIndex == -1 {
-		t.Fatalf("expected latest visible jump %q in public feed", latest.Jump.ID)
+		t.Fatalf("expected latest visible jump %q in public feed", latest.ID)
 	}
 	if firstIndex == -1 {
-		t.Fatalf("expected first visible jump %q in public feed", first.Jump.ID)
+		t.Fatalf("expected first visible jump %q in public feed", first.ID)
 	}
 	if latestIndex >= firstIndex {
-		t.Fatalf("expected latest visible jump %q to appear before first visible jump %q, got indexes %d and %d", latest.Jump.ID, first.Jump.ID, latestIndex, firstIndex)
-	}
-	for _, card := range res.Jumps {
-		if card.ID == removed.Jump.ID {
-			t.Fatalf("expected removed jump %q to be excluded from Postgres feed", removed.Jump.ID)
-		}
+		t.Fatalf("expected latest visible jump %q to appear before first visible jump %q, got indexes %d and %d", latest.ID, first.ID, latestIndex, firstIndex)
 	}
 }
 
-func testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *testing.T) {
+func testPostgresPublicJumpDetailCoversVisibleJumpAndMissingJump(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
 	}
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Public Detail Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	server := newTestServerWithStore(store)
+	performed := performJump(t, server, "alice-token")
 
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -125,11 +102,11 @@ func testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 			t.Fatalf("close postgres database: %v", err)
 		}
 	})
-	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET grace_period_expires_at = now() - interval '1 minute' WHERE id = $1`, performed.Jump.ID); err != nil {
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET grace_period_expires_at = now() - interval '1 minute' WHERE id = $1`, performed.ID); err != nil {
 		t.Fatalf("expire jump grace period: %v", err)
 	}
 
-	detailRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
+	detailRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
 	if detailRec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", detailRec.Code, detailRec.Body.String())
 	}
@@ -153,8 +130,8 @@ func testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 		} `json:"viewerContext"`
 	}
 	decodeResponse(t, detailRec, &detail)
-	if detail.ID != performed.Jump.ID {
-		t.Fatalf("expected jump ID %q, got %q", performed.Jump.ID, detail.ID)
+	if detail.ID != performed.ID {
+		t.Fatalf("expected jump ID %q, got %q", performed.ID, detail.ID)
 	}
 	if detail.PerformerName == "" {
 		t.Fatal("expected performerName to be populated")
@@ -206,8 +183,8 @@ func testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 		t.Fatalf("expected jump not found message, got %q", missing.Message)
 	}
 
-	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
-	judgedRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	submitJudgment(t, server, "bob-token", performed.ID, 4, 3, 2, 1, http.StatusCreated)
+	judgedRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "bob-token", nil)
 	if judgedRec.Code != http.StatusOK {
 		t.Fatalf("expected 200 after judgment, got %d: %s", judgedRec.Code, judgedRec.Body.String())
 	}
@@ -240,143 +217,9 @@ func testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump(t *tes
 	if !judged.ViewerContext.HasJudged {
 		t.Fatal("expected hasJudged=true after judgment")
 	}
-
-	dispute := raiseDispute(t, server, "alice-token", performed.Jump.ID, "House Rules", "Remove this")
-	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
-		"resolution":       "Removed Jump",
-		"resolutionReason": "Test removal",
-	})
-	if resolutionRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on dispute resolution, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
-	}
-
-	tombstoneRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
-	if tombstoneRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for tombstone, got %d: %s", tombstoneRec.Code, tombstoneRec.Body.String())
-	}
-
-	var tombstone struct {
-		ID      string `json:"id"`
-		Status  string `json:"status"`
-		Message string `json:"message"`
-	}
-	decodeResponse(t, tombstoneRec, &tombstone)
-	if tombstone.Status != "Removed Jump" {
-		t.Fatalf("expected Removed Jump status, got %q", tombstone.Status)
-	}
-	if tombstone.Message != "This Jump is no longer available" {
-		t.Fatalf("expected tombstone message, got %q", tombstone.Message)
-	}
-
-	tombstoneRec = doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
-	var tombstoneMap map[string]any
-	decodeResponse(t, tombstoneRec, &tombstoneMap)
-	if _, ok := tombstoneMap["performerName"]; ok {
-		t.Fatal("expected tombstone response to omit performerName")
-	}
-	if _, ok := tombstoneMap["caption"]; ok {
-		t.Fatal("expected tombstone response to omit caption")
-	}
-	if _, ok := tombstoneMap["mediaObjectKey"]; ok {
-		t.Fatal("expected tombstone response to omit mediaObjectKey")
-	}
 }
 
-func testPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemovalTime(t *testing.T) {
-	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
-	}
 
-	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Removed Tombstone Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
-
-	db, err := sql.Open("pgx", databaseURL)
-	if err != nil {
-		t.Fatalf("open postgres database: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Fatalf("close postgres database: %v", err)
-		}
-	})
-
-	createdAt := time.Now().Add(-48 * time.Hour).UTC().Truncate(time.Second)
-	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET created_at = $2 WHERE id = $1`, performed.Jump.ID, createdAt); err != nil {
-		t.Fatalf("backdate jump creation time: %v", err)
-	}
-
-	removedAfter := time.Now().UTC().Add(-2 * time.Second)
-	dispute := raiseDispute(t, server, "alice-token", performed.Jump.ID, "House Rules", "Remove this")
-	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
-		"resolution":       "Removed Jump",
-		"resolutionReason": "Postgres tombstone removal test",
-	})
-	if resolutionRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on dispute resolution, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
-	}
-	removedBefore := time.Now().UTC().Add(2 * time.Second)
-
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for tombstone, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var tombstone map[string]any
-	decodeResponse(t, rec, &tombstone)
-
-	if got := tombstone["status"]; got != "Removed Jump" {
-		t.Fatalf("expected Removed Jump status, got %#v", got)
-	}
-	if got := tombstone["message"]; got != "This Jump is no longer available" {
-		t.Fatalf("expected tombstone message, got %#v", got)
-	}
-	if got := tombstone["id"]; got != performed.Jump.ID {
-		t.Fatalf("expected tombstone ID %q, got %#v", performed.Jump.ID, got)
-	}
-
-	removedAtRaw, ok := tombstone["removedAt"].(string)
-	if !ok || removedAtRaw == "" {
-		t.Fatalf("expected tombstone removedAt string, got %#v", tombstone["removedAt"])
-	}
-	removedAt, err := time.Parse(time.RFC3339, removedAtRaw)
-	if err != nil {
-		t.Fatalf("parse tombstone removedAt: %v", err)
-	}
-	if removedAt.Equal(createdAt) {
-		t.Fatalf("expected removedAt to reflect removal time, not jump creation time %s", createdAt.Format(time.RFC3339))
-	}
-	if removedAt.Before(removedAfter) || removedAt.After(removedBefore) {
-		t.Fatalf("expected removedAt between %s and %s, got %s", removedAfter.Format(time.RFC3339), removedBefore.Format(time.RFC3339), removedAt.Format(time.RFC3339))
-	}
-
-	for _, forbidden := range []string{
-		"performerName",
-		"performerId",
-		"caption",
-		"mediaObjectKey",
-		"source",
-		"destination",
-		"food",
-		"runningAverage",
-		"judgmentCount",
-		"viewerContext",
-		"gracePeriodExpiresAt",
-		"createdAt",
-		"finalScore",
-		"disputes",
-	} {
-		if _, exists := tombstone[forbidden]; exists {
-			t.Fatalf("expected tombstone response to omit %s", forbidden)
-		}
-	}
-
-	if len(tombstone) != 4 {
-		t.Fatalf("expected tombstone to expose only 4 fields, got %#v", tombstone)
-	}
-}
 
 func testPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
@@ -385,12 +228,11 @@ func testPostgresPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 	}
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Public Detail Grace Period Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	server := newTestServerWithStore(store)
+	performed := performJump(t, server, "alice-token")
 
 	// Grace period is naturally active after performJump; Bob views detail
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "bob-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -424,12 +266,11 @@ func testPostgresPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
 	}
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Public Detail Self Judging Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	server := newTestServerWithStore(store)
+	performed := performJump(t, server, "alice-token")
 
 	// Alice views her own jump detail — self-judging should take precedence over grace period
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "alice-token", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "alice-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -459,15 +300,8 @@ func testPostgresPublicFeedGracePeriodViewerContext(t *testing.T) {
 	}
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Public Feed Grace Period Crew")
-	invite := createInvite(t, server, "alice-token", group.Group.ID)
-	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-	if acceptRec.Code != http.StatusOK {
-		t.Fatalf("expected Bob to join Group before public feed setup, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-	}
-
-	performJump(t, server, "alice-token", group.Group.ID)
+	server := newTestServerWithStore(store)
+	performJump(t, server, "alice-token")
 
 	// Grace period is naturally active; Bob requests the feed
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
@@ -500,9 +334,8 @@ func testPostgresPublicFeedSelfJudgingViewerContext(t *testing.T) {
 	}
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Public Feed Self Judging Crew")
-	performJump(t, server, "alice-token", group.Group.ID)
+	server := newTestServerWithStore(store)
+	performJump(t, server, "alice-token")
 
 	// Alice requests the feed and sees her own jump
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "alice-token", nil)
@@ -528,22 +361,21 @@ func testPostgresPublicFeedSelfJudgingViewerContext(t *testing.T) {
 	}
 }
 
-func performCustomJump(t *testing.T, server http.Handler, token string, groupID string, food string, caption string) evidenceSubmissionBody {
+func performCustomJump(t *testing.T, server http.Handler, token string, food string, caption string) jumpBody {
 	t.Helper()
-	idea := createIdea(t, server, token, groupID, "Taco Bell", "Olive Garden parking lot", food)
-	planned := createPlannedJump(t, server, token, idea.ID, false)
-	authorization := authorizeEvidenceUpload(t, server, token, planned.ID, "image/jpeg")
-	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", token, map[string]string{
-		"uploadAuthorizationId": authorization.ID,
-		"caption":               caption,
+	rec := doJSON(server, http.MethodPost, "/v1/jumps", token, map[string]string{
+		"source":         "Taco Bell",
+		"destination":    "Olive Garden parking lot",
+		"food":           food,
+		"caption":        caption,
+		"mediaObjectKey": "evidence_object_123",
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var submission evidenceSubmissionBody
-	decodeResponse(t, rec, &submission)
-	normalizeEvidenceSubmissionBody(&submission)
-	return submission
+	var body jumpBody
+	decodeResponse(t, rec, &body)
+	return body
 }
 
 func testPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
@@ -564,7 +396,7 @@ func testPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
 	cleanTestDatabase(t, db)
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
+	server := newTestServerWithStore(store)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
@@ -598,19 +430,13 @@ func testPostgresPublicFeedCursorPaginationMultiPage(t *testing.T) {
 	cleanTestDatabase(t, db)
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Pagination Crew")
-	invite := createInvite(t, server, "alice-token", group.Group.ID)
-	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-	if acceptRec.Code != http.StatusOK {
-		t.Fatalf("expected Bob to join, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-	}
+	server := newTestServerWithStore(store)
 
 	var created []string
 	for i := 0; i < 25; i++ {
 		time.Sleep(5 * time.Millisecond)
-		jump := performCustomJump(t, server, "alice-token", group.Group.ID, "Food"+strconv.Itoa(i), "Jump "+strconv.Itoa(i))
-		created = append(created, jump.Jump.ID)
+		jump := performCustomJump(t, server, "alice-token", "Food"+strconv.Itoa(i), "Jump "+strconv.Itoa(i))
+		created = append(created, jump.ID)
 	}
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?limit=10", "", nil)
@@ -687,19 +513,13 @@ func testPostgresPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 	cleanTestDatabase(t, db)
 
 	store := newPostgresTestStore(t, databaseURL)
-	server := newGroupsTestServerWithStore(store)
-	group := createGroup(t, server, "alice-token", "Same Timestamp Crew")
-	invite := createInvite(t, server, "alice-token", group.Group.ID)
-	acceptRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-	if acceptRec.Code != http.StatusOK {
-		t.Fatalf("expected Bob to join, got %d: %s", acceptRec.Code, acceptRec.Body.String())
-	}
+	server := newTestServerWithStore(store)
 
 	var created []string
 	for i := 0; i < 5; i++ {
 		time.Sleep(5 * time.Millisecond)
-		jump := performCustomJump(t, server, "alice-token", group.Group.ID, "Food"+strconv.Itoa(i), "Jump "+strconv.Itoa(i))
-		created = append(created, jump.Jump.ID)
+		jump := performCustomJump(t, server, "alice-token", "Food"+strconv.Itoa(i), "Jump "+strconv.Itoa(i))
+		created = append(created, jump.ID)
 	}
 
 	// Force all created_at to the same value
@@ -765,7 +585,7 @@ func testPostgresPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 
 func TestPostgresPublicRead(t *testing.T) {
 	t.Run("public feed", func(t *testing.T) {
-		t.Run("survives restart orders newest first and excludes removed jumps", testPostgresPublicFeedSurvivesRestartOrdersNewestFirstAndExcludesRemovedJumps)
+		t.Run("survives restart orders newest first", testPostgresPublicFeedSurvivesRestartOrdersNewestFirst)
 		t.Run("grace period viewer context", testPostgresPublicFeedGracePeriodViewerContext)
 		t.Run("self judging viewer context", testPostgresPublicFeedSelfJudgingViewerContext)
 		t.Run("empty returns empty array and null cursor", testPostgresPublicFeedEmptyReturnsEmptyArrayAndNullCursor)
@@ -774,8 +594,7 @@ func TestPostgresPublicRead(t *testing.T) {
 	})
 
 	t.Run("public jump detail", func(t *testing.T) {
-		t.Run("covers visible jump tombstone and missing jump", testPostgresPublicJumpDetailCoversVisibleJumpTombstoneAndMissingJump)
-		t.Run("removed jump returns content free tombstone with removal time", testPostgresPublicJumpDetailRemovedJumpReturnsContentFreeTombstoneWithRemovalTime)
+		t.Run("covers visible jump and missing jump", testPostgresPublicJumpDetailCoversVisibleJumpAndMissingJump)
 		t.Run("grace period viewer context", testPostgresPublicJumpDetailGracePeriodViewerContext)
 		t.Run("self judging viewer context", testPostgresPublicJumpDetailSelfJudgingViewerContext)
 	})

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
@@ -12,117 +11,6 @@ import (
 )
 
 // game.JumpRepository adapter methods for PostgresStore
-
-func (s *PostgresStore) InsertIdea(ctx context.Context, groupID, playerID, source, destination, food string) (game.JumpSnapshot, error) {
-	for attempts := 0; attempts < 3; attempts++ {
-		id, err := randomToken("jump")
-		if err != nil {
-			return game.JumpSnapshot{}, err
-		}
-		rows, err := s.queries.InsertIdea(ctx, db.InsertIdeaParams{
-			ID:          id,
-			GroupID:     sql.NullString{String: groupID, Valid: true},
-			PlayerID:    playerID,
-			Status:      "Idea",
-			Source:      source,
-			Destination: destination,
-			Food:        food,
-		})
-		if err != nil {
-			return game.JumpSnapshot{}, err
-		}
-		if rows == 1 {
-			return game.JumpSnapshot{
-				ID:          id,
-				GroupID:     groupID,
-				PlayerID:    playerID,
-				Status:      "Idea",
-				Source:      source,
-				Destination: destination,
-				Food:        food,
-			}, nil
-		}
-		if attempts == 2 {
-			return game.JumpSnapshot{}, fmt.Errorf("create unique Idea after retries")
-		}
-	}
-	return game.JumpSnapshot{}, fmt.Errorf("create unique Idea: unreachable")
-}
-
-func (s *PostgresStore) Idea(ctx context.Context, jumpID string) (game.JumpSnapshot, bool, error) {
-	row, err := s.queries.GetJump(ctx, jumpID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return game.JumpSnapshot{}, false, nil
-	}
-	if err != nil {
-		return game.JumpSnapshot{}, false, err
-	}
-	snap := game.JumpSnapshot{
-		ID:          row.ID,
-		PlayerID:    row.PlayerID,
-		Status:      row.Status,
-		Source:      row.Source,
-		Destination: row.Destination,
-		Food:        row.Food,
-	}
-	if row.GroupID.Valid {
-		snap.GroupID = row.GroupID.String
-	}
-	if row.SeasonID.Valid {
-		snap.SeasonID = &row.SeasonID.String
-	}
-	if row.GracePeriodExpiresAt.Valid {
-		snap.GracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
-	}
-	return snap, true, nil
-}
-
-func (s *PostgresStore) ActiveSeasonForGroup(ctx context.Context, groupID string) (game.SeasonSnapshot, error) {
-	season, err := s.queries.GetActiveSeasonForGroup(ctx, groupID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return game.SeasonSnapshot{}, nil
-	}
-	if err != nil {
-		return game.SeasonSnapshot{}, err
-	}
-	return game.SeasonSnapshot{ID: season.ID, Status: season.Status}, nil
-}
-
-func (s *PostgresStore) UpdateJumpToPlanned(ctx context.Context, jumpID, playerID string, seasonID *string) (game.JumpSnapshot, error) {
-	_ = playerID
-	seasonParam := sql.NullString{}
-	if seasonID != nil {
-		seasonParam = sql.NullString{String: *seasonID, Valid: true}
-	}
-	row, err := s.queries.UpdateJumpToPlanned(ctx, db.UpdateJumpToPlannedParams{
-		ID:       jumpID,
-		SeasonID: seasonParam,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return game.JumpSnapshot{}, game.ErrJumpNotFound
-	}
-	if err != nil {
-		return game.JumpSnapshot{}, err
-	}
-	snap := game.JumpSnapshot{
-		ID:          row.ID,
-		PlayerID:    row.PlayerID,
-		Status:      row.Status,
-		Source:      row.Source,
-		Destination: row.Destination,
-		Food:        row.Food,
-	}
-	if row.GroupID.Valid {
-		snap.GroupID = row.GroupID.String
-	}
-	if row.SeasonID.Valid {
-		snap.SeasonID = &row.SeasonID.String
-	}
-	if row.GracePeriodExpiresAt.Valid {
-		snap.GracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
-	}
-	return snap, nil
-}
 
 func (s *PostgresStore) InsertPerformedJump(ctx context.Context, params game.InsertPerformedJumpParams) (game.JumpSnapshot, game.EvidenceSnapshot, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -136,15 +24,10 @@ func (s *PostgresStore) InsertPerformedJump(ctx context.Context, params game.Ins
 		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
 	}
 
-	var groupID any
-	if params.GroupID != "" {
-		groupID = params.GroupID
-	}
-
 	if _, err := tx.ExecContext(ctx, `
-INSERT INTO jumps (id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		jumpID, groupID, params.PlayerID, params.SeasonID, "Performed Jump",
+INSERT INTO jumps (id, player_id, season_id, status, source, destination, food, grace_period_expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		jumpID, params.PlayerID, nil, "Performed Jump",
 		params.Source, params.Destination, params.Food, params.GracePeriodExpiresAt,
 	); err != nil {
 		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
@@ -171,10 +54,8 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 
 	jumpSnap := game.JumpSnapshot{
 		ID:                   jumpID,
-		GroupID:              params.GroupID,
 		PlayerID:             params.PlayerID,
 		Status:               "Performed Jump",
-		SeasonID:             params.SeasonID,
 		Source:               params.Source,
 		Destination:          params.Destination,
 		Food:                 params.Food,
@@ -203,7 +84,7 @@ func (s *PostgresStore) FeedJumps(ctx context.Context, cursorTS *time.Time, curs
 
 	if cursorTS == nil {
 		rows, err = s.db.QueryContext(ctx, `
-SELECT j.id, j.group_id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
+SELECT j.id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
        j.final_score, j.grace_period_expires_at, j.created_at,
        COALESCE(e.id, '') AS evidence_id, COALESCE(e.caption, '') AS caption, COALESCE(e.media_object_key, '') AS media_object_key,
        p.id AS performer_id, p.display_name AS performer_name,
@@ -224,7 +105,7 @@ ORDER BY j.created_at DESC, j.id DESC
 LIMIT $1`, limit)
 	} else {
 		rows, err = s.db.QueryContext(ctx, `
-SELECT j.id, j.group_id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
+SELECT j.id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
        j.final_score, j.grace_period_expires_at, j.created_at,
        COALESCE(e.id, '') AS evidence_id, COALESCE(e.caption, '') AS caption, COALESCE(e.media_object_key, '') AS media_object_key,
        p.id AS performer_id, p.display_name AS performer_name,
@@ -253,13 +134,12 @@ LIMIT $3`, *cursorTS, cursorID, limit)
 	var cards []JumpCard
 	for rows.Next() {
 		var card JumpCard
-		var groupID sql.NullString
 		var seasonID sql.NullString
 		var finalScore sql.NullInt32
 		var evidenceID sql.NullString
 
 		if err := rows.Scan(
-			&card.ID, &groupID, &card.PerformerID, &seasonID,
+			&card.ID, &card.PerformerID, &seasonID,
 			&card.Status, &card.Source, &card.Destination, &card.Food,
 			&finalScore, &card.GracePeriodExpiresAt, &card.CreatedAt,
 			&evidenceID, &card.Caption, &card.MediaObjectKey,
@@ -268,7 +148,6 @@ LIMIT $3`, *cursorTS, cursorID, limit)
 		); err != nil {
 			return nil, err
 		}
-		_ = groupID
 		_ = seasonID
 		_ = finalScore
 		_ = evidenceID
@@ -283,7 +162,7 @@ LIMIT $3`, *cursorTS, cursorID, limit)
 // JumpDetail returns the full detail view of a Jump. ok=false if not found.
 func (s *PostgresStore) JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT j.id, j.group_id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
+SELECT j.id, j.player_id, j.season_id, j.status, j.source, j.destination, j.food,
        j.final_score, j.removed_at, j.grace_period_expires_at, j.created_at,
        COALESCE(e.id, '') AS evidence_id, COALESCE(e.caption, '') AS caption, COALESCE(e.media_object_key, '') AS media_object_key,
        p.id AS performer_id, p.display_name AS performer_name,
@@ -302,14 +181,13 @@ LEFT JOIN (
 WHERE j.id = $1`, jumpID)
 
 	var detail JumpDetail
-	var groupID sql.NullString
 	var seasonID sql.NullString
 	var finalScore sql.NullInt32
 	var removedAt sql.NullTime
 	var evidenceID sql.NullString
 
 	err := row.Scan(
-		&detail.ID, &groupID, &detail.PerformerID, &seasonID,
+		&detail.ID, &detail.PerformerID, &seasonID,
 		&detail.Status, &detail.Source, &detail.Destination, &detail.Food,
 		&finalScore, &removedAt, &detail.GracePeriodExpiresAt, &detail.CreatedAt,
 		&evidenceID, &detail.Caption, &detail.MediaObjectKey,
@@ -322,7 +200,6 @@ WHERE j.id = $1`, jumpID)
 	if err != nil {
 		return JumpDetail{}, false, err
 	}
-	_ = groupID
 	_ = seasonID
 	_ = evidenceID
 	if finalScore.Valid {

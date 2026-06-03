@@ -22,22 +22,6 @@ type AuthIdentity struct {
 	CreatedAt time.Time
 }
 
-type Dispute struct {
-	ID                 string
-	JumpID             string
-	RaisedByPlayerID   string
-	Concern            string
-	Details            string
-	Status             string
-	Resolution         sql.NullString
-	ResolutionReason   sql.NullString
-	ResolvedByPlayerID sql.NullString
-	OverrideResolution sql.NullString
-	OverrideReason     sql.NullString
-	OverrideByPlayerID sql.NullString
-	CreatedAt          time.Time
-}
-
 type Evidence struct {
 	ID                    string
 	JumpID                string
@@ -58,33 +42,10 @@ type EvidenceUploadAuthorization struct {
 	CreatedAt      time.Time
 }
 
-type Group struct {
-	ID        string
-	Name      string
-	CreatedAt time.Time
-}
-
-type GroupMembership struct {
-	GroupID   string
-	PlayerID  string
-	Role      string
-	CreatedAt time.Time
-}
-
 type GuestSession struct {
 	ID            string
 	JudgmentCount int32
 	CreatedAt     time.Time
-}
-
-type Invite struct {
-	ID                string
-	GroupID           string
-	Token             string
-	CreatedByPlayerID string
-	UsedByPlayerID    sql.NullString
-	ExpiresAt         time.Time
-	CreatedAt         time.Time
 }
 
 type Judgment struct {
@@ -102,7 +63,6 @@ type Judgment struct {
 
 type Jump struct {
 	ID                   string
-	GroupID              sql.NullString
 	PlayerID             string
 	SeasonID             sql.NullString
 	Status               string
@@ -111,7 +71,6 @@ type Jump struct {
 	Food                 string
 	FinalScore           sql.NullInt32
 	OpenFinalScore       sql.NullInt32
-	SeasonFinalScore     sql.NullInt32
 	RemovedAt            sql.NullTime
 	GracePeriodExpiresAt sql.NullTime
 	CreatedAt            time.Time
@@ -133,26 +92,4 @@ type Player struct {
 	AccountID   string
 	DisplayName string
 	CreatedAt   time.Time
-}
-
-type Season struct {
-	ID                   string
-	GroupID              string
-	CommissionerPlayerID string
-	Status               string
-	SubmissionDeadline   time.Time
-	JudgingDeadline      time.Time
-	CreatedAt            time.Time
-}
-
-type SeasonHistory struct {
-	ID            string
-	SeasonID      string
-	Action        string
-	ActorPlayerID string
-	ActorRole     string
-	Override      bool
-	FromStatus    string
-	ToStatus      string
-	CreatedAt     time.Time
 }

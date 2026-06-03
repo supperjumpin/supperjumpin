@@ -8,12 +8,12 @@ import (
 
 var (
 	ErrInvalidJudgmentScore    = errors.New("Judgment scores must be between 1 and 4")
-	ErrJumpNotFound          = errors.New("Jump not found")
-	ErrJudgingWindowClosed    = errors.New("Judging Window closed")
-	ErrForbidden              = errors.New("Judge must be a different Player than the performer")
+	ErrJumpNotFound            = errors.New("Jump not found")
+	ErrJudgingWindowClosed     = errors.New("Judging Window closed")
+	ErrForbidden               = errors.New("Judge must be a different Player than the performer")
 	ErrAuthorGracePeriodActive = errors.New("Author Grace Period is still active")
-	ErrGuestCapReached        = errors.New("Guest Judgment cap reached")
-	ErrInvalidJudgeIdentity   = errors.New("Judgment must have exactly one judge identity: player or guest session")
+	ErrGuestCapReached         = errors.New("Guest Judgment cap reached")
+	ErrInvalidJudgeIdentity    = errors.New("Judgment must have exactly one judge identity: player or guest session")
 )
 
 // Judgment holds submitted scores for a Performed Jump.
@@ -31,15 +31,14 @@ type Judgment struct {
 
 // JumpSnapshot is a read-only view of a Jump needed for game rules.
 type JumpSnapshot struct {
-	ID                  string
-	GroupID             string
-	PlayerID            string
-	Status              string
-	SeasonID            *string
-	Source              string
-	Destination         string
-	Food                string
-	FinalScore          *int
+	ID                   string
+	PlayerID             string
+	Status               string
+	SeasonID             *string
+	Source               string
+	Destination          string
+	Food                 string
+	FinalScore           *int
 	GracePeriodExpiresAt time.Time
 }
 
@@ -51,11 +50,6 @@ type SeasonSnapshot struct {
 	Status               string
 	SubmissionDeadline   time.Time
 	JudgingDeadline      time.Time
-}
-
-// MembershipSnapshot is a read-only view of a Group Membership.
-type MembershipSnapshot struct {
-	Role string
 }
 
 // JudgmentRepository defines persistence operations for the judgment flow.

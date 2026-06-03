@@ -74,7 +74,6 @@ These are known compromises that exist for pre-MVP speed but should converge tow
 
 | Current state | Why it exists | Converge when |
 |---|---|---|
-| Single-file `App.tsx` (~550 lines, no router, no state lib) | Pre-MVP speed; not enough UI surface to justify splitting | There are 2+ screens or 3+ distinct UI sections → split into files + add React Navigation |
 ## MAINTENANCE CONTRACT
 
 These files are maintained by convention, not automation. Follow these rules in every PR:

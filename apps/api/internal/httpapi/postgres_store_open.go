@@ -25,10 +25,6 @@ func (s *PostgresStore) JumpsForOpenMonth(ctx context.Context, year, month int) 
 
 	var result []game.JumpSnapshot
 	for _, row := range rows {
-		groupID := ""
-		if row.GroupID.Valid {
-			groupID = row.GroupID.String
-		}
 		var seasonID *string
 		if row.SeasonID.Valid {
 			seasonID = &row.SeasonID.String
@@ -44,7 +40,6 @@ func (s *PostgresStore) JumpsForOpenMonth(ctx context.Context, year, month int) 
 		}
 		result = append(result, game.JumpSnapshot{
 			ID:                   row.ID,
-			GroupID:              groupID,
 			PlayerID:             row.PlayerID,
 			SeasonID:             seasonID,
 			Status:               row.Status,
@@ -67,6 +62,28 @@ func (s *PostgresStore) UpdateJumpOpenFinalScore(ctx context.Context, jumpID str
 		ID:             jumpID,
 		OpenFinalScore: param,
 	})
+}
+
+func (s *PostgresStore) JudgmentsForJump(ctx context.Context, jumpID string) ([]game.Judgment, error) {
+	rows, err := s.queries.ListJudgmentsForJump(ctx, jumpID)
+	if err != nil {
+		return nil, err
+	}
+	var result []game.Judgment
+	for _, row := range rows {
+		result = append(result, game.Judgment{
+			ID:             row.ID,
+			JumpID:         row.JumpID,
+			PlayerID:       row.PlayerID.String,
+			GuestSessionID: row.GuestSessionID.String,
+			Provenance:     row.Provenance,
+			Commitment:     int(row.Commitment),
+			Transgression:  int(row.Transgression),
+			Creativity:     int(row.Creativity),
+			Presentation:   int(row.Presentation),
+		})
+	}
+	return result, nil
 }
 
 func (s *PostgresStore) PlayersForOpenMonth(ctx context.Context, year, month int) ([]game.PlayerSnapshot, error) {

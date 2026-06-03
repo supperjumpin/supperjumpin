@@ -22,7 +22,6 @@ func (s *PostgresStore) PlannedJump(ctx context.Context, jumpID string) (game.Ju
 	}
 	snap := game.JumpSnapshot{
 		ID:          jump.ID,
-		GroupID:     jump.GroupID.String,
 		PlayerID:    jump.PlayerID,
 		Status:      jump.Status,
 		Source:      jump.Source,

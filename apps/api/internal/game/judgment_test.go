@@ -92,7 +92,6 @@ func testNonMemberCanJudgePublicPerformedJumpAfterGracePeriod(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -149,7 +148,6 @@ func testAuthorGracePeriodBlocksJudging(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -179,7 +177,6 @@ func testJudgingAllowedAfterGracePeriodExpires(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -218,7 +215,6 @@ func testSelfJudgingStillBlocked(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -271,7 +267,6 @@ func testGuestCanJudgePublicPerformedJump(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -449,7 +444,6 @@ func testPlayerJudgmentStillWorks(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -529,7 +523,6 @@ func testSubmitJudgment_SeasonLinkedWithClosedSeasonReturnsError(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Performed Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -563,7 +556,6 @@ func testSubmitJudgment_JudgedJumpAllowsAdditionalJudgments(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Judged Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
@@ -603,7 +595,6 @@ func testSubmitJudgment_ExistingJudgmentEditDoesNotAdvance(t *testing.T) {
 		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
 			return JumpSnapshot{
 				ID:                   jumpID,
-				GroupID:              "group_1",
 				PlayerID:             "performer_1",
 				Status:               "Judged Jump",
 				GracePeriodExpiresAt: gracePeriodExpiresAt,
