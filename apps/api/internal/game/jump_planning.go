@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+// EvidenceSnapshot is a read-only view of an Evidence record.
+type EvidenceSnapshot struct {
+	ID             string
+	JumpID         string
+	PlayerID       string
+	MediaObjectKey string
+	Caption        string
+	CreatedAt      time.Time
+}
+
 // JumpRepository defines persistence operations for the jump planning flow.
 type JumpRepository interface {
 	// InsertPerformedJump creates a new performed jump with initial evidence

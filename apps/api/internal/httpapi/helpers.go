@@ -22,8 +22,6 @@ func randomToken(kind string) (string, error) {
 	return kind + "_" + hex.EncodeToString(bytes), nil
 }
 
-const httpMethodPut = "PUT"
-
 func jumpFromGame(snap game.JumpSnapshot) Jump {
 	return Jump{
 		ID:                   snap.ID,

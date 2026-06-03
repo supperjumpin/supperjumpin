@@ -21,40 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/jumps/{jumpId}/evidence-upload-authorizations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Authorize direct Evidence upload for a performer's Planned Jump */
-        post: operations["authorizeEvidenceUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/jumps/{jumpId}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Finalize an Evidence record and transition a Planned Jump into a Performed Jump */
-        post: operations["submitEvidence"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/guest-sessions": {
         parameters: {
             query?: never;
@@ -169,31 +135,6 @@ export interface components {
             food: string;
             finalScore: number | null;
         };
-        EvidenceUploadAuthorization: {
-            id: string;
-            jumpId: string;
-            uploadUrl: string;
-            /** @enum {string} */
-            uploadMethod: "PUT";
-            uploadHeaders: {
-                [key: string]: string;
-            };
-            mediaObjectKey: string;
-            /** Format: date-time */
-            expiresAt: string;
-        };
-        Evidence: {
-            id: string;
-            jumpId: string;
-            caption: string;
-            mediaObjectKey: string;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        EvidenceSubmission: {
-            jump: components["schemas"]["Jump"];
-            evidence: components["schemas"]["Evidence"];
-        };
         Judgment: {
             id: string;
             jumpId: string;
@@ -307,119 +248,6 @@ export interface operations {
             };
             /** @description Missing or invalid bearer token. */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    authorizeEvidenceUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                jumpId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    contentType: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Direct upload target and authorization metadata for the Evidence media. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceUploadAuthorization"];
-                };
-            };
-            /** @description Invalid Evidence upload authorization request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not the performer of this Planned Jump. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Planned Jump not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    submitEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                jumpId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    uploadAuthorizationId: string;
-                    caption: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Backend-owned Evidence record and the updated Performed Jump. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceSubmission"];
-                };
-            };
-            /** @description Invalid Evidence submission request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not the performer of this Planned Jump. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Planned Jump or upload authorization not found. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

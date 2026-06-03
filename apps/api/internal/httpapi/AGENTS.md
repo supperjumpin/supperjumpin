@@ -8,7 +8,7 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Add/modify route | `server.go` | `mux.HandleFunc` closures; ~18 routes in one file |
+| Add/modify route | `server.go` | `mux.HandleFunc` closures; ~15 routes in one file |
 | Change JSON request/response shape | `dto.go` | camelCase JSON tags |
 | Fix game error → HTTP status mapping | `store.go` (mapGameErr) | e.g., `ErrInvalidJudgmentScore` → 400 |
 | Add transport helper | `store.go` | Wraps game function + assembles DTO response |
@@ -32,4 +32,4 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 
 - `server.go` contains all routing in one function with inline closures. As the API grows, consider extracting route registration into a separate function or file.
 - `guest_judgment_test.go` covers the Guest Judge session and unauthenticated Judgment flow.
-- Groups, Seasons, Invites, and Disputes were removed per ADR-0019. `SeasonSnapshot` and `Season()` are retained only for judgment-window checks on season-linked jumps (legacy data).
+- Groups, Seasons, Invites, Disputes, and the separate Evidence upload-authorization flow were removed per ADR-0019. Evidence is now created inline during `InsertPerformedJump`. `SeasonSnapshot` and `Season()` are retained only for judgment-window checks on season-linked jumps (legacy data).

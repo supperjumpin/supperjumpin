@@ -10,11 +10,7 @@ import (
 
 var ErrJumpNotFound = errors.New("Jump not found")
 
-var ErrEvidenceUploadAuthorizationNotFound = errors.New("Evidence upload authorization not found")
-
 var ErrJudgingWindowClosed = errors.New("Judging Window closed")
-
-var ErrSubmissionWindowClosed = errors.New("Submission Window closed")
 
 var ErrInvalidJudgmentScore = errors.New("Judgment scores must be between 1 and 4")
 
@@ -37,12 +33,6 @@ func mapGameErr(err error) error {
 	}
 	if errors.Is(err, game.ErrJudgingWindowClosed) {
 		return ErrJudgingWindowClosed
-	}
-	if errors.Is(err, game.ErrEvidenceUploadAuthorizationNotFound) {
-		return ErrEvidenceUploadAuthorizationNotFound
-	}
-	if errors.Is(err, game.ErrSubmissionWindowClosed) {
-		return ErrSubmissionWindowClosed
 	}
 	if errors.Is(err, game.ErrAuthorGracePeriodActive) {
 		return ErrAuthorGracePeriodActive
@@ -69,7 +59,6 @@ type Store interface {
 // use small per-test fakes or mocks instead of a shared in-memory store.
 type Persistence interface {
 	game.JumpRepository
-	game.EvidenceRepository
 	game.JudgmentRepository
 	game.OpenRepository
 
@@ -89,61 +78,6 @@ type Persistence interface {
 }
 
 // --- Transport-layer DTO helpers (game-command → DTO conversion) ---
-
-func authorizeEvidenceUpload(ctx context.Context, db Persistence, player Player, jumpID string, contentType string) (EvidenceUploadAuthorization, bool, error) {
-	result := game.AuthorizeEvidenceUpload(ctx, db, game.AuthorizeEvidenceUploadInput{
-		JumpID:      jumpID,
-		PlayerID:    player.ID,
-		ContentType: contentType,
-	})
-	if result.Err != nil {
-		return EvidenceUploadAuthorization{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return EvidenceUploadAuthorization{}, false, nil
-	}
-	return EvidenceUploadAuthorization{
-		ID:             result.Authorization.ID,
-		JumpID:         result.Authorization.JumpID,
-		UploadURL:      "https://storage.supperjumpin.test/uploads/" + result.Authorization.MediaObjectKey,
-		UploadMethod:   httpMethodPut,
-		UploadHeaders:  map[string]string{"Content-Type": contentType},
-		MediaObjectKey: result.Authorization.MediaObjectKey,
-		ExpiresAt:      result.Authorization.ExpiresAt,
-	}, true, nil
-}
-
-func submitEvidence(ctx context.Context, db Persistence, player Player, jumpID string, uploadAuthorizationID string, caption string) (EvidenceSubmission, bool, error) {
-	result := game.SubmitEvidence(ctx, db, game.SubmitEvidenceInput{
-		JumpID:                jumpID,
-		PlayerID:              player.ID,
-		UploadAuthorizationID: uploadAuthorizationID,
-		Caption:               caption,
-	}, db.Now())
-	if result.Err != nil {
-		return EvidenceSubmission{}, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return EvidenceSubmission{}, false, nil
-	}
-	return EvidenceSubmission{
-		Jump: Jump{
-			ID:          result.Jump.ID,
-			PlayerID:    result.Jump.PlayerID,
-			Status:      result.Jump.Status,
-			Source:      result.Jump.Source,
-			Destination: result.Jump.Destination,
-			Food:        result.Jump.Food,
-		},
-		Evidence: Evidence{
-			ID:             result.Evidence.ID,
-			JumpID:         result.Evidence.JumpID,
-			Caption:        result.Evidence.Caption,
-			MediaObjectKey: result.Evidence.MediaObjectKey,
-			CreatedAt:      result.Evidence.CreatedAt,
-		},
-	}, true, nil
-}
 
 func createPerformedJump(ctx context.Context, db Persistence, player Player, source, destination, food, caption, mediaObjectKey string) (Jump, error) {
 	result := game.CreatePerformedJump(ctx, db, game.CreatePerformedJumpInput{

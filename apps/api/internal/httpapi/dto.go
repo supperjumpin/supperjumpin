@@ -17,15 +17,6 @@ type MeResponse struct {
 	Player  Player  `json:"player"`
 }
 
-type Season struct {
-	ID                   string    `json:"id"`
-	GroupID              string    `json:"groupId"`
-	CommissionerPlayerID string    `json:"commissionerPlayerId"`
-	Status               string    `json:"status"`
-	SubmissionDeadline   time.Time `json:"submissionDeadline"`
-	JudgingDeadline      time.Time `json:"judgingDeadline"`
-}
-
 type Jump struct {
 	ID                   string     `json:"id"`
 	PlayerID             string     `json:"playerId"`
@@ -38,29 +29,6 @@ type Jump struct {
 	RemovedAt            *time.Time `json:"-"`
 	GracePeriodExpiresAt time.Time  `json:"gracePeriodExpiresAt"`
 	CreatedAt            time.Time  `json:"createdAt"`
-}
-
-type EvidenceUploadAuthorization struct {
-	ID             string            `json:"id"`
-	JumpID         string            `json:"jumpId"`
-	UploadURL      string            `json:"uploadUrl"`
-	UploadMethod   string            `json:"uploadMethod"`
-	UploadHeaders  map[string]string `json:"uploadHeaders"`
-	MediaObjectKey string            `json:"mediaObjectKey"`
-	ExpiresAt      time.Time         `json:"expiresAt"`
-}
-
-type Evidence struct {
-	ID             string    `json:"id"`
-	JumpID         string    `json:"jumpId"`
-	Caption        string    `json:"caption"`
-	MediaObjectKey string    `json:"mediaObjectKey"`
-	CreatedAt      time.Time `json:"createdAt"`
-}
-
-type EvidenceSubmission struct {
-	Jump     Jump     `json:"jump"`
-	Evidence Evidence `json:"evidence"`
 }
 
 type Judgment struct {

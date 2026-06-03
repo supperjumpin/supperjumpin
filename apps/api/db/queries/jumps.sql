@@ -3,11 +3,6 @@ SELECT id, player_id, season_id, status, source, destination, food, final_score,
 FROM jumps
 WHERE id = $1;
 
--- name: AdoptJumpToSeason :exec
-UPDATE jumps
-SET status = 'Performed Jump', grace_period_expires_at = $2
-WHERE id = $1 AND status = 'Planned Jump';
-
 -- name: AdvanceJumpToJudged :exec
 UPDATE jumps
 SET status = 'Judged Jump'

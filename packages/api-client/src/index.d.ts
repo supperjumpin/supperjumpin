@@ -1,6 +1,4 @@
 import type {
-  EvidenceSubmission,
-  EvidenceUploadAuthorization,
   Judgment,
   MeResponse,
   PublicFeedResponse,
@@ -9,9 +7,6 @@ import type {
 } from "./generated";
 
 export type {
-  Evidence,
-  EvidenceSubmission,
-  EvidenceUploadAuthorization,
   Judgment,
   MeResponse,
   Player,
@@ -28,23 +23,6 @@ export function getMe(args: {
   accessToken: string;
   fetchImpl?: typeof fetch;
 }): Promise<MeResponse>;
-
-export function authorizeEvidenceUpload(args: {
-  baseUrl: string;
-  accessToken: string;
-  jumpId: string;
-  contentType: string;
-  fetchImpl?: typeof fetch;
-}): Promise<EvidenceUploadAuthorization>;
-
-export function submitEvidence(args: {
-  baseUrl: string;
-  accessToken: string;
-  jumpId: string;
-  uploadAuthorizationId: string;
-  caption: string;
-  fetchImpl?: typeof fetch;
-}): Promise<EvidenceSubmission>;
 
 export function submitJudgment(args: {
   baseUrl: string;

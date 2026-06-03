@@ -2,11 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  authorizeEvidenceUpload,
   getJumpDetail,
   getMe,
   getPublicFeed,
-  submitEvidence,
   submitJudgment,
 } from "./index.js";
 
@@ -29,81 +27,6 @@ test("getMe calls the backend with the Supabase bearer token", async () => {
   assert.equal(seen.authorization, "Bearer supabase-access-token");
   assert.equal(me.account.id, "account_123");
   assert.equal(me.player.id, "player_123");
-});
-
-test("authorizeEvidenceUpload requests a direct upload target for a Planned Jump", async () => {
-  const seen = {};
-  const authorization = await authorizeEvidenceUpload({
-    baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
-    jumpId: "jump_123",
-    contentType: "image/jpeg",
-    fetchImpl: async (url, init) => {
-      seen.url = url;
-      seen.method = init.method;
-      seen.authorization = init.headers.Authorization;
-      seen.body = JSON.parse(init.body);
-      return Response.json(
-        {
-          id: "evidence_upload_123",
-          jumpId: "jump_123",
-          uploadUrl: "https://storage.supperjumpin.test/uploads/evidence_object_123",
-          uploadMethod: "PUT",
-          uploadHeaders: { "Content-Type": "image/jpeg" },
-          mediaObjectKey: "evidence_object_123",
-          expiresAt: "2026-06-01T00:15:00Z",
-        },
-        { status: 201 },
-      );
-    },
-  });
-
-  assert.equal(seen.url, "http://api.example.test/v1/jumps/jump_123/evidence-upload-authorizations");
-  assert.equal(seen.method, "POST");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
-  assert.deepEqual(seen.body, { contentType: "image/jpeg" });
-  assert.equal(authorization.uploadMethod, "PUT");
-  assert.equal(authorization.mediaObjectKey, "evidence_object_123");
-});
-
-test("submitEvidence finalizes backend-owned Evidence for a Planned Jump", async () => {
-  const seen = {};
-  const submission = await submitEvidence({
-    baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
-    jumpId: "jump_123",
-    uploadAuthorizationId: "evidence_upload_123",
-    caption: "Crunchwrap successfully smuggled into the parking lot.",
-    fetchImpl: async (url, init) => {
-      seen.url = url;
-      seen.method = init.method;
-      seen.authorization = init.headers.Authorization;
-      seen.body = JSON.parse(init.body);
-      return Response.json(
-        {
-          jump: jumpResponse({ status: "Performed Jump" }),
-          evidence: {
-            id: "evidence_123",
-            jumpId: "jump_123",
-            caption: "Crunchwrap successfully smuggled into the parking lot.",
-            mediaObjectKey: "evidence_object_123",
-            createdAt: "2026-06-01T00:00:00Z",
-          },
-        },
-        { status: 201 },
-      );
-    },
-  });
-
-  assert.equal(seen.url, "http://api.example.test/v1/jumps/jump_123/evidence");
-  assert.equal(seen.method, "POST");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
-  assert.deepEqual(seen.body, {
-    uploadAuthorizationId: "evidence_upload_123",
-    caption: "Crunchwrap successfully smuggled into the parking lot.",
-  });
-  assert.equal(submission.jump.status, "Performed Jump");
-  assert.equal(submission.evidence.mediaObjectKey, "evidence_object_123");
 });
 
 test("submitJudgment posts the four Judgment scores for a Performed Jump", async () => {

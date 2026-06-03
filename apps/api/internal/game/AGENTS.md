@@ -8,8 +8,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Jump lifecycle | `jump_planning.go` | `CreatePerformedJump` (direct creation, no Idea/Planned stages) |
-| Evidence rules | `evidence.go` | `AuthorizeEvidenceUpload`, `SubmitEvidence` |
+| Jump lifecycle | `jump_planning.go` | `CreatePerformedJump` (direct creation, evidence inline) |
 | Judgment scoring | `judgment.go` | `SubmitJudgment` (upsert, self-judge guard, score validation) |
 
 | Service wrapper | `game.go` | Thin `Service` struct with `Now` clock injection |
@@ -33,5 +32,6 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 ## NOTES
 
 - **Jump status machine**: `Performed Jump` → `Judged Jump` / `Unjudged Jump` / `Disqualified Jump`.
+- **Evidence**: Created inline with `InsertPerformedJump`. No separate upload-authorization flow exists.
 - **Grace periods**: Performed jumps have a 10-minute `GracePeriodExpiresAt` window where the performer can edit/retract.
 - **SeasonSnapshot and Season()** are retained only for judgment-window checks on season-linked jumps (legacy data). No active seasons or groups exist.

@@ -8,34 +8,6 @@ export async function getMe({ baseUrl, accessToken, fetchImpl = fetch }) {
   return response.json();
 }
 
-export async function authorizeEvidenceUpload({ baseUrl, accessToken, jumpId, contentType, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/evidence-upload-authorizations`, {
-    method: "POST",
-    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
-    body: JSON.stringify({ contentType }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`authorizeEvidenceUpload failed with status ${response.status}`);
-  }
-
-  return response.json();
-}
-
-export async function submitEvidence({ baseUrl, accessToken, jumpId, uploadAuthorizationId, caption, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/evidence`, {
-    method: "POST",
-    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
-    body: JSON.stringify({ uploadAuthorizationId, caption }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`submitEvidence failed with status ${response.status}`);
-  }
-
-  return response.json();
-}
-
 export async function submitJudgment({
   baseUrl,
   accessToken,
