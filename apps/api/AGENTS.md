@@ -14,7 +14,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 | Postgres-backed tests | `npm run api:test` / `npm run api:test:coverage` | Canonical test path against Postgres; see root AGENTS.md |
 | Persistence adapter | `internal/httpapi/postgres_store*.go` | sqlc-generated queries via `db.Queries`; per-repository files |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
-| DB schema | `db/migrations/*.sql` | 9 numbered migrations; pre-stable: fold changes into existing |
+| DB schema | `db/migrations/*.sql` | Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 

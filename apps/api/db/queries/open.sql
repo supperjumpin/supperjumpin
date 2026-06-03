@@ -1,5 +1,5 @@
 -- name: ListJumpsForOpenMonth :many
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
+SELECT id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
 FROM jumps
 WHERE created_at >= $1 AND created_at < $2
   AND status IN ('Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump');

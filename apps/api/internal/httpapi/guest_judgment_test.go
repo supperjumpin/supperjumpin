@@ -26,7 +26,7 @@ func doJSONUnauthenticated(server http.Handler, method string, path string, body
 }
 
 func testGuestCanCreateSession(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
 	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/guest-sessions", nil)
 	if rec.Code != http.StatusCreated {
@@ -42,7 +42,7 @@ func testGuestCanCreateSession(t *testing.T) {
 }
 
 func testGuestCanJudgePerformedJump(t *testing.T) {
-	server, store := newGroupsTestServerAndStore(t)
+	server, store := newTestServerAndStore(t)
 
 	// Create a guest session
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -55,15 +55,14 @@ func testGuestCanJudgePerformedJump(t *testing.T) {
 	}
 	guestSessionID := sessionBody["id"]
 
-	// Create a group and a performed jump by Alice
-	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	// Create a performed jump by Alice
+	performed := performJump(t, server, "alice-token")
 
 	// Advance past the Author Grace Period before judging
 	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Guest judges the jump
-	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
+	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
 		"guestSessionId": guestSessionID,
 		"commitment":     2,
 		"transgression":  3,
@@ -76,8 +75,8 @@ func testGuestCanJudgePerformedJump(t *testing.T) {
 
 	var judgment judgmentBody
 	decodeResponse(t, rec, &judgment)
-	if judgment.JumpID != performed.Jump.ID {
-		t.Fatalf("expected judgment for jump %s, got %s", performed.Jump.ID, judgment.JumpID)
+	if judgment.JumpID != performed.ID {
+		t.Fatalf("expected judgment for jump %s, got %s", performed.ID, judgment.JumpID)
 	}
 	if judgment.PlayerID != "" {
 		t.Fatalf("expected empty player id for guest judgment, got %q", judgment.PlayerID)
@@ -85,7 +84,7 @@ func testGuestCanJudgePerformedJump(t *testing.T) {
 }
 
 func testGuestCapBlocksAdditionalJudgments(t *testing.T) {
-	server, store := newGroupsTestServerAndStore(t)
+	server, store := newTestServerAndStore(t)
 
 	// Create a guest session
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -95,18 +94,16 @@ func testGuestCapBlocksAdditionalJudgments(t *testing.T) {
 	}
 	guestSessionID := sessionBody["id"]
 
-	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-
 	// Guest submits 5 judgments (cap)
 	for i := 0; i < 5; i++ {
 		// Reset clock so performJump creates a consistent grace period, then advance past it
 		store.SetClock(time.Now)
-		performed := performJump(t, server, "alice-token", group.Group.ID)
+		performed := performJump(t, server, "alice-token")
 
 		// Advance past the Author Grace Period before judging
 		store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
-		rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
+		rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
 			"guestSessionId": guestSessionID,
 			"commitment":     2,
 			"transgression":  2,
@@ -119,8 +116,8 @@ func testGuestCapBlocksAdditionalJudgments(t *testing.T) {
 	}
 
 	// 6th judgment should be blocked
-	performed := performJump(t, server, "alice-token", group.Group.ID)
-	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
+	performed := performJump(t, server, "alice-token")
+	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
 		"guestSessionId": guestSessionID,
 		"commitment":     2,
 		"transgression":  2,
@@ -133,18 +130,17 @@ func testGuestCapBlocksAdditionalJudgments(t *testing.T) {
 }
 
 func testAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
-	server, store := newGroupsTestServerAndStore(t)
+	server, store := newTestServerAndStore(t)
 
-	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token")
 
 	// Advance past the Author Grace Period before judging
 	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob (authenticated) judges Alice's jump
-	judgment := submitJudgment(t, server, "bob-token", performed.Jump.ID, 2, 3, 3, 4, http.StatusCreated)
-	if judgment.JumpID != performed.Jump.ID {
-		t.Fatalf("expected judgment for jump %s, got %s", performed.Jump.ID, judgment.JumpID)
+	judgment := submitJudgment(t, server, "bob-token", performed.ID, 2, 3, 3, 4, http.StatusCreated)
+	if judgment.JumpID != performed.ID {
+		t.Fatalf("expected judgment for jump %s, got %s", performed.ID, judgment.JumpID)
 	}
 	if judgment.PlayerID == "" {
 		t.Fatal("expected player id on authenticated judgment")
@@ -152,12 +148,11 @@ func testAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
 }
 
 func testCannotProvideBothAuthAndGuestSession(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
-	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token")
 
-	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", "bob-token", map[string]any{
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", "bob-token", map[string]any{
 		"guestSessionId": "some-session-id",
 		"commitment":     2,
 		"transgression":  2,
@@ -170,12 +165,11 @@ func testCannotProvideBothAuthAndGuestSession(t *testing.T) {
 }
 
 func testGuestSessionIdRequiredWhenUnauthenticated(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
-	group := createGroup(t, server, "alice-token", "Breakfast Crew")
-	performed := performJump(t, server, "alice-token", group.Group.ID)
+	performed := performJump(t, server, "alice-token")
 
-	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.Jump.ID+"/judgment", map[string]any{
+	rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
 		"commitment":    2,
 		"transgression": 2,
 		"creativity":    3,
