@@ -18,7 +18,84 @@ import (
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
 
-func TestCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.T) {
+func TestGroups(t *testing.T) {
+	t.Run("membership", func(t *testing.T) {
+		t.Run("creates group and opens group home", testCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome)
+		t.Run("lists groups and switches group home", testSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome)
+		t.Run("rejects non-member group home", testGroupHomeRejectsSignedInNonMember)
+
+		t.Run("invite lifecycle", func(t *testing.T) {
+			t.Run("member creates invite and signed in player accepts without replacing existing play history", testGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory)
+			t.Run("rejects already used invite", testAcceptInviteRejectsAlreadyUsedInvite)
+			t.Run("rejects existing group member without using invite", testAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite)
+			t.Run("rejects expired invite", testAcceptInviteRejectsExpiredInvite)
+			t.Run("rejects invalid invite token", testAcceptInviteRejectsInvalidInviteToken)
+			t.Run("returns standings for finalized season", testAcceptInviteReturnsStandingsForFinalizedSeason)
+		})
+
+		t.Run("rejects invite creation by non-member", testCreateInviteRejectsSignedInNonMember)
+		t.Run("requires membership for ideas and planned jumps", testIdeaAndPlannedJumpRequireGroupMembership)
+	})
+
+	t.Run("season lifecycle", func(t *testing.T) {
+		t.Run("member can start season and see active season on group home", testGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome)
+		t.Run("commissioner can close submissions and move season into judging grace period", testSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePeriod)
+		t.Run("grace period still allows eligible judgments on existing performed jumps", testJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps)
+		t.Run("commissioner can finalize season and lock standings", testSeasonCommissionerCanFinalizeSeasonAndLockStandings)
+		t.Run("admin emergency season overrides appear in season history", testGroupAdminEmergencySeasonOverridesAppearInSeasonHistory)
+		t.Run("standings use latest created season rather than season ID order", testStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder)
+		t.Run("cannot start second season while active season exists", testGroupCannotStartSecondSeasonWhileActiveSeasonExists)
+	})
+
+	t.Run("jump lifecycle", func(t *testing.T) {
+		t.Run("creates idea then season linked planned jump during active season", testGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason)
+		t.Run("planned jump can be explicitly off season during active season", testPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason)
+		t.Run("planned jump is off season when no season is active", testPlannedJumpIsOffSeasonWhenNoSeasonIsActive)
+		t.Run("performer can authorize evidence upload", testPlannedJumpPerformerCanAuthorizeEvidenceUpload)
+		t.Run("rejects non-performer evidence authorization", testEvidenceUploadAuthorizationRejectsNonPerformer)
+		t.Run("authorized evidence submission performs jump and owns media object key", testAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey)
+		t.Run("submission window closes after deadline", testSubmissionWindowClosesAfterDeadline)
+		t.Run("create performed jump without group id is off season", testCreatePerformedJumpWithoutGroupIdIsOffSeason)
+		t.Run("grace period uses injectable clock", testCreatePerformedJumpGracePeriodUsesInjectableClock)
+		t.Run("links to active season", testCreatePerformedJumpLinksToActiveSeason)
+		t.Run("appears in group home", testCreatePerformedJumpAppearsInGroupHome)
+		t.Run("rejects unauthenticated", testCreatePerformedJumpRejectsUnauthenticated)
+		t.Run("rejects missing fields", testCreatePerformedJumpRejectsMissingFields)
+		t.Run("creates performed jump directly", testCreatePerformedJumpDirectly)
+		t.Run("performer cannot judge their own performed jump", testPerformerCannotJudgeTheirOwnPerformedJump)
+	})
+
+	t.Run("judgment and dispute lifecycle", func(t *testing.T) {
+		t.Run("member can judge another player's performed jump", testGroupMemberCanJudgeAnotherPlayersPerformedJump)
+		t.Run("member can raise dispute on visible performed jump", testGroupMemberCanRaiseDisputeOnVisiblePerformedJump)
+		t.Run("member can raise dispute for each MVP accepted concern", testGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern)
+		t.Run("judge can edit their one judgment while judging window is open", testJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen)
+		t.Run("judgment scores must stay in range", testJudgmentScoresMustStayInRange)
+		t.Run("judgment requires all score fields", testJudgmentRequiresAllScoreFields)
+		t.Run("judgments cannot be created or edited after judging window closes", testJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses)
+		t.Run("finalized season scores judged jumps and locks standings", testFinalizedSeasonScoresJudgedJumpsAndLocksStandings)
+		t.Run("commissioner can disqualify season linked jump and exclude it from standings", testSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStandings)
+		t.Run("finalized season marks unjudged jumps and excludes off season jumps from standings", testFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings)
+		t.Run("admin can override dispute resolution and remove jump from normal visibility", testGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility)
+		t.Run("admin can resolve open off season dispute and remove jump", testGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump)
+	})
+
+	t.Run("postgres durability", func(t *testing.T) {
+		t.Run("group creation survives server restart", testPostgresGroupCreationSurvivesServerRestart)
+		t.Run("season start survives restart and rejects second open season", testPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason)
+		t.Run("concurrent season starts return created and conflict", testPostgresConcurrentSeasonStartsReturnCreatedAndConflict)
+		t.Run("concurrent invite creation returns distinct invites", testPostgresConcurrentInviteCreationReturnsDistinctInvites)
+		t.Run("concurrent invite acceptance only lets one player consume invite", testPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite)
+		t.Run("accept invite returns standings for finalized season", testPostgresAcceptInviteReturnsStandingsForFinalizedSeason)
+		t.Run("admin emergency season overrides appear in season history", testPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory)
+		t.Run("admin can resolve open off season dispute and remove jump", testPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump)
+		t.Run("close submissions blocks competition evidence submission", testPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission)
+		t.Run("concurrent idea creation returns distinct ideas", testPostgresConcurrentIdeaCreationReturnsDistinctIdeas)
+		t.Run("concurrent planned jump creation only transitions idea once", testPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce)
+	})
+}
+
+func testCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	createRec := doJSON(server, http.MethodPost, "/v1/groups", "alice-token", map[string]string{"name": "Breakfast Crew"})
@@ -81,7 +158,7 @@ func TestCreateGroupMakesSignedInPlayerGroupAdminAndReturnsGroupHome(t *testing.
 	}
 }
 
-func TestSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
+func testSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	breakfast := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -117,7 +194,7 @@ func TestSignedInPlayerCanListMultipleGroupsAndSwitchGroupHome(t *testing.T) {
 	}
 }
 
-func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
+func testGroupHomeRejectsSignedInNonMember(t *testing.T) {
 	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -127,7 +204,7 @@ func TestGroupHomeRejectsSignedInNonMember(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory(t *testing.T) {
+func testGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistingPlayHistory(t *testing.T) {
 	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	bobExistingGroup := createGroup(t, server, "bob-token", "Dinner Weirdos")
@@ -157,7 +234,7 @@ func TestGroupMemberCreatesInviteAndSignedInPlayerAcceptsWithoutReplacingExistin
 	}
 }
 
-func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
+func testAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
 	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
@@ -173,7 +250,7 @@ func TestAcceptInviteRejectsAlreadyUsedInvite(t *testing.T) {
 	}
 }
 
-func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) {
+func testAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) {
 	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", aliceGroup.Group.ID)
@@ -189,7 +266,7 @@ func TestAcceptInviteRejectsExistingGroupMemberWithoutUsingInvite(t *testing.T) 
 	}
 }
 
-func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
+func testAcceptInviteRejectsExpiredInvite(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -207,7 +284,7 @@ func TestAcceptInviteRejectsExpiredInvite(t *testing.T) {
 	}
 }
 
-func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
+func testAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodPost, "/v1/invites/not-a-real-invite/accept", "bob-token", nil)
@@ -216,7 +293,7 @@ func TestAcceptInviteRejectsInvalidInviteToken(t *testing.T) {
 	}
 }
 
-func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
+func testAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -263,7 +340,7 @@ func TestAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	}
 }
 
-func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
+func testCreateInviteRejectsSignedInNonMember(t *testing.T) {
 	server := newGroupsTestServer(t)
 	aliceGroup := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -273,7 +350,7 @@ func TestCreateInviteRejectsSignedInNonMember(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
+func testGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -309,7 +386,7 @@ func TestGroupMemberCanStartSeasonAndSeeActiveSeasonOnGroupHome(t *testing.T) {
 	}
 }
 
-func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePeriod(t *testing.T) {
+func testSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePeriod(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -336,7 +413,7 @@ func TestSeasonCommissionerCanCloseSubmissionsAndMoveSeasonIntoJudgingGracePerio
 	}
 }
 
-func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
+func testJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -361,7 +438,7 @@ func TestJudgingGracePeriodStillAllowsEligibleJudgmentsOnExistingPerformedJumps(
 	}
 }
 
-func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
+func testSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -406,7 +483,7 @@ func TestSeasonCommissionerCanFinalizeSeasonAndLockStandings(t *testing.T) {
 	}
 }
 
-func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
+func testGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "bob-token", "Breakfast Crew")
 	invite := createInvite(t, server, "bob-token", group.Group.ID)
@@ -452,7 +529,7 @@ func TestGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *testing.T) {
+func testGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	season := startSeason(t, server, "alice-token", group.Group.ID)
@@ -494,7 +571,7 @@ func TestGroupMemberCreatesIdeaThenSeasonLinkedPlannedJumpDuringActiveSeason(t *
 	}
 }
 
-func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
+func testPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	startSeason(t, server, "alice-token", group.Group.ID)
@@ -511,7 +588,7 @@ func TestPlannedJumpCanBeExplicitlyOffSeasonDuringActiveSeason(t *testing.T) {
 	}
 }
 
-func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
+func testPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Pizza Hut", "library", "personal pan pizza")
@@ -527,7 +604,7 @@ func TestPlannedJumpIsOffSeasonWhenNoSeasonIsActive(t *testing.T) {
 	}
 }
 
-func TestPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
+func testPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	createGroup(t, server, "bob-token", "Side Judges")
@@ -560,7 +637,7 @@ func TestPlannedJumpPerformerCanAuthorizeEvidenceUpload(t *testing.T) {
 	}
 }
 
-func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
+func testEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -579,7 +656,7 @@ func TestEvidenceUploadAuthorizationRejectsNonPerformer(t *testing.T) {
 	}
 }
 
-func TestAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testing.T) {
+func testAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Taco Bell", "Olive Garden parking lot", "Crunchwrap")
@@ -622,7 +699,7 @@ func TestAuthorizedEvidenceSubmissionPerformsJumpAndOwnsMediaObjectKey(t *testin
 	}
 }
 
-func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
+func testSubmissionWindowClosesAfterDeadline(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := newGroupsTestServerWithStore(store)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -646,7 +723,7 @@ func TestSubmissionWindowClosesAfterDeadline(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
+func testGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -682,7 +759,7 @@ func TestGroupMemberCanJudgeAnotherPlayersPerformedJump(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
+func testGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -721,7 +798,7 @@ func TestGroupMemberCanRaiseDisputeOnVisiblePerformedJump(t *testing.T) {
 	}
 }
 
-func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
+func testGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -744,7 +821,7 @@ func TestGroupMemberCanRaiseDisputeForEachMVPAcceptedConcern(t *testing.T) {
 	}
 }
 
-func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
+func testPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	performed := performJump(t, server, "alice-token", group.Group.ID)
@@ -760,7 +837,7 @@ func TestPerformerCannotJudgeTheirOwnPerformedJump(t *testing.T) {
 	}
 }
 
-func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
+func testJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 	server, store := newGroupsTestServerAndStore(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -784,7 +861,7 @@ func TestJudgeCanEditTheirOneJudgmentWhileJudgingWindowIsOpen(t *testing.T) {
 	}
 }
 
-func TestJudgmentScoresMustStayInRange(t *testing.T) {
+func testJudgmentScoresMustStayInRange(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -805,7 +882,7 @@ func TestJudgmentScoresMustStayInRange(t *testing.T) {
 	}
 }
 
-func TestJudgmentRequiresAllScoreFields(t *testing.T) {
+func testJudgmentRequiresAllScoreFields(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -825,7 +902,7 @@ func TestJudgmentRequiresAllScoreFields(t *testing.T) {
 	}
 }
 
-func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) {
+func testJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := newGroupsTestServerWithStore(store)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
@@ -872,7 +949,7 @@ func TestJudgmentsCannotBeCreatedOrEditedAfterJudgingWindowCloses(t *testing.T) 
 	}
 }
 
-func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
+func testFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -933,7 +1010,7 @@ func TestFinalizedSeasonScoresJudgedJumpsAndLocksStandings(t *testing.T) {
 	}
 }
 
-func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStandings(t *testing.T) {
+func testSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStandings(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -1000,7 +1077,7 @@ func TestSeasonCommissionerCanDisqualifySeasonLinkedJumpAndExcludeItFromStanding
 	}
 }
 
-func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings(t *testing.T) {
+func testFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -1063,7 +1140,7 @@ func TestFinalizedSeasonMarksUnjudgedJumpsAndExcludesOffSeasonJumpsFromStandings
 	}
 }
 
-func TestGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility(t *testing.T) {
+func testGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -1122,7 +1199,7 @@ func TestGroupAdminCanOverrideDisputeResolutionAndRemoveJumpFromNormalVisibility
 	}
 }
 
-func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
+func testGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	invite := createInvite(t, server, "alice-token", group.Group.ID)
@@ -1159,7 +1236,7 @@ func TestGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
 	}
 }
 
-func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
+func testStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	currentTime := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
@@ -1218,7 +1295,7 @@ func TestStandingsUseLatestCreatedSeasonRatherThanSeasonIDOrder(t *testing.T) {
 	}
 }
 
-func TestIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
+func testIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 	idea := createIdea(t, server, "alice-token", group.Group.ID, "Burger King", "bowling alley", "Whopper")
@@ -1238,7 +1315,7 @@ func TestIdeaAndPlannedJumpRequireGroupMembership(t *testing.T) {
 	}
 }
 
-func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
+func testGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -1259,7 +1336,7 @@ func TestGroupCannotStartSecondSeasonWhileActiveSeasonExists(t *testing.T) {
 	}
 }
 
-func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
+func testPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1277,7 +1354,7 @@ func TestPostgresGroupCreationSurvivesServerRestart(t *testing.T) {
 	}
 }
 
-func TestPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason(t *testing.T) {
+func testPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1307,7 +1384,7 @@ func TestPostgresSeasonStartSurvivesRestartAndRejectsSecondOpenSeason(t *testing
 	}
 }
 
-func TestPostgresConcurrentSeasonStartsReturnCreatedAndConflict(t *testing.T) {
+func testPostgresConcurrentSeasonStartsReturnCreatedAndConflict(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1346,7 +1423,7 @@ func TestPostgresConcurrentSeasonStartsReturnCreatedAndConflict(t *testing.T) {
 	}
 }
 
-func TestPostgresConcurrentInviteCreationReturnsDistinctInvites(t *testing.T) {
+func testPostgresConcurrentInviteCreationReturnsDistinctInvites(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1399,7 +1476,7 @@ func TestPostgresConcurrentInviteCreationReturnsDistinctInvites(t *testing.T) {
 	}
 }
 
-func TestPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *testing.T) {
+func testPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1432,7 +1509,7 @@ func TestPostgresConcurrentInviteAcceptanceOnlyLetsOnePlayerConsumeInvite(t *tes
 	}
 }
 
-func TestPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
+func testPostgresAcceptInviteReturnsStandingsForFinalizedSeason(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1491,7 +1568,7 @@ WHERE id = $1`, season.ActiveSeason.ID); err != nil {
 	}
 }
 
-func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
+func testPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1528,7 +1605,7 @@ func TestPostgresGroupAdminEmergencySeasonOverridesAppearInSeasonHistory(t *test
 	}
 }
 
-func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
+func testPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1571,7 +1648,7 @@ func TestPostgresGroupAdminCanResolveOpenOffSeasonDisputeAndRemoveJump(t *testin
 	}
 }
 
-func TestPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission(t *testing.T) {
+func testPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1599,7 +1676,7 @@ func TestPostgresCloseSubmissionsBlocksCompetitionEvidenceSubmission(t *testing.
 	}
 }
 
-func TestPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
+func testPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1656,7 +1733,7 @@ func TestPostgresConcurrentIdeaCreationReturnsDistinctIdeas(t *testing.T) {
 	}
 }
 
-func TestPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing.T) {
+func testPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing.T) {
 	databaseURL := os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set SUPPERJUMPIN_TEST_DATABASE_URL to run durable Postgres behavior test")
@@ -1691,7 +1768,7 @@ func TestPostgresConcurrentPlannedJumpCreationOnlyTransitionsIdeaOnce(t *testing
 	}
 }
 
-func TestCreatePerformedJumpWithoutGroupIdIsOffSeason(t *testing.T) {
+func testCreatePerformedJumpWithoutGroupIdIsOffSeason(t *testing.T) {
 	server := newGroupsTestServer(t)
 	createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -1719,7 +1796,7 @@ func TestCreatePerformedJumpWithoutGroupIdIsOffSeason(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpGracePeriodUsesInjectableClock(t *testing.T) {
+func testCreatePerformedJumpGracePeriodUsesInjectableClock(t *testing.T) {
 	now := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
@@ -1769,7 +1846,7 @@ func TestCreatePerformedJumpGracePeriodUsesInjectableClock(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpLinksToActiveSeason(t *testing.T) {
+func testCreatePerformedJumpLinksToActiveSeason(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	store.SetClock(func() time.Time {
 		return time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
@@ -1807,7 +1884,7 @@ func TestCreatePerformedJumpLinksToActiveSeason(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpAppearsInGroupHome(t *testing.T) {
+func testCreatePerformedJumpAppearsInGroupHome(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -1841,7 +1918,7 @@ func TestCreatePerformedJumpAppearsInGroupHome(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpThenSelfJudgmentBlocked(t *testing.T) {
+func testCreatePerformedJumpThenSelfJudgmentBlocked(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
@@ -1870,7 +1947,7 @@ func TestCreatePerformedJumpThenSelfJudgmentBlocked(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpRejectsUnauthenticated(t *testing.T) {
+func testCreatePerformedJumpRejectsUnauthenticated(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "", map[string]any{
@@ -1885,7 +1962,7 @@ func TestCreatePerformedJumpRejectsUnauthenticated(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpRejectsMissingFields(t *testing.T) {
+func testCreatePerformedJumpRejectsMissingFields(t *testing.T) {
 	server := newGroupsTestServer(t)
 
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", "alice-token", map[string]any{
@@ -1898,7 +1975,7 @@ func TestCreatePerformedJumpRejectsMissingFields(t *testing.T) {
 	}
 }
 
-func TestCreatePerformedJumpDirectly(t *testing.T) {
+func testCreatePerformedJumpDirectly(t *testing.T) {
 	server := newGroupsTestServer(t)
 	group := createGroup(t, server, "alice-token", "Breakfast Crew")
 
