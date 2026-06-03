@@ -21,11 +21,11 @@ The item or items carried from a **Source** into a **Destination** as part of a 
 _Avoid_: Meal, order
 
 **Draft**:
-A private, local-only Jump concept a **Player** is composing before submitting **Evidence**. A **Draft** may include a **Caption**, **Source**, **Destination**, and **Food** without a photo. A **Draft** never appears on the feed and is not sent to the server until the **Player** submits **Evidence** to create a **Performed Jump**.
-_Avoid_: Idea, Planned Jump, saved jump
+A private, local-only Jump concept a **Player** is composing before submitting **Evidence**. A **Draft** may include a **Caption**, **Source**, **Destination**, and **Food** without a photo. A **Draft** never appears on the feed and is not sent to the server until the **Player** submits **Evidence** to create a **Performed Jump** via `POST /v1/jumps`.
+_Avoid_: saved jump
 
 **Performed Jump**:
-A **Jump** with submitted **Evidence** claiming that the performance happened. During the **Author Grace Period**, the **Player** may edit or retract it; after that, it is locked and can only be removed via a **Dispute** or escalation to a **Removed Jump**.
+A **Jump** with submitted **Evidence** claiming that the performance happened. During the **Author Grace Period**, the **Player** may edit or retract it; after that, it is locked and can only be escalated to a **Removed Jump**.
 _Avoid_: Completed jump
 
 **Judged Jump**:
@@ -34,7 +34,7 @@ _Avoid_: Rated jump, scored jump
 
 
 **Judge**:
-A **Player** or **Guest Judge** who scores a **Performed Jump** they did not perform. Any **Player** or **Guest Judge** may Judge a **Jump** they did not perform; **Group** membership is not required. The performer of a **Jump** is not a **Judge** for that **Jump**.
+A **Player** or **Guest Judge** who scores a **Performed Jump** they did not perform. Any **Player** or **Guest Judge** may Judge a **Jump** they did not perform. The performer of a **Jump** is not a **Judge** for that **Jump**.
 _Avoid_: Voter, reviewer, rater
 
 **Author Grace Period**:
@@ -42,7 +42,7 @@ The 10-minute window after a **Performed Jump** is submitted during which the **
 _Avoid_: Edit window, correction window
 
 **Judging Window**:
-The period when a **Performed Jump** can receive **Judgments**, beginning after the **Author Grace Period** expires. On the public feed, the **Judging Window** is open-ended. Within a **Season**, the **Judging Window** closes with the **Judging Grace Period**.
+The period when a **Performed Jump** can receive **Judgments**, beginning after the **Author Grace Period** expires. On the public feed, the **Judging Window** is open-ended. Season-level judging windows are a v2 concept.
 _Avoid_: Voting period, review window
 
 **Judgment**:
@@ -50,15 +50,11 @@ A **Judge's** submitted scores for a **Performed Jump**. Each **Judgment** recor
 _Avoid_: Vote, review, rating
 
 **Final Score**:
-The aggregate score for a **Judged Jump** after its competition period closes, used to update **Standings**. Supperjumpin tracks three score types: a live running average, which updates with each **Judgment** and appears on the feed and detail view; an **Open Final Score**, computed at monthly **Open** soft-close and stored as `open_final_score`; and a **Season Final Score**, a v2 score computed from **Season**-provenance **Judgments** and stored as `season_final_score`. Public-feed **Judgments** not associated with any competition period contribute only to the live running average and never produce a **Final Score**.
+The aggregate score for a **Judged Jump** after its competition period closes, used to update **Standings**. Supperjumpin tracks two score types: a live running average, which updates with each **Judgment** and appears on the feed and detail view; and an **Open Final Score**, computed at monthly **Open** soft-close and stored as `open_final_score`. Public-feed **Judgments** not associated with any competition period contribute only to the live running average and never produce a **Final Score**.
 _Avoid_: Total score
 
-**Season Score**:
-The accumulated score a **Player** earns in a **Season** from non-disqualified **Judged Jumps**.
-_Avoid_: Points, rating
-
 **Mission**:
-A non-competitive prompt or objective a **Player** can complete for progression or rewards outside **Season Score**. **Missions** may teach the game, encourage participation, or suggest themed **Jumps** without affecting **Standings**.
+A non-competitive prompt or objective a **Player** can complete for progression or rewards outside competitive scoring. **Missions** may teach the game, encourage participation, or suggest themed **Jumps** without affecting **Standings**.
 _Avoid_: Quest, achievement, task
 
 **Action Mission**:
@@ -74,23 +70,15 @@ A reusable **Jump** idea, theme, or constraint that can inspire **Drafts**, **Mi
 _Avoid_: Template, card, challenge
 
 **Bounty**:
-A **Mission** with a meaningful reward for completing a **Prompt**. **Bounties** do not affect **Season Score** by default.
+A **Mission** with a meaningful reward for completing a **Prompt**. **Bounties** do not affect competitive scoring by default.
 _Avoid_: Prize challenge
 
 **Sponsored Bounty**:
-A **Bounty** funded or promoted by an external sponsor, such as a restaurant or brand. **Sponsored Bounties** do not affect **Season Score** by default.
+A **Bounty** funded or promoted by an external sponsor, such as a restaurant or brand. **Sponsored Bounties** do not affect competitive scoring by default.
 _Avoid_: Ad, promotion
 
-**Unwitnessed Jump**:
-A v2 **Season** concept for a **Performed Jump** whose **Season** **Judging Grace Period** closes without any **Season** **Judgments**, so it does not affect **Standings**. On the public feed, the **Judging Window** is open-ended and never closes; a **Jump** with zero **Judgments** remains a **Performed Jump** indefinitely.
-_Avoid_: Unjudged jump, unrated jump
-
-**Dispute**:
-A **Player-raised** challenge that a **Performed Jump** may not satisfy **House Rules**, **Credibility**, or claimed **Source**, **Destination**, or **Food**. In v1, Disputes are filed via a simple Report form with 3–4 high-level categories (derived from House Rules) plus an optional text field; adjudication is manual by the team. Formal Dispute tooling is v2.
-_Avoid_: Report, flag, appeal
-
 **Disqualified Jump**:
-A **Performed Jump** removed from **Standings** because it failed **House Rules** or another competition requirement. A v2 concept; the governance model for adjudicating Disqualified Jumps will be designed when Groups are specified. At MVP, the team may manually exclude a Jump from the **Open** **Standings** without a formal Disqualified status.
+A **Performed Jump** removed from **Standings** because it failed **House Rules** or another competition requirement. At MVP, the team may manually exclude a Jump from the **Open** **Standings** without a formal Disqualified status.
 _Avoid_: Deleted jump, rejected jump
 
 **Removed Jump**:
@@ -110,20 +98,11 @@ The login identity that owns a **Player**. **Account** identity is separate from
 _Avoid_: User
 
 **Group**:
-An optional bounded set of **Players** who share, view, and judge each other's **Jumps**. In v1, a **Group** is a lightweight social circle (e.g., a group chat) with no formal administration, **Season** requirements, or competitive infrastructure. In v2, **Groups** gain **Seasons**, **Standings**, **Awards**, and the **Season Commissioner** role. **Jumps** exist on a public feed independently of **Groups** in v1.
+A v2 concept — an optional bounded set of **Players** who share, view, and judge each other's **Jumps**. Group, Group Membership, Group Admin, and Invite code was removed per ADR-0019; will be rebuilt from scratch for v2.
 _Avoid_: League, community, club
 
-**Group Membership**:
-The relationship between a **Player** and a **Group**, including that **Player's** participation status or role within the **Group**.
-_Avoid_: Membership, subscription
-
-**Group Admin**:
-A **Player** with durable authority over a **Group**, including emergency override authority over an **Active Season**. A v2 feature; v1 **Groups** have no formal administration.
-_Avoid_: Owner, moderator
-
 **Invite**:
-A way for a **Player** to bring another person into a **Group**. In v1, this is an informal share of a **Jump** link to a group chat. In v2, **Invites** become a formal **Group Membership** mechanism with join codes or admin approval.
-_Avoid_: Invitation link, referral
+A v2 concept — a way for a **Player** to bring another person into a **Group**. Removed per ADR-0019.
 
 **Share**:
 The act of distributing a **Jump** link from the app to an external channel (group chat, social media, etc.). A **Share** surfaces a deep link with a preview card containing the **Evidence** photo, a truncated **Caption**, the running average score, and the **Source**/**Destination**/**Food** summary. The recipient opens the **Jump** detail view directly, where they may **Judge** without creating an **Account**.
@@ -138,40 +117,16 @@ The platform-run monthly competition, open to all **Players** globally. The **Op
 _Avoid_: Global Season, public season
 
 **Season**:
-A bounded competition period within a **Group** where **Judged Jumps** contribute to **Standings** and **Awards**. A **Group** has at most one active or closing **Season** at a time. Distinct from the **Open**, which is platform-run and requires no **Group** or **Season Commissioner**. **Seasons** are a v2 feature; the **Open** is the v1 competitive context.
+A v2 concept — a bounded competition period within a **Group** where **Judged Jumps** contribute to **Standings** and **Awards**. Season code (start, close, finalize) was removed per ADR-0019; `season_id` column retained as nullable provenance field. The **Open** is the v1 competitive context.
 _Avoid_: Campaign, tournament
 
-**Season Commissioner**:
-The **Player** who starts a **Season** and holds season-scoped authority similar to a fantasy sports commissioner.
-_Avoid_: Season owner, league manager, commissioner
-
-**Active Season**:
-The current **Season** in a **Group** where **Players** may submit **Jumps** for competition.
-_Avoid_: Current season
-
-**Submission Window**:
-The phase of an **Active Season** when **Players** may submit **Jumps** for competition.
-_Avoid_: Season window
-
-**Judging Grace Period**:
-The phase after a **Season's** **Submission Window** closes when no new competition **Jumps** may be submitted, but existing **Performed Jumps** may still receive **Judgments**.
-_Avoid_: Overtime, judging window extension
-
-**Finalized Season**:
-A **Season** whose **Standings** are locked after the **Judging Grace Period** ends.
-_Avoid_: Ended season, closed season, archived season
-
 **Standings**:
-A ranked view of **Players** by **Final Score** for a given competition period — either within a **Group** for a **Season**, or platform-wide for an **Open**.
+A ranked view of **Players** by **Final Score** for a given competition period — currently platform-wide for the monthly **Open**.
 _Avoid_: Leaderboard
 
 **Award**:
-An end-of-**Season** recognition for a notable pattern or achievement, which may be based on total score, a specific scoring factor, or a pattern of play that the scoring model cannot capture.
+A v2 concept — an end-of-**Season** recognition for a notable pattern or achievement. Not implemented in v1.
 _Avoid_: Badge, achievement
-
-**Unwitnessed Performance**:
-An **Award** given at **Season** close to a **Player** whose **Season**-linked **Jump** closed as an **Unwitnessed Jump**. Recognizes commitment without an audience. Does not affect **Season Score** or **Standings**.
-_Avoid_: Consolation prize
 
 **House Rules**:
 The boundaries that define what behavior can count as valid Supperjumpin play. A **Jump** may be awkward, absurd, or transgressive, but must not require harassment, deception that causes material harm to a specific person, trespass, behavior that creates imminent risk of physical injury, illegal acts, property damage, animal cruelty, content that contains hate speech or graphic violence, or intentionally preventing a business from operating. The team may remove any **Jump** that violates the spirit of playful, harmless absurdity, even if it does not violate a specific rule.
@@ -207,10 +162,10 @@ _Avoid_: Truth, proof
 
 ## Example Dialogue
 
-**Player A**: I performed it: Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I submitted photo Evidence and a Caption. It is now a Performed Jump in its Author Grace Period, so I have 10 minutes to edit before the Judging Window opens.
+**Player A**: I performed it: Taco Bell as the Source, Olive Garden parking lot as the Destination, Crunchwrap as the Food. I called `POST /v1/jumps` with photo Evidence and a Caption. It is now a Performed Jump in its Author Grace Period, so I have 10 minutes to edit before the Judging Window opens.
 
-**Player B**: Once the Author Grace Period expires I'll Judge it on Commitment, Transgression, Creativity, and Presentation. I don't need an Account or a Group to Judge; as a Guest Judge, my Judgment adds to the public running average.
+**Player B**: Once the Author Grace Period expires I'll Judge it on Commitment, Transgression, Creativity, and Presentation. I don't need an Account to Judge; as a Guest Judge, my Judgment adds to the public running average.
 
 **Player A**: If enough people Judge it before the monthly Open soft-close, it can earn an Open Final Score. Until then, the feed and detail page show the live running average as Judgments come in.
 
-**Team**: If a Jump violates House Rules in v1, we may remove it entirely as a Removed Jump. Disqualified Jump is a v2 Season concept, not part of the v1 public feed.
+**Team**: If a Jump violates House Rules in v1, we may remove it entirely as a Removed Jump.
