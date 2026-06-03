@@ -30,9 +30,13 @@ func (v StaticAuthVerifier) Verify(token string) (AuthIdentity, bool) {
 }
 
 type ServerConfig struct {
-	Auth  AuthVerifier
-	Store Store
-	DB    Persistence
+	Auth         AuthVerifier
+	Store        Store
+	Now          func() time.Time
+	JumpPlanning JumpPlanningFlow
+	Judgment     JudgmentFlow
+	PublicRead   PublicReadFlow
+	Open         OpenFlow
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -72,7 +76,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		jump, err := createPerformedJump(r.Context(), config.DB, profile.Player, source, destination, food, caption, mediaObjectKey)
+		jump, err := createPerformedJump(r.Context(), config.JumpPlanning, profile.Player, source, destination, food, caption, mediaObjectKey, config.Now())
 		if err != nil {
 			http.Error(w, "create Performed Jump", http.StatusInternalServerError)
 			return
@@ -86,7 +90,7 @@ func NewServer(config ServerConfig) http.Handler {
 			http.Error(w, "create guest session", http.StatusInternalServerError)
 			return
 		}
-		if err := config.DB.CreateGuestSession(r.Context(), id); err != nil {
+		if err := config.Judgment.CreateGuestSession(r.Context(), id); err != nil {
 			http.Error(w, "create guest session", http.StatusInternalServerError)
 			return
 		}
@@ -137,7 +141,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		judgment, ok, created, err := submitJudgment(
 			r.Context(),
-			config.DB,
+			config.Judgment,
 			playerID,
 			guestSessionID,
 			"public",
@@ -146,6 +150,7 @@ func NewServer(config ServerConfig) http.Handler {
 			*request.Transgression,
 			*request.Creativity,
 			*request.Presentation,
+			config.Now(),
 		)
 		if errors.Is(err, ErrJumpNotFound) {
 			http.Error(w, "Performed Jump not found", http.StatusNotFound)
@@ -205,10 +210,10 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		result := game.ComputeOpenScores(r.Context(), config.DB, game.ComputeOpenScoresInput{
+		result := game.ComputeOpenScores(r.Context(), config.Open, game.ComputeOpenScoresInput{
 			Year:  year,
 			Month: month,
-		}, config.DB.Now())
+		}, config.Now())
 
 		if errors.Is(result.Err, game.ErrOpenMonthNotClosed) {
 			http.Error(w, "Open month has not soft-closed yet", http.StatusConflict)
@@ -253,7 +258,7 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		// Fetch limit+1 to detect whether there's a next page
-		cards, err := config.DB.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
+		cards, err := config.PublicRead.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jumps. Please try again.")
 			return
@@ -265,13 +270,13 @@ func NewServer(config ServerConfig) http.Handler {
 			for i, c := range cards {
 				cardIDs[i] = c.ID
 			}
-			judged, err := config.DB.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
+			judged, err := config.PublicRead.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
 			if err != nil {
 				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
 				return
 			}
 			for i := range cards {
-				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged, config.DB.Now())
+				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged, config.Now())
 			}
 		}
 
@@ -291,7 +296,7 @@ func NewServer(config ServerConfig) http.Handler {
 		viewer := optionalProfile(r, config)
 		jumpID := r.PathValue("jumpID")
 
-		detail, found, err := config.DB.JumpDetail(r.Context(), jumpID)
+		detail, found, err := config.PublicRead.JumpDetail(r.Context(), jumpID)
 		if err != nil {
 			http.Error(w, "Could not load jump detail", http.StatusInternalServerError)
 			return
@@ -317,7 +322,7 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		// Attach viewer context for all requests (unauthenticated = default canJudge: true)
-		detail.ViewerContext = computeViewerContext(detail, viewer, config.DB, r.Context(), config.DB.Now())
+		detail.ViewerContext = computeViewerContext(detail, viewer, config.PublicRead, r.Context(), config.Now())
 
 		writeJSON(w, http.StatusOK, detail)
 	})
@@ -332,7 +337,7 @@ func NewServer(config ServerConfig) http.Handler {
 // Guests see the judge UI and are prompted to authenticate before actually
 // submitting. The judgment submission endpoint independently verifies auth;
 // viewerContext is purely a UI hint, not an authorization gate.
-func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence, ctx context.Context, now time.Time) *ViewerContext {
+func computeViewerContext(detail JumpDetail, viewer *MeResponse, db PublicReadFlow, ctx context.Context, now time.Time) *ViewerContext {
 	vc := &ViewerContext{CanJudge: true}
 
 	if viewer == nil {

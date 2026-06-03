@@ -54,18 +54,23 @@ type Store interface {
 	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
 }
 
-// Persistence combines game repository interfaces with transport-layer DTO
-// assembly queries. PostgresStore implements this interface; unit tests should
-// use small per-test fakes or mocks instead of a shared in-memory store.
-type Persistence interface {
+// JumpPlanningFlow is the narrow interface needed by the jump planning transport
+// helper. It embeds only the game repository methods required for creating jumps.
+type JumpPlanningFlow interface {
 	game.JumpRepository
+}
+
+// JudgmentFlow is the narrow interface needed by the judgment transport helper.
+// It embeds only the game repository and guest-session methods required for
+// submitting judgments.
+type JudgmentFlow interface {
 	game.JudgmentRepository
-	game.OpenRepository
-
 	CreateGuestSession(ctx context.Context, id string) error
-	Now() time.Time
+}
 
-	// Public read path
+// PublicReadFlow is the narrow interface needed by the public feed and jump
+// detail handlers. It provides DTO assembly and already-judged lookups.
+type PublicReadFlow interface {
 	FeedJumps(ctx context.Context, cursorTS *time.Time, cursorID string, limit int) ([]JumpCard, error)
 	JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error)
 	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
@@ -77,9 +82,16 @@ type Persistence interface {
 	HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error)
 }
 
+// OpenFlow is the narrow interface needed by the Open scoring handler.
+type OpenFlow interface {
+	game.OpenRepository
+}
+
+
+
 // --- Transport-layer DTO helpers (game-command → DTO conversion) ---
 
-func createPerformedJump(ctx context.Context, db Persistence, player Player, source, destination, food, caption, mediaObjectKey string) (Jump, error) {
+func createPerformedJump(ctx context.Context, db JumpPlanningFlow, player Player, source, destination, food, caption, mediaObjectKey string, now time.Time) (Jump, error) {
 	result := game.CreatePerformedJump(ctx, db, game.CreatePerformedJumpInput{
 		PlayerID:       player.ID,
 		Source:         source,
@@ -87,14 +99,14 @@ func createPerformedJump(ctx context.Context, db Persistence, player Player, sou
 		Food:           food,
 		Caption:        caption,
 		MediaObjectKey: mediaObjectKey,
-	}, db.Now())
+	}, now)
 	if result.Err != nil {
 		return Jump{}, mapGameErr(result.Err)
 	}
 	return jumpFromGame(result.Jump), nil
 }
 
-func submitJudgment(ctx context.Context, db Persistence, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int) (Judgment, bool, bool, error) {
+func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int, now time.Time) (Judgment, bool, bool, error) {
 	result := game.SubmitJudgment(ctx, db, game.JudgmentInput{
 		JumpID:         jumpID,
 		JudgePlayerID:  playerID,
@@ -104,7 +116,7 @@ func submitJudgment(ctx context.Context, db Persistence, playerID, guestSessionI
 		Transgression:  transgression,
 		Creativity:     creativity,
 		Presentation:   presentation,
-	}, db.Now())
+	}, now)
 	if result.Err != nil {
 		return Judgment{}, false, false, mapGameErr(result.Err)
 	}

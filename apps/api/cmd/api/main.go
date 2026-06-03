@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
@@ -34,7 +35,15 @@ func main() {
 	}
 	defer store.Close()
 
-	server := httpapi.NewServer(httpapi.ServerConfig{Auth: auth, Store: store})
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth:         auth,
+		Store:        store,
+		Now:          time.Now,
+		JumpPlanning: store,
+		Judgment:     store,
+		PublicRead:   store,
+		Open:         store,
+	})
 	log.Printf("Supperjumpin API listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, server))
 }

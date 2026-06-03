@@ -235,9 +235,22 @@ func testPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 }
 
 func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
-	store := &failingPublicReadStore{PostgresStore: newCleanPostgresTestStore(t)}
+	pgStore := newCleanPostgresTestStore(t)
+	store := &failingPublicReadStore{PostgresStore: pgStore}
 	store.SetClock(time.Now)
-	server := newTestServerWithStore(store)
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "supabase", Subject: "carol-auth", Email: "carol@example.com"},
+		},
+		Store:        store,
+		Now:          pgStore.Now,
+		JumpPlanning: pgStore,
+		Judgment:     pgStore,
+		PublicRead:   store,
+		Open:         pgStore,
+	})
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusInternalServerError {
@@ -487,7 +500,6 @@ func (s *failingPublicReadStore) FeedJumps(_ context.Context, _ *time.Time, _ st
 // use to create Jumps and set the clock.
 type publicReadTestStore struct {
 	Store *httpapi.PostgresStore
-	DB    httpapi.Persistence
 }
 
 type publicFeedBody struct {
@@ -517,10 +529,9 @@ type publicFeedJumpBody struct {
 func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) {
 	t.Helper()
 	store := newCleanPostgresTestStore(t)
-	server := newTestServerWithPersistence(store)
+	server := newTestServerWithStore(store)
 	return server, &publicReadTestStore{
 		Store: store,
-		DB:    store,
 	}
 }
 

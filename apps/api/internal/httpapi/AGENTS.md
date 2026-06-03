@@ -13,7 +13,7 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Fix game error → HTTP status mapping | `store.go` (mapGameErr) | e.g., `ErrInvalidJudgmentScore` → 400 |
 | Add transport helper | `store.go` | Wraps game function + assembles DTO response |
 | Shared transport helpers | `helpers.go` | ID generation, DTO/snapshot mapping, small package helpers |
-| Production persistence | `postgres_store.go` (PostgresStore) | Raw SQL implementing same `Persistence` interface |
+| Production persistence | `postgres_store.go` (PostgresStore) | Raw SQL implementing narrow per-flow interfaces |
 | Integration tests | `me_test.go`, `public_read_test.go`, `guest_judgment_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS

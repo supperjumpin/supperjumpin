@@ -68,27 +68,27 @@ func decodeResponse(t *testing.T, rec *httptest.ResponseRecorder, target any) {
 // ---------------------------------------------------------------------------
 
 func newTestServer(t *testing.T) http.Handler {
-	return newTestServerWithPersistence(newCleanPostgresTestStore(t))
+	return newTestServerWithStore(newCleanPostgresTestStore(t))
 }
 
 func newTestServerAndStore(t *testing.T) (http.Handler, *httpapi.PostgresStore) {
 	store := newCleanPostgresTestStore(t)
-	return newTestServerWithPersistence(store), store
+	return newTestServerWithStore(store), store
 }
 
-func newTestServerWithStore(store httpapi.Store) http.Handler {
-	return newTestServerWithPersistence(store.(httpapi.Persistence))
-}
-
-func newTestServerWithPersistence(db httpapi.Persistence) http.Handler {
+func newTestServerWithStore(store *httpapi.PostgresStore) http.Handler {
 	return httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
 			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
 			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
 			"carol-token": {Provider: "supabase", Subject: "carol-auth", Email: "carol@example.com"},
 		},
-		Store: db.(httpapi.Store),
-		DB:    db,
+		Store:        store,
+		Now:          store.Now,
+		JumpPlanning: store,
+		Judgment:     store,
+		PublicRead:   store,
+		Open:         store,
 	})
 }
 

@@ -15,8 +15,12 @@ func testGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
 		Auth: httpapi.StaticAuthVerifier{
 			"valid-token": {Provider: "supabase", Subject: "auth-user-123", Email: "player@example.com"},
 		},
-		Store: store,
-		DB:    store,
+		Store:        store,
+		Now:          store.Now,
+		JumpPlanning: store,
+		Judgment:     store,
+		PublicRead:   store,
+		Open:         store,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
@@ -77,9 +81,13 @@ func testGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
 func testGetMeRejectsMissingBearerToken(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
-		Auth:  httpapi.StaticAuthVerifier{},
-		Store: store,
-		DB:    store,
+		Auth:         httpapi.StaticAuthVerifier{},
+		Store:        store,
+		Now:          store.Now,
+		JumpPlanning: store,
+		Judgment:     store,
+		PublicRead:   store,
+		Open:         store,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
