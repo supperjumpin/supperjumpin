@@ -8,6 +8,20 @@ export async function getMe({ baseUrl, accessToken, fetchImpl = fetch }) {
   return response.json();
 }
 
+export async function updateDisplayName({ baseUrl, accessToken, displayName, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/me/display-name`, {
+    method: "PATCH",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`updateDisplayName failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function createGroup({ baseUrl, accessToken, name, fetchImpl = fetch }) {
   const response = await fetchImpl(`${baseUrl}/v1/groups`, {
     method: "POST",

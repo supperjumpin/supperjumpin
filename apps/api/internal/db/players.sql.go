@@ -43,3 +43,17 @@ func (q *Queries) GetGroupPlayers(ctx context.Context, groupID string) ([]GetGro
 	}
 	return items, nil
 }
+
+const updatePlayerDisplayName = `-- name: UpdatePlayerDisplayName :exec
+UPDATE players SET display_name = $2 WHERE id = $1
+`
+
+type UpdatePlayerDisplayNameParams struct {
+	ID          string
+	DisplayName string
+}
+
+func (q *Queries) UpdatePlayerDisplayName(ctx context.Context, arg UpdatePlayerDisplayNameParams) error {
+	_, err := q.db.ExecContext(ctx, updatePlayerDisplayName, arg.ID, arg.DisplayName)
+	return err
+}

@@ -11,6 +11,7 @@ import type {
   PublicFeedResponse,
   JumpDetail,
   JumpTombstone,
+  UpdateDisplayNameResponse,
 } from "./generated";
 
 export type {
@@ -42,6 +43,13 @@ export function getMe(args: {
   accessToken: string;
   fetchImpl?: typeof fetch;
 }): Promise<MeResponse>;
+
+export function updateDisplayName(args: {
+  baseUrl: string;
+  accessToken: string;
+  displayName: string;
+  fetchImpl?: typeof fetch;
+}): Promise<UpdateDisplayNameResponse>;
 
 export function createGroup(args: {
   baseUrl: string;

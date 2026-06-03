@@ -103,6 +103,29 @@ func (s *MemoryStore) BootstrapIdentity(ctx context.Context, identity AuthIdenti
 	return profile, nil
 }
 
+func (s *MemoryStore) UpdateDisplayName(ctx context.Context, playerID string, displayName string) (Player, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	player, ok := s.players[playerID]
+	if !ok {
+		return Player{}, nil
+	}
+	player.DisplayName = displayName
+	s.players[playerID] = player
+
+	// Update in accounts map too
+	for key, profile := range s.accounts {
+		if profile.Player.ID == playerID {
+			profile.Player = player
+			s.accounts[key] = profile
+			break
+		}
+	}
+
+	return player, nil
+}
+
 func (s *MemoryStore) GroupHomeForGroup(ctx context.Context, groupID string, player Player) (GroupHomeResponse, bool, error) {
 	s.mu.Lock()
 

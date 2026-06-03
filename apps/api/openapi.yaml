@@ -18,6 +18,33 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           description: Missing or invalid bearer token.
+  /v1/me/display-name:
+    patch:
+      operationId: updateDisplayName
+      summary: Update the signed-in Player's display name
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName:
+                  type: string
+      responses:
+        "200":
+          description: The updated Player profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateDisplayNameResponse"
+        "400":
+          description: Invalid or missing display name.
+        "401":
+          description: Missing or invalid bearer token.
   /v1/groups:
     get:
       operationId: listGroups
@@ -645,6 +672,12 @@ components:
       properties:
         account:
           $ref: "#/components/schemas/Account"
+        player:
+          $ref: "#/components/schemas/Player"
+    UpdateDisplayNameResponse:
+      type: object
+      required: [player]
+      properties:
         player:
           $ref: "#/components/schemas/Player"
     Account:
