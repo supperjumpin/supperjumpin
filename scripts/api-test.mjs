@@ -1,7 +1,78 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+import {
+  buildAdminURL,
+  DEFAULT_TEST_DATABASE_URL,
+  parseDatabaseName,
+  runMigrations,
+  runPsqlCommand,
+  waitForPostgresReady,
+} from "./db-helpers.mjs";
+
+const API_MODULE = "github.com/supperjumpin/supperjumpin/apps/api";
+const COVERAGE_SUMMARY_EXCLUSIONS = new Set(["cmd/api", "internal/db"]);
+
+function packageCoverageRows(profilePath) {
+  const packages = new Map();
+  for (const line of readFileSync(profilePath, "utf8").trim().split("\n").slice(1)) {
+    const [range, statementCountText, countText] = line.split(" ");
+    const filePath = range.slice(0, range.lastIndexOf(":"));
+    const packagePath = filePath.slice(0, filePath.lastIndexOf("/"));
+    const packageName = packagePath.startsWith(`${API_MODULE}/`)
+      ? packagePath.slice(API_MODULE.length + 1)
+      : packagePath;
+    const statementCount = Number(statementCountText);
+    const count = Number(countText);
+    const coverage = packages.get(packageName) ?? { covered: 0, total: 0 };
+    coverage.total += statementCount;
+    if (count > 0) {
+      coverage.covered += statementCount;
+    }
+    packages.set(packageName, coverage);
+  }
+
+  return [...packages.entries()]
+    .filter(([packageName]) => !COVERAGE_SUMMARY_EXCLUSIONS.has(packageName))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([packageName, coverage]) => ({
+      packageName,
+      percent: coverage.total === 0 ? 0 : (coverage.covered / coverage.total) * 100,
+    }));
+}
+
+function formatCoverageSummary(rows, totalPercent) {
+  const lines = ["Go API coverage by package:"];
+  for (const row of rows) {
+    const percent = row.percent.toFixed(1);
+    const prefix = percent === "0.0" ? "WARNING: " : "";
+    lines.push(`${prefix}${row.packageName}: ${percent}%`);
+  }
+  lines.push(
+    totalPercent
+      ? `total: (statements) ${totalPercent}%`
+      : "total: (statements) unavailable"
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function filterKnownCoverageNoise(output) {
+  const lines = output.split("\n");
+  const filtered = lines.filter((line) => {
+    const trimmed = line.trim();
+    for (const packageName of COVERAGE_SUMMARY_EXCLUSIONS) {
+      if (
+        trimmed.startsWith(`${API_MODULE}/${packageName}`) &&
+        trimmed.includes("coverage: 0.0% of statements")
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+  return filtered.join("\n");
+}
 
 /**
  * Determine the test database URL from environment.
@@ -9,22 +80,7 @@ import { fileURLToPath } from "node:url";
  * to the local Docker Compose Postgres test database.
  */
 export function getTestDatabaseURL(env) {
-  return (
-    env.SUPPERJUMPIN_TEST_DATABASE_URL ??
-    "postgres://postgres:postgres@localhost:5432/supperjumpin_test?sslmode=disable"
-  );
-}
-
-/**
- * Extract the database name from a postgres:// URL.
- */
-export function parseDatabaseName(url) {
-  const parsed = new URL(url);
-  const dbName = parsed.pathname.replace(/^\//, "");
-  if (!dbName) {
-    throw new Error(`Could not parse database name from URL: ${url}`);
-  }
-  return dbName;
+  return env.SUPPERJUMPIN_TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL;
 }
 
 /**
@@ -38,75 +94,14 @@ export function isSafeToReset(dbName, allowUnsafe) {
   return dbName.endsWith("_test");
 }
 
-/**
- * Build an admin database URL by replacing the database name with "postgres".
- */
-export function buildAdminURL(databaseURL) {
-  const parsed = new URL(databaseURL);
-  parsed.pathname = "/postgres";
-  return parsed.toString();
-}
-
-/**
- * Run a psql command. Uses docker compose exec when running locally,
- * otherwise expects psql to be available on PATH.
- */
-function runPsqlCommand(databaseURL, sql, isLocalDocker) {
-  if (isLocalDocker) {
-    return spawnSync("docker", ["compose", "exec", "-T", "postgres", "psql", databaseURL, "-c", sql], {
-      stdio: "pipe",
-    });
-  }
-  return spawnSync("psql", [databaseURL, "-c", sql], { stdio: "pipe" });
-}
-
-/**
- * Wait for local Docker Compose Postgres to be ready.
- */
-function waitForPostgresReady(timeoutMs = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const result = spawnSync(
-      "docker",
-      ["compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-      { stdio: "pipe" }
-    );
-    if (result.status === 0) {
-      return true;
-    }
-    // Busy-wait 500ms
-    const waitStart = Date.now();
-    while (Date.now() - waitStart < 500) {
-      // no-op
-    }
-  }
-  return false;
-}
-
-/**
- * Run migrations against the given database URL.
- */
-function runMigrations(databaseURL) {
-  const binDir = process.env.SUPPERJUMPIN_MIGRATE_BIN_DIR ?? "bin";
-  const migratePath = join(resolve(binDir), "migrate");
-  if (!existsSync(migratePath)) {
-    console.error(`Local migrate binary not found at ${migratePath}. Run \`npm run setup\` first.`);
-    return { status: 1 };
-  }
-  const migrationsPath = resolve("apps/api/db/migrations");
-  return spawnSync(
-    migratePath,
-    ["-database", databaseURL, "-path", migrationsPath, "up"],
-    { stdio: "inherit" }
-  );
-}
-
 function main() {
   const env = process.env;
   const testDatabaseURL = getTestDatabaseURL(env);
   const dbName = parseDatabaseName(testDatabaseURL);
   const allowUnsafe = env.SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET === "1";
   const isLocalDocker = !env.SUPPERJUMPIN_TEST_DATABASE_URL;
+  const coverageEnabled = process.argv.includes("--coverage");
+  const extraGoArgs = process.argv.slice(2).filter((arg) => arg !== "--coverage");
 
   if (!isSafeToReset(dbName, allowUnsafe)) {
     console.error(
@@ -154,21 +149,61 @@ function main() {
   }
 
   console.log("Applying migrations...");
-  const migrateResult = runMigrations(testDatabaseURL);
+  const migrateResult = runMigrations(testDatabaseURL, env);
   if (migrateResult.status !== 0) {
     console.error("Migrations failed.");
     process.exit(1);
   }
 
   console.log("Running Go tests...");
-  const goArgs = ["test", "./apps/api/...", ...process.argv.slice(2)];
+  const goArgs = ["test"];
+  if (coverageEnabled) {
+    mkdirSync("coverage", { recursive: true });
+    goArgs.push("-covermode=atomic", "-coverprofile=coverage/api.coverprofile");
+  }
+  goArgs.push("./apps/api/...", ...extraGoArgs);
   const goTestResult = spawnSync("go", goArgs, {
-    stdio: "inherit",
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...env,
       SUPPERJUMPIN_TEST_DATABASE_URL: testDatabaseURL,
     },
   });
+
+  if (goTestResult.stdout) {
+    const stdout = goTestResult.status === 0 && coverageEnabled
+      ? filterKnownCoverageNoise(goTestResult.stdout)
+      : goTestResult.stdout;
+    process.stdout.write(stdout);
+  }
+  if (goTestResult.stderr) {
+    process.stderr.write(goTestResult.stderr);
+  }
+
+  if (goTestResult.status === 0 && coverageEnabled) {
+    const coverResult = spawnSync("go", ["tool", "cover", "-func=coverage/api.coverprofile"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+    });
+
+    if (coverResult.stderr) {
+      process.stderr.write(coverResult.stderr);
+    }
+
+    const summaryMatch = `${coverResult.stdout ?? ""}${coverResult.stderr ?? ""}`.match(
+      /total:\s+\(statements\)\s+([\d.]+)%/
+    );
+    const coverageSummary = formatCoverageSummary(
+      packageCoverageRows("coverage/api.coverprofile"),
+      summaryMatch?.[1]
+    );
+    process.stdout.write(coverageSummary);
+    if (env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `### Go API coverage\n\n\`\`\`\n${coverageSummary}\`\`\`\n`);
+    }
+  }
 
   process.exit(goTestResult.status ?? 0);
 }

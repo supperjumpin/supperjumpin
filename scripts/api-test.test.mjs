@@ -3,10 +3,9 @@ import assert from "node:assert";
 
 import {
   getTestDatabaseURL,
-  parseDatabaseName,
   isSafeToReset,
-  buildAdminURL,
 } from "./api-test.mjs";
+import { buildAdminURL, parseDatabaseName } from "./db-helpers.mjs";
 
 test("parseDatabaseName extracts db name from postgres URL", () => {
   assert.strictEqual(

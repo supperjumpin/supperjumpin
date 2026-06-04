@@ -44,15 +44,16 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 ## CONVENTIONS
 
 - **Hexagonal architecture**: Domain logic in `internal/game/` (pure functions, injected repo interfaces). Transport in `internal/httpapi/` (routing, JSON, DTO conversion). Domain must never import `net/http` or `database/sql`.
-- **Repository-per-flow**: Each `game/*.go` defines its own small repository interface (e.g., `JudgmentRepository`). Both `MemoryStore` and `PostgresStore` implement the composed `Persistence` interface.
+- **Repository-per-flow**: Each `game/*.go` defines its own small repository interface (e.g., `JudgmentRepository`). `PostgresStore` implements the composed `Persistence` interface; tests should use per-test fakes or Postgres-backed fixtures.
 - **Result pattern**: Domain functions return `XxxResult{Allowed, Created, Err}` structs. `Allowed=false` maps to HTTP 403.
 - **Snapshot pattern**: Read-only views use `XxxSnapshot` structs (e.g., `JumpSnapshot`, `SeasonSnapshot`).
 - **Stable IDs**: `stableID(kind, value)` generates SHA256-based deterministic IDs, not UUIDs.
-- **Clock injection**: `func() time.Time` is injected for testability (e.g., `MemoryStore` accepts `now`).
+- **Clock injection**: `func() time.Time` is injected for testability (e.g., `PostgresStore` accepts `now`).
 - **Pre-stable migrations**: Fold schema changes into existing migration files. Do not create standalone numbered migrations until DB is declared stable.
 - **OpenAPI sync gate**: CI runs `generate:api-client` then `git diff --exit-code`. Any OpenAPI change without regeneration breaks CI.
 - **Hand-rolled mocks**: Go tests use inline `mock*Repo` structs with function fields. No testify/mock or gomock.
 - **Co-located tests**: `*_test.go` alongside source. Node tests use `node --test` with `*.test.mjs`.
+- **Coverage commands**: `npm run test:coverage` and `npm run api:test:coverage` emit coverage summaries and write files under `coverage/`.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -73,7 +74,6 @@ These are known compromises that exist for pre-MVP speed but should converge tow
 
 | Current state | Why it exists | Converge when |
 |---|---|---|
-| Single-file `App.tsx` (~550 lines, no router, no state lib) | Pre-MVP speed; not enough UI surface to justify splitting | There are 2+ screens or 3+ distinct UI sections → split into files + add React Navigation |
 ## MAINTENANCE CONTRACT
 
 These files are maintained by convention, not automation. Follow these rules in every PR:
@@ -88,20 +88,23 @@ These files are maintained by convention, not automation. Follow these rules in 
 ```sh
 # Development
 npm run db:up             # Start Docker Compose Postgres service
+npm run db:down           # Stop Docker Compose Postgres without deleting data
+npm run db:reset          # Recreate local dev DB and reapply migrations
 npm run db:migrate        # Apply migrations using repo-local golang-migrate
 npm run api:dev           # Run API against existing DB
-npm run demo:mobile       # expo start (needs .env from .env.example)
 
 # Testing
-npm run api:test          # Run Go API tests against Postgres (local Docker or SUPPERJUMPIN_TEST_DATABASE_URL)
+npm run api:test          # Run Go API tests against Postgres (local Docker or SUPPERJUMPIN_TEST_DATABASE_URL); canonical test path
+npm run api:test:coverage  # Run Go API tests with coverage output and summary
 npm test                  # npm workspace tests (api-client + scripts)
+npm run test:coverage     # npm workspace tests with coverage output and summary
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 
 # API client regeneration
 npm run generate:api-client  # openapi-typescript → packages/api-client/src/generated.d.ts
 
 # sqlc query layer
-npm run sqlc:generate        # sqlc generate → apps/api/internal/db/
+npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 ```
 
 ## NOTES
@@ -110,6 +113,8 @@ npm run sqlc:generate        # sqlc generate → apps/api/internal/db/
 - Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
 - Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`.
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
+- `npm run api:test:coverage` writes `coverage/api.coverprofile`, prints `go tool cover -func` output, and appends a summary when `GITHUB_STEP_SUMMARY` is set.
+- `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.
 - No production deployment configs (Dockerfile, K8s, Terraform) exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`). See `docs/agents/issue-tracker.md`.
 - Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.

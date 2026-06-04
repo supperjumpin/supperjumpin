@@ -118,6 +118,22 @@ func (q *Queries) InsertPlayer(ctx context.Context, arg InsertPlayerParams) erro
 	return err
 }
 
+const updatePlayerDisplayName = `-- name: UpdatePlayerDisplayName :exec
+UPDATE players
+SET display_name = $2
+WHERE id = $1
+`
+
+type UpdatePlayerDisplayNameParams struct {
+	ID          string
+	DisplayName string
+}
+
+func (q *Queries) UpdatePlayerDisplayName(ctx context.Context, arg UpdatePlayerDisplayNameParams) error {
+	_, err := q.db.ExecContext(ctx, updatePlayerDisplayName, arg.ID, arg.DisplayName)
+	return err
+}
+
 const upsertAccount = `-- name: UpsertAccount :exec
 INSERT INTO accounts (id, email)
 VALUES ($1, $2)

@@ -1,42 +1,15 @@
-import type {
-  EvidenceSubmission,
-  EvidenceUploadAuthorization,
-  GroupHomeResponse,
-  Invite,
-  Judgment,
-  ListGroupsResponse,
-  MeResponse,
-  PerformedJumpView,
-  Jump,
-  PublicFeedResponse,
-  JumpDetail,
-  JumpTombstone,
-  UpdateDisplayNameResponse,
-} from "./generated";
+import type { components } from "./generated";
 
-export type {
-  Account,
-  Group,
-  GroupHomeResponse,
-  GroupMembership,
-  GroupMembershipSummary,
-  Evidence,
-  EvidenceSubmission,
-  EvidenceUploadAuthorization,
-  Invite,
-  Judgment,
-  ListGroupsResponse,
-  MeResponse,
-  PerformedJumpView,
-  Player,
-  Season,
-  Jump,
-  JumpCard,
-  JumpDetail,
-  JumpTombstone,
-  PublicFeedResponse,
-  ViewerContext,
-} from "./generated";
+export type Judgment = components["schemas"]["Judgment"];
+export type MeResponse = components["schemas"]["MeResponse"];
+export type Player = components["schemas"]["Player"];
+export type Jump = components["schemas"]["Jump"];
+export type JumpCard = components["schemas"]["JumpCard"];
+export type JumpDetail = components["schemas"]["JumpDetail"];
+export type JumpTombstone = components["schemas"]["JumpTombstone"];
+export type PublicFeedResponse = components["schemas"]["PublicFeedResponse"];
+export type UpdateDisplayNameResponse = components["schemas"]["UpdateDisplayNameResponse"];
+export type ViewerContext = components["schemas"]["ViewerContext"];
 
 export function getMe(args: {
   baseUrl: string;
@@ -50,82 +23,6 @@ export function updateDisplayName(args: {
   displayName: string;
   fetchImpl?: typeof fetch;
 }): Promise<UpdateDisplayNameResponse>;
-
-export function createGroup(args: {
-  baseUrl: string;
-  accessToken: string;
-  name: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function listGroups(args: {
-  baseUrl: string;
-  accessToken: string;
-  fetchImpl?: typeof fetch;
-}): Promise<ListGroupsResponse>;
-
-export function getGroupHome(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function createInvite(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<Invite>;
-
-export function acceptInvite(args: {
-  baseUrl: string;
-  accessToken: string;
-  token: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function startSeason(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<GroupHomeResponse>;
-
-export function createIdea(args: {
-  baseUrl: string;
-  accessToken: string;
-  groupId: string;
-  source: string;
-  destination: string;
-  food: string;
-  fetchImpl?: typeof fetch;
-}): Promise<Jump>;
-
-export function createPlannedJump(args: {
-  baseUrl: string;
-  accessToken: string;
-  ideaId: string;
-  offSeason?: boolean;
-  fetchImpl?: typeof fetch;
-}): Promise<Jump>;
-
-export function authorizeEvidenceUpload(args: {
-  baseUrl: string;
-  accessToken: string;
-  jumpId: string;
-  contentType: string;
-  fetchImpl?: typeof fetch;
-}): Promise<EvidenceUploadAuthorization>;
-
-export function submitEvidence(args: {
-  baseUrl: string;
-  accessToken: string;
-  jumpId: string;
-  uploadAuthorizationId: string;
-  caption: string;
-  fetchImpl?: typeof fetch;
-}): Promise<EvidenceSubmission>;
 
 export function submitJudgment(args: {
   baseUrl: string;

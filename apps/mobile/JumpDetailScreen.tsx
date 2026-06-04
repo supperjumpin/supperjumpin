@@ -37,6 +37,16 @@ function formatGraceCountdown(endsAt: string): string {
   return `Judging opens in ${mins}m ${secs}s`;
 }
 
+function evidenceAltText(detail: {
+  caption: string;
+  food: string;
+  source: string;
+  destination: string;
+}): string {
+  if (detail.caption) return detail.caption;
+  return `Evidence photo for ${detail.food} from ${detail.source} to ${detail.destination}`;
+}
+
 interface JumpDetailScreenProps {
   jumpId: string;
   onBack: () => void;
@@ -124,7 +134,7 @@ export default function JumpDetailScreen({
   } else if (vc.reason === "grace-period") {
     judgeState = formatGraceCountdown(detail.gracePeriodExpiresAt);
   } else if (vc.reason === "already-judged") {
-    judgeState = "You already judged this";
+    judgeState = "You already judged this jump. Score submitted.";
   } else {
     judgeState = "Not available";
   }
@@ -143,7 +153,7 @@ export default function JumpDetailScreen({
           <Image
             source={{ uri: mediaUrl(detail.mediaObjectKey) as string }}
             style={styles.heroImageReal}
-            accessibilityLabel={`${detail.performerName}'s jump evidence`}
+            accessibilityLabel={evidenceAltText(detail)}
             resizeMode="cover"
           />
         ) : (
@@ -176,7 +186,10 @@ export default function JumpDetailScreen({
           <Text style={styles.scoreLabel}>
             Running Average
           </Text>
-          <Text style={styles.scoreValue}>
+          <Text
+            style={styles.scoreValue}
+            accessibilityLabel={`Running average ${detail.runningAverage.toFixed(1)} out of 4 from ${detail.judgmentCount} judgments`}
+          >
             {detail.runningAverage.toFixed(1)}
           </Text>
           <Text style={styles.scoreSubtext}>
@@ -190,13 +203,14 @@ export default function JumpDetailScreen({
             styles.judgeArea,
             canJudge ? styles.judgeAreaActive : styles.judgeAreaInactive,
           ]}
+          accessible
+          accessibilityLabel={judgeState}
         >
           <Text
             style={[
               styles.judgeStateText,
               canJudge ? styles.judgeStateActive : styles.judgeStateInactive,
             ]}
-            accessibilityLabel={judgeState}
           >
             {judgeState}
           </Text>

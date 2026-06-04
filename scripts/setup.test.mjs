@@ -67,3 +67,19 @@ test("extractMigrateVersion strips leading v", () => {
 test("extractMigrateVersion handles plain semver", () => {
   assert.strictEqual(extractMigrateVersion("4.19.1"), "4.19.1");
 });
+
+import { checkDockerRunning } from "./setup.mjs";
+
+test("checkDockerRunning returns ok when docker info succeeds", () => {
+  const mockCapture = () => ({ status: 0 });
+  const result = checkDockerRunning(mockCapture);
+  assert.strictEqual(result.ok, true);
+  assert.ok(result.message.includes("running"));
+});
+
+test("checkDockerRunning returns not ok when docker info fails", () => {
+  const mockCapture = () => ({ status: 1 });
+  const result = checkDockerRunning(mockCapture);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.message.includes("not running"));
+});

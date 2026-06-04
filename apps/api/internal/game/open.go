@@ -10,6 +10,19 @@ var (
 	ErrOpenMonthNotClosed = errors.New("Open month has not soft-closed yet")
 )
 
+// PlayerSnapshot is a read-only view of a Player needed for Open standings.
+type PlayerSnapshot struct {
+	ID          string
+	DisplayName string
+}
+
+// StandingEntry accumulates scores for a player within a competition period.
+type StandingEntry struct {
+	PlayerID    string
+	SeasonScore int
+	JudgedJumps int
+}
+
 // OpenRepository defines persistence operations for the Open scoring flow.
 type OpenRepository interface {
 	// JumpsForOpenMonth returns all jumps created in the given calendar month
@@ -112,4 +125,12 @@ func filterOpenJudgments(judgments []Judgment) []Judgment {
 		}
 	}
 	return result
+}
+
+func finalScore(judgments []Judgment) int {
+	total := 0
+	for _, j := range judgments {
+		total += j.Commitment + j.Transgression + j.Creativity + j.Presentation
+	}
+	return total / len(judgments)
 }

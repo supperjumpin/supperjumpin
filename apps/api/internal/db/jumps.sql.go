@@ -8,24 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
-	"time"
 )
-
-const adoptJumpToSeason = `-- name: AdoptJumpToSeason :exec
-UPDATE jumps
-SET status = 'Performed Jump', grace_period_expires_at = $2
-WHERE id = $1 AND status = 'Planned Jump'
-`
-
-type AdoptJumpToSeasonParams struct {
-	ID                   string
-	GracePeriodExpiresAt sql.NullTime
-}
-
-func (q *Queries) AdoptJumpToSeason(ctx context.Context, arg AdoptJumpToSeasonParams) error {
-	_, err := q.db.ExecContext(ctx, adoptJumpToSeason, arg.ID, arg.GracePeriodExpiresAt)
-	return err
-}
 
 const advanceJumpToJudged = `-- name: AdvanceJumpToJudged :exec
 UPDATE jumps
@@ -39,14 +22,13 @@ func (q *Queries) AdvanceJumpToJudged(ctx context.Context, id string) error {
 }
 
 const getJump = `-- name: GetJump :one
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
+SELECT id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
 FROM jumps
 WHERE id = $1
 `
 
 type GetJumpRow struct {
 	ID                   string
-	GroupID              sql.NullString
 	PlayerID             string
 	SeasonID             sql.NullString
 	Status               string
@@ -62,7 +44,6 @@ func (q *Queries) GetJump(ctx context.Context, id string) (GetJumpRow, error) {
 	var i GetJumpRow
 	err := row.Scan(
 		&i.ID,
-		&i.GroupID,
 		&i.PlayerID,
 		&i.SeasonID,
 		&i.Status,
@@ -70,273 +51,6 @@ func (q *Queries) GetJump(ctx context.Context, id string) (GetJumpRow, error) {
 		&i.Destination,
 		&i.Food,
 		&i.FinalScore,
-		&i.GracePeriodExpiresAt,
-	)
-	return i, err
-}
-
-const getJumpByID = `-- name: GetJumpByID :one
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
-FROM jumps
-WHERE id = $1
-`
-
-type GetJumpByIDRow struct {
-	ID                   string
-	GroupID              sql.NullString
-	PlayerID             string
-	SeasonID             sql.NullString
-	Status               string
-	Source               string
-	Destination          string
-	Food                 string
-	FinalScore           sql.NullInt32
-	GracePeriodExpiresAt sql.NullTime
-}
-
-func (q *Queries) GetJumpByID(ctx context.Context, id string) (GetJumpByIDRow, error) {
-	row := q.db.QueryRowContext(ctx, getJumpByID, id)
-	var i GetJumpByIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.GroupID,
-		&i.PlayerID,
-		&i.SeasonID,
-		&i.Status,
-		&i.Source,
-		&i.Destination,
-		&i.Food,
-		&i.FinalScore,
-		&i.GracePeriodExpiresAt,
-	)
-	return i, err
-}
-
-const insertIdea = `-- name: InsertIdea :execrows
-INSERT INTO jumps (id, group_id, player_id, status, source, destination, food)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT DO NOTHING
-`
-
-type InsertIdeaParams struct {
-	ID          string
-	GroupID     sql.NullString
-	PlayerID    string
-	Status      string
-	Source      string
-	Destination string
-	Food        string
-}
-
-func (q *Queries) InsertIdea(ctx context.Context, arg InsertIdeaParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, insertIdea,
-		arg.ID,
-		arg.GroupID,
-		arg.PlayerID,
-		arg.Status,
-		arg.Source,
-		arg.Destination,
-		arg.Food,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const listJumpsForSeason = `-- name: ListJumpsForSeason :many
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
-FROM jumps
-WHERE season_id = $1
-`
-
-type ListJumpsForSeasonRow struct {
-	ID                   string
-	GroupID              sql.NullString
-	PlayerID             string
-	SeasonID             sql.NullString
-	Status               string
-	Source               string
-	Destination          string
-	Food                 string
-	FinalScore           sql.NullInt32
-	GracePeriodExpiresAt sql.NullTime
-}
-
-func (q *Queries) ListJumpsForSeason(ctx context.Context, seasonID sql.NullString) ([]ListJumpsForSeasonRow, error) {
-	rows, err := q.db.QueryContext(ctx, listJumpsForSeason, seasonID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListJumpsForSeasonRow
-	for rows.Next() {
-		var i ListJumpsForSeasonRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.GroupID,
-			&i.PlayerID,
-			&i.SeasonID,
-			&i.Status,
-			&i.Source,
-			&i.Destination,
-			&i.Food,
-			&i.FinalScore,
-			&i.GracePeriodExpiresAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPerformedJumpsForGroup = `-- name: ListPerformedJumpsForGroup :many
-SELECT jumps.id, jumps.group_id, jumps.player_id, jumps.season_id, jumps.status, jumps.source, jumps.destination, jumps.food, jumps.final_score, jumps.grace_period_expires_at,
-       evidences.id, evidences.caption, evidences.media_object_key, evidences.created_at,
-       players.id, players.display_name
-FROM jumps
-JOIN evidences ON evidences.jump_id = jumps.id
-JOIN players ON players.id = jumps.player_id
-WHERE jumps.group_id = $1 AND jumps.status IN ('Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump')
-ORDER BY evidences.created_at DESC, jumps.id DESC
-`
-
-type ListPerformedJumpsForGroupRow struct {
-	ID                   string
-	GroupID              sql.NullString
-	PlayerID             string
-	SeasonID             sql.NullString
-	Status               string
-	Source               string
-	Destination          string
-	Food                 string
-	FinalScore           sql.NullInt32
-	GracePeriodExpiresAt sql.NullTime
-	ID_2                 string
-	Caption              string
-	MediaObjectKey       string
-	CreatedAt            time.Time
-	ID_3                 string
-	DisplayName          string
-}
-
-func (q *Queries) ListPerformedJumpsForGroup(ctx context.Context, groupID sql.NullString) ([]ListPerformedJumpsForGroupRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPerformedJumpsForGroup, groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListPerformedJumpsForGroupRow
-	for rows.Next() {
-		var i ListPerformedJumpsForGroupRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.GroupID,
-			&i.PlayerID,
-			&i.SeasonID,
-			&i.Status,
-			&i.Source,
-			&i.Destination,
-			&i.Food,
-			&i.FinalScore,
-			&i.GracePeriodExpiresAt,
-			&i.ID_2,
-			&i.Caption,
-			&i.MediaObjectKey,
-			&i.CreatedAt,
-			&i.ID_3,
-			&i.DisplayName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateJumpFinalization = `-- name: UpdateJumpFinalization :exec
-UPDATE jumps
-SET status = $2, final_score = $3
-WHERE id = $1
-`
-
-type UpdateJumpFinalizationParams struct {
-	ID         string
-	Status     string
-	FinalScore sql.NullInt32
-}
-
-func (q *Queries) UpdateJumpFinalization(ctx context.Context, arg UpdateJumpFinalizationParams) error {
-	_, err := q.db.ExecContext(ctx, updateJumpFinalization, arg.ID, arg.Status, arg.FinalScore)
-	return err
-}
-
-const updateJumpStatusAfterDispute = `-- name: UpdateJumpStatusAfterDispute :exec
-UPDATE jumps
-SET status = $2, final_score = NULL
-WHERE id = $1
-`
-
-type UpdateJumpStatusAfterDisputeParams struct {
-	ID     string
-	Status string
-}
-
-func (q *Queries) UpdateJumpStatusAfterDispute(ctx context.Context, arg UpdateJumpStatusAfterDisputeParams) error {
-	_, err := q.db.ExecContext(ctx, updateJumpStatusAfterDispute, arg.ID, arg.Status)
-	return err
-}
-
-const updateJumpToPlanned = `-- name: UpdateJumpToPlanned :one
-UPDATE jumps
-SET status = 'Planned Jump', season_id = $2
-WHERE id = $1
-  AND status = 'Idea'
-RETURNING id, group_id, player_id, season_id, status, source, destination, food, grace_period_expires_at
-`
-
-type UpdateJumpToPlannedParams struct {
-	ID       string
-	SeasonID sql.NullString
-}
-
-type UpdateJumpToPlannedRow struct {
-	ID                   string
-	GroupID              sql.NullString
-	PlayerID             string
-	SeasonID             sql.NullString
-	Status               string
-	Source               string
-	Destination          string
-	Food                 string
-	GracePeriodExpiresAt sql.NullTime
-}
-
-func (q *Queries) UpdateJumpToPlanned(ctx context.Context, arg UpdateJumpToPlannedParams) (UpdateJumpToPlannedRow, error) {
-	row := q.db.QueryRowContext(ctx, updateJumpToPlanned, arg.ID, arg.SeasonID)
-	var i UpdateJumpToPlannedRow
-	err := row.Scan(
-		&i.ID,
-		&i.GroupID,
-		&i.PlayerID,
-		&i.SeasonID,
-		&i.Status,
-		&i.Source,
-		&i.Destination,
-		&i.Food,
 		&i.GracePeriodExpiresAt,
 	)
 	return i, err

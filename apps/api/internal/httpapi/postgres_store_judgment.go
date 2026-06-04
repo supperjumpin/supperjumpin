@@ -27,9 +27,6 @@ func (s *PostgresStore) Jump(ctx context.Context, jumpID string) (game.JumpSnaps
 		Destination: row.Destination,
 		Food:        row.Food,
 	}
-	if row.GroupID.Valid {
-		snap.GroupID = row.GroupID.String
-	}
 	if !visiblePerformedStatus(snap.Status) {
 		return game.JumpSnapshot{}, false, nil
 	}
@@ -46,33 +43,9 @@ func (s *PostgresStore) Jump(ctx context.Context, jumpID string) (game.JumpSnaps
 	return snap, true, nil
 }
 
-func (s *PostgresStore) Season(ctx context.Context, seasonID string) (game.SeasonSnapshot, error) {
-	row, err := s.queries.GetSeason(ctx, seasonID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return game.SeasonSnapshot{}, nil
-	}
-	if err != nil {
-		return game.SeasonSnapshot{}, err
-	}
-	return game.SeasonSnapshot{
-		ID:                   row.ID,
-		GroupID:              row.GroupID,
-		CommissionerPlayerID: row.CommissionerPlayerID,
-		Status:               row.Status,
-		SubmissionDeadline:   row.SubmissionDeadline,
-		JudgingDeadline:      row.JudgingDeadline,
-	}, nil
-}
-
-func (s *PostgresStore) GroupMembership(ctx context.Context, playerID, groupID string) (game.MembershipSnapshot, bool, error) {
-	role, err := s.queries.GetMembershipRole(ctx, db.GetMembershipRoleParams{PlayerID: playerID, GroupID: groupID})
-	if errors.Is(err, sql.ErrNoRows) {
-		return game.MembershipSnapshot{}, false, nil
-	}
-	if err != nil {
-		return game.MembershipSnapshot{}, false, err
-	}
-	return game.MembershipSnapshot{Role: role}, true, nil
+func (s *PostgresStore) Season(_ context.Context, _ string) (game.SeasonSnapshot, error) {
+	// Seasons table removed; no active seasons exist. Return empty snapshot.
+	return game.SeasonSnapshot{}, nil
 }
 
 func (s *PostgresStore) UpsertJudgment(ctx context.Context, jumpID, playerID, guestSessionID, provenance string, commitment, transgression, creativity, presentation int) (game.Judgment, bool, error) {
