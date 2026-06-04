@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/display-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update the signed-in Player's display name */
+        patch: operations["updateDisplayName"];
+        trace?: never;
+    };
     "/v1/guest-sessions": {
         parameters: {
             query?: never;
@@ -112,6 +129,9 @@ export interface components {
     schemas: {
         MeResponse: {
             account: components["schemas"]["Account"];
+            player: components["schemas"]["Player"];
+        };
+        UpdateDisplayNameResponse: {
             player: components["schemas"]["Player"];
         };
         Account: {
@@ -245,6 +265,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
                 };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateDisplayName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    displayName: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated Player profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateDisplayNameResponse"];
+                };
+            };
+            /** @description Invalid or missing display name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Missing or invalid bearer token. */
             401: {

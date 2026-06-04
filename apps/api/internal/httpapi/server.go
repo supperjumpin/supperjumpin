@@ -48,6 +48,33 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, profile)
 	})
+	mux.HandleFunc("PATCH /v1/me/display-name", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			DisplayName string `json:"displayName"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		displayName := strings.TrimSpace(request.DisplayName)
+		if displayName == "" {
+			http.Error(w, "displayName is required", http.StatusBadRequest)
+			return
+		}
+
+		player, err := config.Store.UpdateDisplayName(r.Context(), profile.Player.ID, displayName)
+		if err != nil {
+			http.Error(w, "update display name", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, UpdateDisplayNameResponse{Player: player})
+	})
 	mux.HandleFunc("POST /v1/jumps", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {

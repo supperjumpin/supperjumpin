@@ -95,6 +95,15 @@ func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIden
 	}
 	return MeResponse{Account: account, Player: player}, nil
 }
+func (s *PostgresStore) UpdateDisplayName(ctx context.Context, playerID string, displayName string) (Player, error) {
+	if err := s.queries.UpdatePlayerDisplayName(ctx, db.UpdatePlayerDisplayNameParams{
+		ID:          playerID,
+		DisplayName: displayName,
+	}); err != nil {
+		return Player{}, err
+	}
+	return Player{ID: playerID, DisplayName: displayName}, nil
+}
 func (s *PostgresStore) Now() time.Time {
 	if s.now == nil {
 		return time.Now()

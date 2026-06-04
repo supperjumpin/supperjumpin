@@ -30,3 +30,8 @@ FROM accounts
 JOIN auth_identities ON auth_identities.account_id = accounts.id
 JOIN players ON players.account_id = accounts.id
 WHERE auth_identities.provider = $1 AND auth_identities.subject = $2;
+
+-- name: UpdatePlayerDisplayName :exec
+UPDATE players
+SET display_name = $2
+WHERE id = $1;

@@ -49,9 +49,15 @@ func mapGameErr(err error) error {
 	return err
 }
 
+// UpdateDisplayNameResponse is the response from PATCH /v1/me/display-name.
+type UpdateDisplayNameResponse struct {
+	Player Player `json:"player"`
+}
+
 // Store handles identity persistence.
 type Store interface {
 	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
+	UpdateDisplayName(ctx context.Context, playerID string, displayName string) (Player, error)
 }
 
 // JumpPlanningFlow is the narrow interface needed by the jump planning transport
