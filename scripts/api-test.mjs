@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -202,6 +202,11 @@ function main() {
     process.stdout.write(coverageSummary);
     if (env.GITHUB_STEP_SUMMARY) {
       appendFileSync(env.GITHUB_STEP_SUMMARY, `### Go API coverage\n\n\`\`\`\n${coverageSummary}\`\`\`\n`);
+    }
+
+    if (summaryMatch) {
+      mkdirSync("coverage", { recursive: true });
+      writeFileSync("coverage/go-report.json", JSON.stringify({ total: Number(summaryMatch[1]) }) + "\n");
     }
   }
 
