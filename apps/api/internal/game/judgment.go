@@ -69,6 +69,10 @@ type JudgmentRepository interface {
 	GuestSessionJudgmentCount(ctx context.Context, guestSessionID string) (int, error)
 	// IncrementGuestSessionJudgmentCount increments the judgment count for a guest session.
 	IncrementGuestSessionJudgmentCount(ctx context.Context, guestSessionID string) error
+	// HasJudgedJump returns true if the player has already submitted a Judgment for this Jump.
+	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
+	// HasJudgedJumps returns a map of jumpID → true only for jumps the player has judged.
+	HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error)
 }
 
 // JudgmentInput bundles the parameters for a judgment submission.
@@ -197,6 +201,54 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 
 func validScore(score int) bool {
 	return score >= 1 && score <= 4
+}
+
+// EligibilityHint is the structured result of JudgmentEligibility.
+type EligibilityHint struct {
+	CanJudge          bool
+	Reason            string
+	GracePeriodEndsAt *time.Time
+}
+
+// JudgmentEligibility determines whether a viewer can judge a Jump.
+// It checks, in order:
+//   1. Empty viewerID — always eligible (unauthenticated/guest prompt path)
+//   2. Self-judging — viewer is the performer → not eligible
+//   3. Grace period active — now < GracePeriodExpiresAt → not eligible
+//   4. Already judged — hasJudged == true → not eligible
+//
+// The caller is responsible for fetching hasJudged (via HasJudgedJump or
+// HasJudgedJumps) so the transport layer can batch the query on the feed path.
+func JudgmentEligibility(jump JumpSnapshot, viewerID string, hasJudged bool, now time.Time) EligibilityHint {
+	hint := EligibilityHint{CanJudge: true}
+
+	if viewerID == "" {
+		return hint
+	}
+
+	// 1. Self-judging
+	if viewerID == jump.PlayerID {
+		hint.CanJudge = false
+		hint.Reason = "self-judging"
+		return hint
+	}
+
+	// 2. Grace period active
+	if now.Before(jump.GracePeriodExpiresAt) {
+		hint.CanJudge = false
+		hint.Reason = "grace-period"
+		hint.GracePeriodEndsAt = &jump.GracePeriodExpiresAt
+		return hint
+	}
+
+	// 3. Already judged
+	if hasJudged {
+		hint.CanJudge = false
+		hint.Reason = "already-judged"
+		return hint
+	}
+
+	return hint
 }
 
 func isOpenSeasonStatus(status string) bool {

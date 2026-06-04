@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -270,13 +269,18 @@ func NewServer(config ServerConfig) http.Handler {
 			for i, c := range cards {
 				cardIDs[i] = c.ID
 			}
-			judged, err := config.PublicRead.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
+			judged, err := config.Judgment.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
 			if err != nil {
 				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
 				return
 			}
 			for i := range cards {
-				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged, config.Now())
+				hint := game.JudgmentEligibility(game.JumpSnapshot{
+					ID:                   cards[i].ID,
+					PlayerID:             cards[i].PerformerID,
+					GracePeriodExpiresAt: cards[i].GracePeriodExpiresAt,
+				}, viewer.Player.ID, judged[cards[i].ID], config.Now())
+				cards[i].ViewerContext = viewerContextFromHint(hint)
 			}
 		}
 
@@ -322,7 +326,21 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		// Attach viewer context for all requests (unauthenticated = default canJudge: true)
-		detail.ViewerContext = computeViewerContext(detail, viewer, config.PublicRead, r.Context(), config.Now())
+		if viewer != nil {
+			hasJudged, err := config.Judgment.HasJudgedJump(r.Context(), detail.ID, viewer.Player.ID)
+			if err != nil {
+				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
+				return
+			}
+			hint := game.JudgmentEligibility(game.JumpSnapshot{
+				ID:                   detail.ID,
+				PlayerID:             detail.PerformerID,
+				GracePeriodExpiresAt: detail.GracePeriodExpiresAt,
+			}, viewer.Player.ID, hasJudged, config.Now())
+			detail.ViewerContext = viewerContextFromHint(hint)
+		} else {
+			detail.ViewerContext = &ViewerContext{CanJudge: true}
+		}
 
 		writeJSON(w, http.StatusOK, detail)
 	})
@@ -330,88 +348,20 @@ func NewServer(config ServerConfig) http.Handler {
 	return mux
 }
 
-// computeViewerContext determines the viewer's eligibility to judge a Jump.
-// viewer may be nil (unauthenticated) — returns default canJudge: true.
-//
-// Security boundary: canJudge:true for nil (guest) auth is intentional.
-// Guests see the judge UI and are prompted to authenticate before actually
-// submitting. The judgment submission endpoint independently verifies auth;
-// viewerContext is purely a UI hint, not an authorization gate.
-func computeViewerContext(detail JumpDetail, viewer *MeResponse, db PublicReadFlow, ctx context.Context, now time.Time) *ViewerContext {
-	vc := &ViewerContext{CanJudge: true}
-
-	if viewer == nil {
-		return vc
+// viewerContextFromHint converts a game.EligibilityHint into a transport-layer
+// ViewerContext DTO.
+func viewerContextFromHint(hint game.EligibilityHint) *ViewerContext {
+	vc := &ViewerContext{CanJudge: hint.CanJudge}
+	if hint.Reason != "" {
+		r := hint.Reason
+		vc.Reason = &r
 	}
-
-	// 1. Self-judging
-	if viewer.Player.ID == detail.PerformerID {
-		vc.CanJudge = false
-		reason := "self-judging"
-		vc.Reason = &reason
-		return vc
+	if hint.GracePeriodEndsAt != nil {
+		vc.GracePeriodEndsAt = hint.GracePeriodEndsAt
 	}
-
-	// 2. Grace period active
-	if now.Before(detail.GracePeriodExpiresAt) {
-		vc.CanJudge = false
-		reason := "grace-period"
-		vc.Reason = &reason
-		vc.GracePeriodEndsAt = &detail.GracePeriodExpiresAt
-		return vc
-	}
-
-	// 3. Already judged
-	hasJudged, err := db.HasJudgedJump(ctx, detail.ID, viewer.Player.ID)
-	if err == nil && hasJudged {
-		vc.CanJudge = false
+	if !hint.CanJudge && hint.Reason == "already-judged" {
 		vc.HasJudged = true
-		reason := "already-judged"
-		vc.Reason = &reason
 	}
-
-	return vc
-}
-
-// computeViewerContextCard determines the viewer's eligibility to judge a Jump
-// from a JumpCard (feed level). Uses the same logic as computeViewerContext but
-// accepts a JumpCard instead of JumpDetail. The judged parameter is a pre-fetched
-// batch map (from HasJudgedJumps) to avoid N+1 queries on the feed.
-//
-// Three-state resolution (checked in order):
-//  1. Self-judging — viewer is the performer → canJudge=false, reason="self-judging"
-//  2. Grace period active — now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
-//  3. Already judged — judged[card.ID] == true → canJudge=false, hasJudged=true, reason="already-judged"
-//     Default: canJudge=true (viewer can judge, no blocks detected)
-func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool, now time.Time) *ViewerContext {
-	vc := &ViewerContext{CanJudge: true}
-
-	// 1. Self-judging
-	if viewer.Player.ID == card.PerformerID {
-		vc.CanJudge = false
-		reason := "self-judging"
-		vc.Reason = &reason
-		return vc
-	}
-
-	// 2. Grace period active
-	if now.Before(card.GracePeriodExpiresAt) {
-		vc.CanJudge = false
-		reason := "grace-period"
-		vc.Reason = &reason
-		vc.GracePeriodEndsAt = &card.GracePeriodExpiresAt
-		return vc
-	}
-
-	// 3. Already judged (from pre-fetched batch map)
-	if judged[card.ID] {
-		vc.CanJudge = false
-		vc.HasJudged = true
-		reason := "already-judged"
-		vc.Reason = &reason
-		return vc
-	}
-
 	return vc
 }
 
