@@ -69,17 +69,10 @@ type JudgmentFlow interface {
 }
 
 // PublicReadFlow is the narrow interface needed by the public feed and jump
-// detail handlers. It provides DTO assembly and already-judged lookups.
+// detail handlers. It provides DTO assembly.
 type PublicReadFlow interface {
 	FeedJumps(ctx context.Context, cursorTS *time.Time, cursorID string, limit int) ([]JumpCard, error)
 	JumpDetail(ctx context.Context, jumpID string) (JumpDetail, bool, error)
-	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
-	// HasJudgedJumps returns a map of jumpID → true only for jumps the player
-	// has judged. Absent keys mean "not judged by this player" — Do not
-	// distinguish "queried and false" from "not in result set"; it's always
-	// absent for not-judged. Callers check with judgedMap[id] (yields false
-	// for absent keys via Go zero-value semantics, which is correct here).
-	HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error)
 }
 
 // OpenFlow is the narrow interface needed by the Open scoring handler.

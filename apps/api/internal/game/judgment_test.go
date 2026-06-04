@@ -46,6 +46,115 @@ func (m *mockJudgmentRepo) IncrementGuestSessionJudgmentCount(_ context.Context,
 	return nil
 }
 
+func (m *mockJudgmentRepo) HasJudgedJump(_ context.Context, jumpID, playerID string) (bool, error) {
+	return false, nil
+}
+
+func (m *mockJudgmentRepo) HasJudgedJumps(_ context.Context, playerID string, jumpIDs []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
+func testJudgmentEligibility_SelfJudgingBlocks(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 11, 50, 0, 0, time.UTC)
+
+	jump := JumpSnapshot{
+		ID:                   "jump_1",
+		PlayerID:             "performer_1",
+		GracePeriodExpiresAt: gracePeriodExpiresAt,
+	}
+
+	hint := JudgmentEligibility(jump, "performer_1", false, now)
+	if hint.CanJudge {
+		t.Fatal("expected self-judging to be blocked")
+	}
+	if hint.Reason != "self-judging" {
+		t.Fatalf("expected reason 'self-judging', got %q", hint.Reason)
+	}
+}
+
+func testJudgmentEligibility_GracePeriodBlocks(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 12, 10, 0, 0, time.UTC)
+
+	jump := JumpSnapshot{
+		ID:                   "jump_1",
+		PlayerID:             "performer_1",
+		GracePeriodExpiresAt: gracePeriodExpiresAt,
+	}
+
+	hint := JudgmentEligibility(jump, "viewer_1", false, now)
+	if hint.CanJudge {
+		t.Fatal("expected grace-period to block judging")
+	}
+	if hint.Reason != "grace-period" {
+		t.Fatalf("expected reason 'grace-period', got %q", hint.Reason)
+	}
+	if hint.GracePeriodEndsAt == nil {
+		t.Fatal("expected GracePeriodEndsAt to be populated")
+	}
+	if !hint.GracePeriodEndsAt.Equal(gracePeriodExpiresAt) {
+		t.Fatalf("expected GracePeriodEndsAt %v, got %v", gracePeriodExpiresAt, *hint.GracePeriodEndsAt)
+	}
+}
+
+func testJudgmentEligibility_AlreadyJudgedBlocks(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 11, 50, 0, 0, time.UTC)
+
+	jump := JumpSnapshot{
+		ID:                   "jump_1",
+		PlayerID:             "performer_1",
+		GracePeriodExpiresAt: gracePeriodExpiresAt,
+	}
+
+	hint := JudgmentEligibility(jump, "viewer_1", true, now)
+	if hint.CanJudge {
+		t.Fatal("expected already-judged to block judging")
+	}
+	if hint.Reason != "already-judged" {
+		t.Fatalf("expected reason 'already-judged', got %q", hint.Reason)
+	}
+}
+
+func testJudgmentEligibility_EmptyViewerIDIsEligible(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 12, 10, 0, 0, time.UTC)
+
+	jump := JumpSnapshot{
+		ID:                   "jump_1",
+		PlayerID:             "performer_1",
+		GracePeriodExpiresAt: gracePeriodExpiresAt,
+	}
+
+	hint := JudgmentEligibility(jump, "", false, now)
+	if !hint.CanJudge {
+		t.Fatal("expected empty viewerID to be eligible")
+	}
+	if hint.Reason != "" {
+		t.Fatalf("expected no reason, got %q", hint.Reason)
+	}
+}
+
+func testJudgmentEligibility_OtherPlayerAfterGracePeriodIsEligible(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	gracePeriodExpiresAt := time.Date(2026, 6, 1, 11, 50, 0, 0, time.UTC)
+
+	jump := JumpSnapshot{
+		ID:                   "jump_1",
+		PlayerID:             "performer_1",
+		GracePeriodExpiresAt: gracePeriodExpiresAt,
+	}
+
+	hint := JudgmentEligibility(jump, "viewer_1", false, now)
+	if !hint.CanJudge {
+		t.Fatal("expected other player after grace period to be eligible")
+	}
+	if hint.Reason != "" {
+		t.Fatalf("expected no reason, got %q", hint.Reason)
+	}
+}
+
 func testValidScore_AcceptsBoundaryValues(t *testing.T) {
 	cases := []struct {
 		score int
@@ -633,6 +742,14 @@ func testSubmitJudgment_ExistingJudgmentEditDoesNotAdvance(t *testing.T) {
 }
 
 func TestJudgment(t *testing.T) {
+	t.Run("eligibility", func(t *testing.T) {
+		t.Run("self judging blocks", testJudgmentEligibility_SelfJudgingBlocks)
+		t.Run("grace period blocks", testJudgmentEligibility_GracePeriodBlocks)
+		t.Run("already judged blocks", testJudgmentEligibility_AlreadyJudgedBlocks)
+		t.Run("empty viewerID is eligible", testJudgmentEligibility_EmptyViewerIDIsEligible)
+		t.Run("other player after grace period is eligible", testJudgmentEligibility_OtherPlayerAfterGracePeriodIsEligible)
+	})
+
 	t.Run("score validation", func(t *testing.T) {
 		t.Run("accepts boundary values", testValidScore_AcceptsBoundaryValues)
 		t.Run("all four scores must be valid", testValidScore_AllFourScoresMustBeValid)
