@@ -5,6 +5,7 @@ import {
   getJumpDetail,
   getMe,
   getPublicFeed,
+  updateDisplayName,
   submitJudgment,
 } from "./index.js";
 
@@ -70,6 +71,30 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
   });
   assert.equal(judgment.playerId, "player_456");
   assert.equal(judgment.transgression, 5);
+});
+
+test("updateDisplayName patches the player's display name with bearer auth", async () => {
+  const seen = {};
+  const response = await updateDisplayName({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    displayName: "new-handle",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json({
+        player: { id: "player_123", displayName: "new-handle" },
+      });
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/me/display-name");
+  assert.equal(seen.method, "PATCH");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.deepEqual(seen.body, { displayName: "new-handle" });
+  assert.equal(response.player.displayName, "new-handle");
 });
 
 test("getPublicFeed fetches the public feed without requiring auth", async () => {
