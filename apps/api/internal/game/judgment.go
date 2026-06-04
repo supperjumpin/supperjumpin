@@ -59,16 +59,8 @@ type JudgmentRepository interface {
 	Jump(ctx context.Context, jumpID string) (JumpSnapshot, bool, error)
 	// Season returns the Season for the given ID.
 	Season(ctx context.Context, seasonID string) (SeasonSnapshot, error)
-	// UpsertJudgment creates or updates a judgment for a given jump and judge.
-	// Returns true when the judgment was created (not updated).
-	UpsertJudgment(ctx context.Context, jumpID, playerID, guestSessionID, provenance string, commitment, transgression, creativity, presentation int) (Judgment, bool, error)
-	// AdvanceJumpToJudged transitions a Performed Jump to Judged Jump status.
-	// Returns ErrJumpNotFound if the jump does not exist.
-	AdvanceJumpToJudged(ctx context.Context, jumpID string) error
-	// GuestSessionJudgmentCount returns the number of judgments submitted by a guest session.
-	GuestSessionJudgmentCount(ctx context.Context, guestSessionID string) (int, error)
-	// IncrementGuestSessionJudgmentCount increments the judgment count for a guest session.
-	IncrementGuestSessionJudgmentCount(ctx context.Context, guestSessionID string) error
+	// SubmitAcceptedJudgment atomically persists an accepted judgment.
+	SubmitAcceptedJudgment(ctx context.Context, input JudgmentInput) (Judgment, bool, error)
 	// HasJudgedJump returns true if the player has already submitted a Judgment for this Jump.
 	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
 	// HasJudgedJumps returns a map of jumpID → true only for jumps the player has judged.
@@ -114,8 +106,7 @@ type JudgmentResult struct {
 func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input JudgmentInput, now time.Time) JudgmentResult {
 	// 1. Exactly one judge identity must be provided.
 	playerSet := input.JudgePlayerID != ""
-	guestSet := input.GuestSessionID != ""
-	if playerSet == guestSet { // both or neither
+	if playerSet == (input.GuestSessionID != "") { // both or neither
 		return JudgmentResult{Err: ErrInvalidJudgeIdentity}
 	}
 
@@ -150,18 +141,7 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 		return JudgmentResult{Allowed: false}
 	}
 
-	// 7. Guest soft cap check
-	if guestSet {
-		count, err := repo.GuestSessionJudgmentCount(ctx, input.GuestSessionID)
-		if err != nil {
-			return JudgmentResult{Err: err}
-		}
-		if count >= 5 {
-			return JudgmentResult{Err: ErrGuestCapReached}
-		}
-	}
-
-	// 8. Check judging window for season-linked jumps
+	// 7. Check judging window for season-linked jumps
 	if jump.SeasonID != nil {
 		season, err := repo.Season(ctx, *jump.SeasonID)
 		if err != nil {
@@ -172,24 +152,10 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 		}
 	}
 
-	// 9. Persist the judgment (upsert)
-	judgment, created, err := repo.UpsertJudgment(ctx, input.JumpID, input.JudgePlayerID, input.GuestSessionID, input.Provenance, input.Commitment, input.Transgression, input.Creativity, input.Presentation)
+	// 8. Persist the accepted judgment atomically.
+	judgment, created, err := repo.SubmitAcceptedJudgment(ctx, input)
 	if err != nil {
 		return JudgmentResult{Err: err}
-	}
-
-	// 10. On first valid judgment, transition the Jump to "Judged Jump"
-	if created {
-		if err := repo.AdvanceJumpToJudged(ctx, input.JumpID); err != nil {
-			return JudgmentResult{Err: err}
-		}
-	}
-
-	// 11. Increment guest session judgment count
-	if guestSet && created {
-		if err := repo.IncrementGuestSessionJudgmentCount(ctx, input.GuestSessionID); err != nil {
-			return JudgmentResult{Err: err}
-		}
 	}
 
 	return JudgmentResult{
@@ -212,10 +178,10 @@ type EligibilityHint struct {
 
 // JudgmentEligibility determines whether a viewer can judge a Jump.
 // It checks, in order:
-//   1. Empty viewerID — always eligible (unauthenticated/guest prompt path)
-//   2. Self-judging — viewer is the performer → not eligible
-//   3. Grace period active — now < GracePeriodExpiresAt → not eligible
-//   4. Already judged — hasJudged == true → not eligible
+//  1. Empty viewerID — always eligible (unauthenticated/guest prompt path)
+//  2. Self-judging — viewer is the performer → not eligible
+//  3. Grace period active — now < GracePeriodExpiresAt → not eligible
+//  4. Already judged — hasJudged == true → not eligible
 //
 // The caller is responsible for fetching hasJudged (via HasJudgedJump or
 // HasJudgedJumps) so the transport layer can batch the query on the feed path.

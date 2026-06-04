@@ -2,9 +2,11 @@ package httpapi_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -80,6 +82,152 @@ func testGuestCanJudgePerformedJump(t *testing.T) {
 	}
 	if judgment.PlayerID != "" {
 		t.Fatalf("expected empty player id for guest judgment, got %q", judgment.PlayerID)
+	}
+}
+
+func testGuestEditDoesNotIncrementCap(t *testing.T) {
+	server, store := newTestServerAndStore(t)
+
+	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
+	var sessionBody map[string]string
+	if err := json.NewDecoder(sessionRec.Body).Decode(&sessionBody); err != nil {
+		t.Fatalf("decode guest session: %v", err)
+	}
+	guestSessionID := sessionBody["id"]
+
+	store.SetClock(time.Now)
+	performed := performJump(t, server, "alice-token")
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
+	first := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
+		"guestSessionId": guestSessionID,
+		"commitment":     2,
+		"transgression":  3,
+		"creativity":     3,
+		"presentation":   4,
+	})
+	if first.Code != http.StatusCreated {
+		t.Fatalf("expected status 201 for first judgment, got %d: %s", first.Code, first.Body.String())
+	}
+
+	countAfterFirst, err := store.GuestSessionJudgmentCount(context.Background(), guestSessionID)
+	if err != nil {
+		t.Fatalf("count guest judgments after first submission: %v", err)
+	}
+	if countAfterFirst != 1 {
+		t.Fatalf("expected guest cap count 1 after first submission, got %d", countAfterFirst)
+	}
+
+	edit := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
+		"guestSessionId": guestSessionID,
+		"commitment":     4,
+		"transgression":  4,
+		"creativity":     4,
+		"presentation":   4,
+	})
+	if edit.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for edit, got %d: %s", edit.Code, edit.Body.String())
+	}
+
+	countAfterEdit, err := store.GuestSessionJudgmentCount(context.Background(), guestSessionID)
+	if err != nil {
+		t.Fatalf("count guest judgments after edit: %v", err)
+	}
+	if countAfterEdit != 1 {
+		t.Fatalf("expected guest cap count to stay 1 after edit, got %d", countAfterEdit)
+	}
+}
+
+func testGuestConcurrentJudgmentsAtCapBoundary(t *testing.T) {
+	server, store := newTestServerAndStore(t)
+
+	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
+	var sessionBody map[string]string
+	if err := json.NewDecoder(sessionRec.Body).Decode(&sessionBody); err != nil {
+		t.Fatalf("decode guest session: %v", err)
+	}
+	guestSessionID := sessionBody["id"]
+
+	for i := 0; i < 4; i++ {
+		store.SetClock(time.Now)
+		performed := performJump(t, server, "alice-token")
+		store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+		rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
+			"guestSessionId": guestSessionID,
+			"commitment":     2,
+			"transgression":  2,
+			"creativity":     3,
+			"presentation":   3,
+		})
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected status 201 for seed judgment %d, got %d: %s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+
+	countBefore, err := store.GuestSessionJudgmentCount(context.Background(), guestSessionID)
+	if err != nil {
+		t.Fatalf("count guest judgments before concurrent submissions: %v", err)
+	}
+	if countBefore != 4 {
+		t.Fatalf("expected guest cap count 4 before concurrent submissions, got %d", countBefore)
+	}
+
+	store.SetClock(time.Now)
+	firstJump := performJump(t, server, "alice-token")
+	secondJump := performJump(t, server, "alice-token")
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
+	start := make(chan struct{})
+	results := make(chan int, 2)
+	var wg sync.WaitGroup
+	judge := func(jumpID string) {
+		defer wg.Done()
+		<-start
+		rec := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+jumpID+"/judgment", map[string]any{
+			"guestSessionId": guestSessionID,
+			"commitment":     2,
+			"transgression":  2,
+			"creativity":     3,
+			"presentation":   3,
+		})
+		results <- rec.Code
+	}
+
+	wg.Add(2)
+	go judge(firstJump.ID)
+	go judge(secondJump.ID)
+	close(start)
+	wg.Wait()
+	close(results)
+
+	codes := make([]int, 0, 2)
+	for code := range results {
+		codes = append(codes, code)
+	}
+	if len(codes) != 2 {
+		t.Fatalf("expected 2 concurrent responses, got %d", len(codes))
+	}
+	var created, forbidden int
+	for _, code := range codes {
+		switch code {
+		case http.StatusCreated:
+			created++
+		case http.StatusForbidden:
+			forbidden++
+		default:
+			t.Fatalf("expected one 201 and one 403, got codes %v", codes)
+		}
+	}
+	if created != 1 || forbidden != 1 {
+		t.Fatalf("expected one 201 and one 403, got codes %v", codes)
+	}
+
+	countAfter, err := store.GuestSessionJudgmentCount(context.Background(), guestSessionID)
+	if err != nil {
+		t.Fatalf("count guest judgments after concurrent submissions: %v", err)
+	}
+	if countAfter != 5 {
+		t.Fatalf("expected guest cap count 5 after concurrent submissions, got %d", countAfter)
 	}
 }
 
@@ -187,6 +335,8 @@ func TestGuestJudgment(t *testing.T) {
 
 	t.Run("guest judgments", func(t *testing.T) {
 		t.Run("guest can judge performed jump", testGuestCanJudgePerformedJump)
+		t.Run("guest edit does not increment cap", testGuestEditDoesNotIncrementCap)
+		t.Run("guest concurrent judgments at cap boundary", testGuestConcurrentJudgmentsAtCapBoundary)
 		t.Run("guest cap blocks additional judgments", testGuestCapBlocksAdditionalJudgments)
 	})
 
