@@ -25,8 +25,10 @@ This memo captures the repo-wide test strategy discussed in issue #210. The goal
 
 ## Mobile
 
-- For now, document manual verification plus typecheck as the baseline.
-- Revisit a deeper test harness only when the mobile codebase is large enough to justify it.
+- Use a lightweight Jest plus React Native Testing Library harness for screen-level behavior.
+- Prefer intercepting `global.fetch` for `@supperjumpin/api-client` calls instead of mocking module internals.
+- Keep smoke coverage close to the current app shell and screens, then deepen behavior coverage incrementally.
+- Keep `tsc --noEmit` as a required companion signal, not the only signal.
 
 ## Coverage visibility
 
