@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"testing"
@@ -234,9 +235,119 @@ func testPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 	}
 }
 
+func testPublicFeedExcludesRemovedJumps(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+	removeJump(t, performed.ID)
+
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) != 0 {
+		t.Fatalf("expected 0 jumps in feed, got %d", len(res.Jumps))
+	}
+	if res.NextCursor != nil {
+		t.Fatalf("expected nil cursor for empty feed, got %q", *res.NextCursor)
+	}
+}
+
+func testPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+	removeJump(t, performed.ID)
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var tombstone struct {
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Message   string `json:"message"`
+		RemovedAt string `json:"removedAt"`
+	}
+	decodeResponse(t, rec, &tombstone)
+	if tombstone.ID != performed.ID {
+		t.Fatalf("expected tombstone id %q, got %q", performed.ID, tombstone.ID)
+	}
+	if tombstone.Status != "Removed Jump" {
+		t.Fatalf("expected status 'Removed Jump', got %q", tombstone.Status)
+	}
+	if tombstone.Message == "" {
+		t.Fatal("expected message to be populated")
+	}
+	if tombstone.RemovedAt == "" {
+		t.Fatal("expected removedAt to be populated")
+	}
+}
+
+func testPublicJumpDetailTombstoneSuppressesContentFields(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+	removeJump(t, performed.ID)
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var raw map[string]any
+	decodeResponse(t, rec, &raw)
+	forbidden := []string{"caption", "mediaObjectKey", "source", "destination", "food", "performerName", "performerId", "runningAverage", "judgmentCount", "finalScore", "gracePeriodExpiresAt", "viewerContext"}
+	for _, key := range forbidden {
+		if _, ok := raw[key]; ok {
+			t.Fatalf("expected %q to be suppressed in tombstone response", key)
+		}
+	}
+}
+
+func testPublicJumpDetailInternalErrorReturnsMessageEnvelope(t *testing.T) {
+	pgStore := newCleanPostgresTestStore(t)
+	store := &failingPublicReadStore{
+		PostgresStore: pgStore,
+		jumpDetailErr: errors.New("database unavailable"),
+	}
+	store.SetClock(time.Now)
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"alice-token": {Provider: "supabase", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "supabase", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "supabase", Subject: "carol-auth", Email: "carol@example.com"},
+		},
+		Store:        store,
+		Now:          pgStore.Now,
+		JumpPlanning: pgStore,
+		Judgment:     pgStore,
+		PublicRead:   store,
+		Open:         pgStore,
+	})
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/some-id", "", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for detail load failure, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "internal_error" {
+		t.Fatalf("expected internal_error code, got %q", errBody.Error)
+	}
+	if errBody.Message != "Could not load jump detail. Please try again." {
+		t.Fatalf("expected public detail error message, got %q", errBody.Message)
+	}
+}
+
 func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
 	pgStore := newCleanPostgresTestStore(t)
-	store := &failingPublicReadStore{PostgresStore: pgStore}
+	store := &failingPublicReadStore{PostgresStore: pgStore, feedErr: errors.New("database unavailable")}
 	store.SetClock(time.Now)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
@@ -484,12 +595,37 @@ func testPublicFeedOtherPlayerCanJudge(t *testing.T) {
 	}
 }
 
+func removeJump(t *testing.T, jumpID string) {
+	t.Helper()
+	dbURL := postgresTestDatabaseURL(t)
+	db, err := sql.Open("pgx", dbURL)
+	if err != nil {
+		t.Fatalf("open db for removal: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET status = 'Removed Jump', removed_at = NOW() WHERE id = $1`, jumpID); err != nil {
+		t.Fatalf("remove jump: %v", err)
+	}
+}
+
 type failingPublicReadStore struct {
 	*httpapi.PostgresStore
+	feedErr       error
+	jumpDetailErr error
 }
 
 func (s *failingPublicReadStore) FeedJumps(_ context.Context, _ *time.Time, _ string, _ int) ([]httpapi.JumpCard, error) {
+	if s.feedErr != nil {
+		return nil, s.feedErr
+	}
 	return nil, errors.New("database unavailable")
+}
+
+func (s *failingPublicReadStore) JumpDetail(_ context.Context, _ string) (httpapi.JumpDetail, bool, error) {
+	if s.jumpDetailErr != nil {
+		return httpapi.JumpDetail{}, false, s.jumpDetailErr
+	}
+	return httpapi.JumpDetail{}, false, errors.New("database unavailable")
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +718,7 @@ func TestPublicRead(t *testing.T) {
 		t.Run("invalid cursor returns 400", testPublicFeedInvalidCursorReturns400)
 		t.Run("invalid limit returns 400", testPublicFeedInvalidLimitReturns400)
 		t.Run("internal error returns message envelope", testPublicFeedInternalErrorReturnsMessageEnvelope)
+		t.Run("excludes removed jumps", testPublicFeedExcludesRemovedJumps)
 		t.Run("grace period viewer context", testPublicFeedGracePeriodViewerContext)
 		t.Run("self judging viewer context", testPublicFeedSelfJudgingViewerContext)
 		t.Run("other player can judge", testPublicFeedOtherPlayerCanJudge)
@@ -591,6 +728,9 @@ func TestPublicRead(t *testing.T) {
 	t.Run("public jump detail", func(t *testing.T) {
 		t.Run("returns jump", testPublicJumpDetailReturnsJump)
 		t.Run("unknown id returns 404", testPublicJumpDetailUnknownIDReturns404)
+		t.Run("removed jump returns tombstone", testPublicJumpDetailRemovedJumpReturnsTombstone)
+		t.Run("tombstone suppresses content fields", testPublicJumpDetailTombstoneSuppressesContentFields)
+		t.Run("internal error returns message envelope", testPublicJumpDetailInternalErrorReturnsMessageEnvelope)
 		t.Run("self judging viewer context", testPublicJumpDetailSelfJudgingViewerContext)
 		t.Run("other player can judge", testPublicJumpDetailOtherPlayerCanJudge)
 		t.Run("already judged viewer context", testPublicDetailAlreadyJudgedViewerContext)

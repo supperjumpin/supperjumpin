@@ -329,7 +329,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		detail, found, err := config.PublicRead.JumpDetail(r.Context(), jumpID)
 		if err != nil {
-			http.Error(w, "Could not load jump detail", http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jump detail. Please try again.")
 			return
 		}
 		if !found {
@@ -356,7 +356,7 @@ func NewServer(config ServerConfig) http.Handler {
 		if viewer != nil {
 			hasJudged, err := config.Judgment.HasJudgedJump(r.Context(), detail.ID, viewer.Player.ID)
 			if err != nil {
-				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load judgment state. Please try again.")
 				return
 			}
 			hint := game.JudgmentEligibility(game.JumpSnapshot{
