@@ -98,6 +98,7 @@ npm run api:test          # Run Go API tests against Postgres (local Docker or S
 npm run api:test:coverage  # Run Go API tests with coverage output and summary
 npm test                  # npm workspace tests (api-client + scripts)
 npm run test:coverage     # npm workspace tests with coverage output and summary
+npm --workspace @supperjumpin/mobile test  # Jest + React Native Testing Library mobile tests
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 
 # API client regeneration
@@ -115,6 +116,7 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
 - `npm run api:test:coverage` writes `coverage/api.coverprofile`, prints `go tool cover -func` output, and appends a summary when `GITHUB_STEP_SUMMARY` is set.
 - `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.
+- Mobile now has a lightweight Jest + React Native Testing Library harness for screen-level tests in `apps/mobile/*.test.tsx`; `apps/mobile/test/mockApi.ts` is the default public-read API mocking seam.
 - No production deployment configs (Dockerfile, K8s, Terraform) exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`). See `docs/agents/issue-tracker.md`.
 - Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.
