@@ -13,6 +13,8 @@ Expo React Native player-facing app. Pre-MVP single-file prototype shell. Render
 | Expo config | `app.json` | Slug, scheme `supperjumpin`, portrait, automatic UI style |
 | Env vars | `.env.example` | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL` |
 | TypeScript config | `tsconfig.json` | Extends `expo/tsconfig.base`, strict, react-jsx, bundler resolution |
+| Tests | `*.test.tsx` alongside source | Jest with `jest-expo` preset, `@testing-library/react-native` v14 |
+| API mocking | `test/mockApi.ts` | Intercept `global.fetch` for `@supperjumpin/api-client` public-read calls |
 
 ## CONVENTIONS
 
