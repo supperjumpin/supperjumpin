@@ -51,9 +51,10 @@ test('shows Post Jump button when session is provided', async () => {
     return Response.json({});
   });
 
-  const { getByText, queryByText } = await render(
+  const { getByText } = await render(
     <FeedScreen
       onNavigateDetail={() => {}}
+      onRequestAuth={() => {}}
       session={{ access_token: 'tok', user: { id: 'u1' } }}
     />
   );
@@ -66,7 +67,7 @@ test('shows Post Jump button when session is provided', async () => {
   );
 }, 15000);
 
-test('hides Post Jump button when no session', async () => {
+test('shows Post Jump button when no session', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async (url) => {
     if (url.toString().includes('/v1/feed')) {
@@ -75,11 +76,11 @@ test('hides Post Jump button when no session', async () => {
     return Response.json({});
   });
 
-  const { queryByText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
+  const { getByText } = await render(<FeedScreen onNavigateDetail={() => {}} onRequestAuth={() => {}} />);
 
   await waitFor(
     () => {
-      expect(queryByText('+ Jump')).toBeNull();
+      expect(getByText('+ Jump')).toBeTruthy();
     },
     { timeout: 10000 }
   );

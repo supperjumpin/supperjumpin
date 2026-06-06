@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView, StyleSheet, StatusBar } from "react-native";
 import { GoTrueClient } from "@supabase/auth-js";
 import { getMe, updateDisplayName } from "@supperjumpin/api-client";
@@ -6,6 +6,7 @@ import FeedScreen from "./FeedScreen";
 import JumpDetailScreen from "./JumpDetailScreen";
 import CreateJumpScreen from "./CreateJumpScreen";
 import AuthGate from "./AuthGate";
+import DisplayNameSetupScreen from "./DisplayNameSetupScreen";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
@@ -29,7 +30,10 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "feed" });
   const [session, setSession] = useState<Session | null>(null);
   const [player, setPlayer] = useState<Player | null>(null);
+  const [showDisplayNameSetup, setShowDisplayNameSetup] = useState(false);
   const [client] = useState(() => SUPABASE_URL ? new GoTrueClient({ url: SUPABASE_URL, autoRefreshToken: false, persistSession: false }) : null);
+
+  const pendingCreateRef = useRef(false);
 
   // On mount, check for existing session
   useEffect(() => {
@@ -48,28 +52,47 @@ export default function App() {
       setPlayer(null);
       return;
     }
+    let cancelled = false;
     (async () => {
       try {
         const me = await getMe({ baseUrl: API_BASE, accessToken: session.access_token });
+        if (cancelled) return;
         setPlayer({ id: me.player.id, displayName: me.player.displayName ?? "" });
+
+        // If user tapped "+ Jump" before auth, complete the flow
+        if (pendingCreateRef.current) {
+          if (me.player.displayName) {
+            pendingCreateRef.current = false;
+            setScreen({ name: "create" });
+          } else {
+            setShowDisplayNameSetup(true);
+          }
+        }
       } catch {
-        // Session invalid — reset
-        setSession(null);
+        if (!cancelled) setSession(null);
       }
     })();
+    return () => { cancelled = true; };
   }, [session]);
 
   const handleSignIn = useCallback(async () => {
     if (!client) return;
     const { error } = await client.signInWithOAuth({ provider: "google" });
     if (error) throw error;
-    // OAuth redirects the browser; session arrives via URL callback
   }, [client]);
+
+  const handleRequestAuth = useCallback(() => {
+    pendingCreateRef.current = true;
+    handleSignIn();
+  }, [handleSignIn]);
 
   const handleDisplayNameSet = useCallback(async (displayName: string) => {
     if (!session) return;
     const result = await updateDisplayName({ baseUrl: API_BASE, accessToken: session.access_token, displayName });
     setPlayer({ id: result.player.id, displayName: result.player.displayName });
+    setShowDisplayNameSetup(false);
+    pendingCreateRef.current = false;
+    setScreen({ name: "create" });
   }, [session]);
 
   const handleNavigateDetail = useCallback((jumpId: string) => {
@@ -91,6 +114,7 @@ export default function App() {
         <FeedScreen
           onNavigateDetail={handleNavigateDetail}
           onNavigateCreate={handleNavigateCreate}
+          onRequestAuth={handleRequestAuth}
           session={session}
         />
       ) : screen.name === "create" ? (
@@ -108,16 +132,15 @@ export default function App() {
     </SafeAreaView>
   );
 
-  return (
-    <AuthGate
-      session={session}
-      player={player}
-      onSignIn={handleSignIn}
-      onDisplayNameSet={handleDisplayNameSet}
-    >
-      {content}
-    </AuthGate>
-  );
+  // Display name setup overlay — shown when first-time auth user taps "+ Jump"
+  // before confirming their display name
+  if (showDisplayNameSetup) {
+    return (
+      <DisplayNameSetupScreen onSubmit={handleDisplayNameSet} />
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({

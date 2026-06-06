@@ -200,10 +200,11 @@ function JumpCard({
 interface FeedScreenProps {
   onNavigateDetail: (jumpId: string) => void;
   onNavigateCreate?: () => void;
+  onRequestAuth?: () => void;
   session?: { access_token: string; user: { id: string } } | null;
 }
 
-export default function FeedScreen({ onNavigateDetail, onNavigateCreate, session }: FeedScreenProps) {
+export default function FeedScreen({ onNavigateDetail, onNavigateCreate, onRequestAuth, session }: FeedScreenProps) {
   const [jumps, setJumps] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -308,16 +309,20 @@ export default function FeedScreen({ onNavigateDetail, onNavigateCreate, session
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Supperjumpin</Text>
-        {session ? (
-          <TouchableOpacity
-            style={styles.postJumpButton}
-            onPress={onNavigateCreate}
-            accessibilityRole="button"
-            accessibilityLabel="Post a new Jump"
-          >
-            <Text style={styles.postJumpButtonText}>+ Jump</Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity
+          style={styles.postJumpButton}
+          onPress={() => {
+            if (session) {
+              onNavigateCreate?.();
+            } else {
+              onRequestAuth?.();
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Post a new Jump"
+        >
+          <Text style={styles.postJumpButtonText}>+ Jump</Text>
+        </TouchableOpacity>
       </View>
       <FlatList
         data={jumps}
