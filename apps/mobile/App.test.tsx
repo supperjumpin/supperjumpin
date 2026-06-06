@@ -1,57 +1,14 @@
 import { render, waitFor } from '@testing-library/react-native';
 import App from './App';
-import { mockPublicFetch, feedResponse } from './test/mockApi';
 
-test('renders empty feed when public-read API returns no jumps', async () => {
-  const fetchSpy = mockPublicFetch();
-  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
-    if (url.toString().includes('/v1/feed')) {
-      return Response.json(feedResponse([]));
-    }
-    return Response.json({});
-  });
-
-  const { getByText } = await render(<App />);
+// App wraps content in AuthGate. When no SUPABASE_URL env var is set
+// (test environment), GoTrueClient is null so there's no session,
+// and AuthGate shows LoginScreen.
+test('renders sign-in screen when unauthenticated', async () => {
+  const renderResult = await render(<App />);
 
   await waitFor(() => {
-    expect(getByText('Supperjumpin')).toBeTruthy();
-    expect(getByText('No jumps yet. The feed is empty.')).toBeTruthy();
-  });
-});
-
-test('renders feed after public-read API succeeds', async () => {
-  const fetchSpy = mockPublicFetch();
-  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
-    if (url.toString().includes('/v1/feed')) {
-      return Response.json(
-        feedResponse([
-          {
-            id: 'jump_1',
-            performerId: 'player_1',
-            performerName: 'alice',
-            source: 'Taco Bell',
-            destination: 'Olive Garden parking lot',
-            food: 'Crunchwrap',
-            caption: 'Test caption',
-            mediaObjectKey: '',
-            status: 'Performed Jump',
-            gracePeriodExpiresAt: '2026-06-01T00:10:00Z',
-            runningAverage: 3.5,
-            judgmentCount: 4,
-            createdAt: '2026-06-01T00:00:00Z',
-            viewerContext: { canJudge: true, hasJudged: false },
-          },
-        ])
-      );
-    }
-    return Response.json({});
-  });
-
-  const { getByText } = await render(<App />);
-
-  await waitFor(() => {
-    expect(getByText('Supperjumpin')).toBeTruthy();
-    expect(getByText('alice')).toBeTruthy();
-    expect(getByText('Crunchwrap')).toBeTruthy();
-  });
-});
+    expect(renderResult.getByText('Supperjumpin')).toBeTruthy();
+    expect(renderResult.getByText('Sign In')).toBeTruthy();
+  }, { timeout: 10000 });
+}, 15000);

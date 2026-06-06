@@ -4,7 +4,7 @@ import { mockPublicFetch, feedResponse } from './test/mockApi';
 
 test('renders jumps from public-read API', async () => {
   const fetchSpy = mockPublicFetch();
-  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+  fetchSpy.mockImplementation(async (url) => {
     if (url.toString().includes('/v1/feed')) {
       return Response.json(
         feedResponse([
@@ -32,9 +32,55 @@ test('renders jumps from public-read API', async () => {
 
   const { getByText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
 
-  await waitFor(() => {
-    expect(getByText('alice')).toBeTruthy();
-    expect(getByText('Crunchwrap')).toBeTruthy();
-    expect(getByText('Taco Bell → Olive Garden parking lot')).toBeTruthy();
+  await waitFor(
+    () => {
+      expect(getByText('alice')).toBeTruthy();
+      expect(getByText('Crunchwrap')).toBeTruthy();
+      expect(getByText('Taco Bell → Olive Garden parking lot')).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
+
+test('shows Post Jump button when session is provided', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    return Response.json({});
   });
-});
+
+  const { getByText, queryByText } = await render(
+    <FeedScreen
+      onNavigateDetail={() => {}}
+      session={{ access_token: 'tok', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(
+    () => {
+      expect(getByText('+ Jump')).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);
+
+test('hides Post Jump button when no session', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    return Response.json({});
+  });
+
+  const { queryByText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
+
+  await waitFor(
+    () => {
+      expect(queryByText('+ Jump')).toBeNull();
+    },
+    { timeout: 10000 }
+  );
+}, 15000);

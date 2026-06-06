@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  Alert,
 } from "react-native";
 import { getPublicFeed } from "@supperjumpin/api-client";
 
@@ -199,9 +200,10 @@ function JumpCard({
 
 interface FeedScreenProps {
   onNavigateDetail: (jumpId: string) => void;
+  session?: { access_token: string; user: { id: string } } | null;
 }
 
-export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
+export default function FeedScreen({ onNavigateDetail, session }: FeedScreenProps) {
   const [jumps, setJumps] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -306,6 +308,16 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Supperjumpin</Text>
+        {session ? (
+          <TouchableOpacity
+            style={styles.postJumpButton}
+            onPress={() => Alert.alert("Post Jump", "Jump creation coming soon!")}
+            accessibilityRole="button"
+            accessibilityLabel="Post a new Jump"
+          >
+            <Text style={styles.postJumpButtonText}>+ Jump</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <FlatList
         data={jumps}
@@ -503,5 +515,20 @@ const styles = StyleSheet.create({
   footerLoader: {
     paddingVertical: 20,
     alignItems: "center",
+  },
+  postJumpButton: {
+    backgroundColor: "#c1673a",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minHeight: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "flex-end",
+  },
+  postJumpButtonText: {
+    color: "#fffaf2",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
