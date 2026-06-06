@@ -4,6 +4,7 @@ import { GoTrueClient } from "@supabase/auth-js";
 import { getMe, updateDisplayName } from "@supperjumpin/api-client";
 import FeedScreen from "./FeedScreen";
 import JumpDetailScreen from "./JumpDetailScreen";
+import CreateJumpScreen from "./CreateJumpScreen";
 import AuthGate from "./AuthGate";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -21,7 +22,8 @@ interface Player {
 
 type Screen =
   | { name: "feed" }
-  | { name: "detail"; jumpId: string };
+  | { name: "detail"; jumpId: string }
+  | { name: "create" };
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "feed" });
@@ -74,6 +76,10 @@ export default function App() {
     setScreen({ name: "detail", jumpId });
   }, []);
 
+  const handleNavigateCreate = useCallback(() => {
+    setScreen({ name: "create" });
+  }, []);
+
   const handleBack = useCallback(() => {
     setScreen({ name: "feed" });
   }, []);
@@ -82,14 +88,23 @@ export default function App() {
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7efe2" />
       {screen.name === "feed" ? (
-        <FeedScreen onNavigateDetail={handleNavigateDetail} session={session} />
-      ) : (
-        <JumpDetailScreen
-          jumpId={screen.jumpId}
-          onBack={handleBack}
-          onBrowseFeed={handleBack}
+        <FeedScreen
+          onNavigateDetail={handleNavigateDetail}
+          onNavigateCreate={handleNavigateCreate}
+          session={session}
         />
-      )}
+      ) : screen.name === "create" ? (
+        <CreateJumpScreen onBack={handleBack} />
+      ) : (() => {
+        const s = screen as { name: "detail"; jumpId: string };
+        return (
+          <JumpDetailScreen
+            jumpId={s.jumpId}
+            onBack={handleBack}
+            onBrowseFeed={handleBack}
+          />
+        );
+      })()}
     </SafeAreaView>
   );
 

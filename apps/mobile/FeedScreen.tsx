@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
-  Alert,
 } from "react-native";
 import { getPublicFeed } from "@supperjumpin/api-client";
 
@@ -200,10 +199,11 @@ function JumpCard({
 
 interface FeedScreenProps {
   onNavigateDetail: (jumpId: string) => void;
+  onNavigateCreate?: () => void;
   session?: { access_token: string; user: { id: string } } | null;
 }
 
-export default function FeedScreen({ onNavigateDetail, session }: FeedScreenProps) {
+export default function FeedScreen({ onNavigateDetail, onNavigateCreate, session }: FeedScreenProps) {
   const [jumps, setJumps] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -311,7 +311,7 @@ export default function FeedScreen({ onNavigateDetail, session }: FeedScreenProp
         {session ? (
           <TouchableOpacity
             style={styles.postJumpButton}
-            onPress={() => Alert.alert("Post Jump", "Jump creation coming soon!")}
+            onPress={onNavigateCreate}
             accessibilityRole="button"
             accessibilityLabel="Post a new Jump"
           >
