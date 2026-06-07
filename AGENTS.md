@@ -97,7 +97,8 @@ These files are maintained by convention, not automation. Follow these rules in 
 npm run db:up             # Start Docker Compose Postgres service
 npm run db:down           # Stop Docker Compose Postgres without deleting data
 npm run db:reset          # Recreate local dev DB and reapply migrations
-npm run db:migrate        # Apply migrations using repo-local golang-migrate
+npm run db:migrate        # Apply migrations to local Docker Postgres by default
+npm run db:migrate:staging # Apply migrations to SUPPERJUMPIN_DATABASE_URL
 npm run api:dev           # Run API against existing DB
 
 # Testing
@@ -117,9 +118,9 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 
 ## NOTES
 
-- `DATABASE_URL` is mandatory — API refuses to start without it.
-- Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
-- Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`.
+- `DATABASE_URL` is mandatory for the Go binary, but npm scripts set it for local Docker Postgres by default. Use `SUPPERJUMPIN_DATABASE_URL` to intentionally target Supabase staging. See `docs/supabase.md`.
+- Supabase Auth JWT verification is enabled by `SUPABASE_URL`/`SUPABASE_JWKS_URL`; legacy HS256 fallback uses `SUPABASE_JWT_SECRET`. Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
+- Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`. Put the Supabase publishable key in the legacy `EXPO_PUBLIC_SUPABASE_ANON_KEY` variable.
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
 - `npm run api:test:coverage` writes `coverage/api.coverprofile`, prints `go tool cover -func` output, and appends a summary when `GITHUB_STEP_SUMMARY` is set.
 - `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.

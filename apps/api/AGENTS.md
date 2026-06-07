@@ -8,7 +8,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN |
+| Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, DATABASE_URL, SUPABASE_URL, SUPABASE_JWKS_URL, SUPABASE_JWT_SECRET, SUPPERJUMPIN_DEV_AUTH_TOKEN. npm scripts use `SUPPERJUMPIN_DATABASE_URL` to opt into non-local DBs. |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig; call transport helpers in `store.go` |
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
 | Postgres-backed tests | `npm run api:test` / `npm run api:test:coverage` | Canonical test path against Postgres; see root AGENTS.md |
@@ -21,7 +21,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 ## CONVENTIONS
 
 - **Standard library HTTP only**: `net/http` + `http.NewServeMux()` with Go 1.22 path patterns. No Gin, Echo, or Fiber.
-- **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` header.
+- **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` header. Production/staging auth verifies Supabase JWTs from JWKS using `SUPABASE_URL`/`SUPABASE_JWKS_URL`; legacy HS256 fallback uses `SUPABASE_JWT_SECRET`; local dev can also use `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
 - **Transport helpers** in `store.go` bridge between game snapshots and JSON DTOs from `dto.go`. Example: `createGroup()` calls `game.CreateGroup()` then assembles `GroupHomeResponse`.
 - **Error mapping**: `mapGameErr()` in `store.go` translates domain errors (`game.ErrInvalidJudgmentScore`) to transport errors (`httpapi.ErrInvalidJudgmentScore`) for HTTP status codes.
 - **sqlc for queries**: All repository interface methods in `postgres_store_*.go` delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run generate:sqlc`.
