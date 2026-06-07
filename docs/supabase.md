@@ -26,7 +26,7 @@ npm run api:dev
 For Supabase from WSL or any IPv4-only network, use the **Session pooler** connection string. Supabase direct database connections may resolve to IPv6 and fail with `network is unreachable`.
 
 ```sh
-DATABASE_URL='postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require' npm run db:migrate
+SUPPERJUMPIN_DATABASE_URL='postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require' npm run db:migrate:staging
 ```
 
 Verify migrations in Supabase SQL Editor:
@@ -46,7 +46,7 @@ from schema_migrations;
 The API accepts real Supabase Auth access tokens when `SUPABASE_JWT_SECRET` is set:
 
 ```sh
-DATABASE_URL='postgresql://...' SUPABASE_JWT_SECRET='...' npm run api:dev
+SUPPERJUMPIN_DATABASE_URL='postgresql://...' SUPABASE_JWT_SECRET='...' npm run api:dev
 ```
 
 `SUPABASE_JWT_SECRET` is the project's JWT signing secret from Supabase auth/API settings. It is not the client publishable key and not the new Supabase secret API key.

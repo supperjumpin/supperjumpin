@@ -18,6 +18,7 @@
     "db:down": "node ./scripts/db-lifecycle.mjs down",
     "db:reset": "node ./scripts/db-reset.mjs",
     "db:migrate": "node ./scripts/db-migrate.mjs",
+    "db:migrate:staging": "test -n \"$SUPPERJUMPIN_DATABASE_URL\" || (echo 'SUPPERJUMPIN_DATABASE_URL is required' && exit 1); node ./scripts/db-migrate.mjs",
     "api:dev": "node ./scripts/api-dev.mjs",
     "api:test": "node ./scripts/api-test.mjs",
     "api:test:coverage": "node ./scripts/api-test.mjs --coverage",

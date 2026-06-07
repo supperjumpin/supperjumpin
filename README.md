@@ -38,12 +38,14 @@ You need:
 4. Start the API in one terminal:
 
 ```sh
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable npm run api:dev
+npm run api:dev
 ```
 
 If you already have Postgres running and only want to reapply migrations, use `npm run db:migrate` instead of `npm run db:reset`.
 
 For Supabase staging setup, IPv4 pooler connection strings, and auth env vars, see `docs/supabase.md`.
+
+Local scripts intentionally ignore an ambient shell `DATABASE_URL`. To target a non-local database, set `SUPPERJUMPIN_DATABASE_URL` for that command.
 
 5. In a second terminal, start the Expo app:
 

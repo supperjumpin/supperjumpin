@@ -29,7 +29,7 @@ test("exits with clear error when local migrate binary is missing", () => {
   );
 });
 
-test("invokes local migrate binary with default DATABASE_URL when env is unset", () => {
+test("invokes local migrate binary with default local database URL when env is unset", () => {
   const binDir = mkdtempSync(join(tmpdir(), "sj-test-"));
   const fakeMigrate = join(binDir, "migrate");
   writeFileSync(
@@ -43,7 +43,7 @@ test("invokes local migrate binary with default DATABASE_URL when env is unset",
   assert.strictEqual(result.status, 0, `Expected exit 0. stderr: ${result.stderr}`);
   const output = result.stdout + result.stderr;
   assert.ok(output.includes("postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable"),
-    `Expected default DATABASE_URL in output. Got: ${output}`
+    `Expected default local database URL in output. Got: ${output}`
   );
   assert.ok(output.includes("apps/api/db/migrations"),
     `Expected migrations path in output. Got: ${output}`
@@ -53,7 +53,7 @@ test("invokes local migrate binary with default DATABASE_URL when env is unset",
   );
 });
 
-test("invokes local migrate binary with explicit DATABASE_URL when env is set", () => {
+test("invokes local migrate binary with explicit SUPPERJUMPIN_DATABASE_URL when env is set", () => {
   const binDir = mkdtempSync(join(tmpdir(), "sj-test-"));
   const fakeMigrate = join(binDir, "migrate");
   writeFileSync(
@@ -63,11 +63,35 @@ test("invokes local migrate binary with explicit DATABASE_URL when env is set", 
   );
 
   const customURL = "postgres://user:pass@host:9999/db?sslmode=require";
-  const result = runScript(binDir, { DATABASE_URL: customURL });
+  const result = runScript(binDir, { SUPPERJUMPIN_DATABASE_URL: customURL });
 
   assert.strictEqual(result.status, 0, `Expected exit 0. stderr: ${result.stderr}`);
   const output = result.stdout + result.stderr;
   assert.ok(output.includes(customURL),
-    `Expected custom DATABASE_URL in output. Got: ${output}`
+    `Expected custom SUPPERJUMPIN_DATABASE_URL in output. Got: ${output}`
+  );
+});
+
+test("ignores ambient DATABASE_URL so shell config cannot retarget migrations", () => {
+  const binDir = mkdtempSync(join(tmpdir(), "sj-test-"));
+  const fakeMigrate = join(binDir, "migrate");
+  writeFileSync(
+    fakeMigrate,
+    "#!/bin/sh\nfor arg in \"$@\"; do echo \"$arg\"; done\n",
+    { mode: 0o755 }
+  );
+
+  const result = runScript(binDir, { DATABASE_URL: "postgres://user:pass@staging:9999/db?sslmode=require" });
+
+  assert.strictEqual(result.status, 0, `Expected exit 0. stderr: ${result.stderr}`);
+  const output = result.stdout + result.stderr;
+  assert.ok(output.includes("Ignoring ambient DATABASE_URL"),
+    `Expected warning about ignored DATABASE_URL. Got: ${output}`
+  );
+  assert.ok(output.includes("postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable"),
+    `Expected local default DATABASE_URL in output. Got: ${output}`
+  );
+  assert.ok(!output.includes("staging:9999"),
+    `Expected staging DATABASE_URL to be ignored. Got: ${output}`
   );
 });
