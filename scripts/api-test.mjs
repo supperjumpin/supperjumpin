@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildAdminURL,
   DEFAULT_TEST_DATABASE_URL,
+  describeDatabaseURL,
   parseDatabaseName,
   runMigrations,
   runPsqlCommand,
@@ -97,6 +98,7 @@ export function isSafeToReset(dbName, allowUnsafe) {
 function main() {
   const env = process.env;
   const testDatabaseURL = getTestDatabaseURL(env);
+  console.log(`Test database: ${describeDatabaseURL(testDatabaseURL)}`);
   const dbName = parseDatabaseName(testDatabaseURL);
   const allowUnsafe = env.SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET === "1";
   const isLocalDocker = !env.SUPPERJUMPIN_TEST_DATABASE_URL;

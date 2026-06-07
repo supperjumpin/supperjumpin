@@ -5,7 +5,7 @@ import {
   getTestDatabaseURL,
   isSafeToReset,
 } from "./api-test.mjs";
-import { buildAdminURL, parseDatabaseName } from "./db-helpers.mjs";
+import { buildAdminURL, describeDatabaseURL, parseDatabaseName } from "./db-helpers.mjs";
 
 test("parseDatabaseName extracts db name from postgres URL", () => {
   assert.strictEqual(
@@ -62,5 +62,12 @@ test("buildAdminURL works without query params", () => {
   assert.strictEqual(
     buildAdminURL("postgres://u:p@host:5432/mydb"),
     "postgres://u:p@host:5432/postgres"
+  );
+});
+
+test("describeDatabaseURL excludes credentials", () => {
+  assert.strictEqual(
+    describeDatabaseURL("postgresql://user:secret@aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require"),
+    "aws-1-us-west-2.pooler.supabase.com:5432/postgres"
   );
 });
