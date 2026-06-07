@@ -136,6 +136,7 @@ export default function App() {
             jumpId={s.jumpId}
             onBack={handleBack}
             onBrowseFeed={handleBack}
+            session={session}
           />
         );
       })()}

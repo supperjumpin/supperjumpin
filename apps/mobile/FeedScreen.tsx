@@ -37,16 +37,16 @@ function formatScore(avg: number, count: number): string {
   return `★ ${avg.toFixed(1)} (${count})`;
 }
 
-function formatCountdown(endsAt: string): string {
-  const remaining = new Date(endsAt).getTime() - Date.now();
+function formatCountdown(endsAt: string, nowMs = Date.now()): string {
+  const remaining = new Date(endsAt).getTime() - nowMs;
   if (remaining <= 0) return "0m 0s";
   const mins = Math.floor(remaining / 60000);
   const secs = Math.floor((remaining % 60000) / 1000);
   return `${mins}m ${secs}s`;
 }
 
-function formatGraceCountdown(endsAt: string): string {
-  const countdown = formatCountdown(endsAt);
+function formatGraceCountdown(endsAt: string, nowMs = Date.now()): string {
+  const countdown = formatCountdown(endsAt, nowMs);
   if (countdown === "0m 0s") return "Judging now available";
   return `Judging opens in ${countdown}`;
 }
@@ -95,6 +95,18 @@ function JumpCard({
 }: JumpCardProps) {
   const canJudge = viewerContext?.canJudge ?? true;
   const judgeReason = viewerContext?.reason;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (judgeReason !== "grace-period") return;
+
+    setNowMs(Date.now());
+    const intervalID = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(intervalID);
+  }, [judgeReason, gracePeriodExpiresAt]);
 
   let judgeLabel = "Judge";
   let judgeAccessibility = "Judge this Jump";
@@ -102,8 +114,8 @@ function JumpCard({
     judgeLabel = "Your Jump";
     judgeAccessibility = "You performed this jump. You cannot judge your own entry.";
   } else if (judgeReason === "grace-period") {
-    judgeLabel = formatGraceCountdown(gracePeriodExpiresAt);
-    judgeAccessibility = `Judging opens in ${formatCountdown(gracePeriodExpiresAt)}. Not yet available.`;
+    judgeLabel = formatGraceCountdown(gracePeriodExpiresAt, nowMs);
+    judgeAccessibility = `Judging opens in ${formatCountdown(gracePeriodExpiresAt, nowMs)}. Not yet available.`;
   } else if (judgeReason === "already-judged") {
     judgeLabel = "You judged this";
     judgeAccessibility = "You already judged this jump. Score submitted.";
@@ -157,9 +169,16 @@ function JumpCard({
           {caption}
         </Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.performer} accessibilityLabel={`${performerName}`}>
-            {performerName}
-          </Text>
+          <TouchableOpacity
+            style={styles.performerStub}
+            disabled
+            accessibilityRole="button"
+            accessibilityState={{ disabled: true }}
+            accessibilityLabel={`${performerName} profile coming soon`}
+            accessibilityHint="Player profiles are not available yet."
+          >
+            <Text style={styles.performer}>{performerName}</Text>
+          </TouchableOpacity>
           <Text style={styles.timestamp}>
             {formatTimeAgo(createdAt)}
           </Text>
@@ -185,7 +204,7 @@ function JumpCard({
             numberOfLines={1}
             accessibilityLabel={
               isGracePeriod
-                ? `Judging opens in ${formatCountdown(gracePeriodExpiresAt)}. Not yet available.`
+                ? `Judging opens in ${formatCountdown(gracePeriodExpiresAt, nowMs)}. Not yet available.`
                 : judgeAccessibility
             }
           >
@@ -217,6 +236,7 @@ export default function FeedScreen({ onNavigateDetail, onNavigateCreate, onReque
       try {
         const data = await getPublicFeed({
           baseUrl: API_BASE,
+          accessToken: session?.access_token,
           cursor,
           limit: 20,
         });
@@ -231,7 +251,7 @@ export default function FeedScreen({ onNavigateDetail, onNavigateCreate, onReque
         setError(e.message ?? "Could not load jumps");
       }
     },
-    []
+    [session?.access_token]
   );
 
   useEffect(() => {
@@ -476,7 +496,12 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 4,
+  },
+  performerStub: {
+    minHeight: 44,
+    justifyContent: "center",
   },
   performer: {
     color: "#2f241d",
@@ -527,7 +552,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
-    minHeight: 40,
+    minHeight: 44,
     justifyContent: "center",
     alignItems: "center",
     alignSelf: "flex-end",

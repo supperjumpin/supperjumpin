@@ -101,6 +101,79 @@ test('renders Jump card anatomy from public Feed data', async () => {
   });
 });
 
+test('Feed exposes performer attribution as a disabled profile stub target', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => Response.json(feedResponse([publicJump()])));
+
+  const { getByLabelText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
+
+  await waitFor(() => {
+    const performerTarget = getByLabelText('alice profile coming soon');
+    expect(performerTarget.props.accessibilityRole).toBe('button');
+    expect(performerTarget.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+    expect(performerTarget.props.style).toEqual(expect.objectContaining({ minHeight: 44 }));
+  });
+});
+
+test('signed-in Feed requests include bearer auth and render viewer states from the API', async () => {
+  const fetchSpy = mockPublicFetch();
+  const futureGracePeriod = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  fetchSpy.mockImplementation(async () =>
+    Response.json(
+      feedResponse([
+        publicJump({
+          id: 'jump_self',
+          food: 'Pizza',
+          viewerContext: { canJudge: false, hasJudged: false, reason: 'self-judging' },
+        }),
+        publicJump({
+          id: 'jump_grace',
+          food: 'Burrito',
+          gracePeriodExpiresAt: futureGracePeriod,
+          viewerContext: { canJudge: false, hasJudged: false, reason: 'grace-period' },
+        }),
+        publicJump({
+          id: 'jump_done',
+          food: 'Pasta',
+          viewerContext: { canJudge: false, hasJudged: true, reason: 'already-judged' },
+        }),
+        publicJump({
+          id: 'jump_open',
+          food: 'Salad',
+          viewerContext: { canJudge: true, hasJudged: false },
+        }),
+      ])
+    )
+  );
+
+  const { getAllByLabelText, getByText } = await render(
+    <FeedScreen
+      onNavigateDetail={() => {}}
+      session={{ access_token: 'tok_feed', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(() => {
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:8080/v1/feed?limit=20',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: 'application/json',
+          Authorization: 'Bearer tok_feed',
+        }),
+      })
+    );
+    expect(getByText('Your Jump')).toBeTruthy();
+    expect(getByText(/Judging opens in/)).toBeTruthy();
+    expect(getByText('You judged this')).toBeTruthy();
+    expect(getByText('Judge')).toBeTruthy();
+    expect(getAllByLabelText('You performed this jump. You cannot judge your own entry.').length).toBeGreaterThan(0);
+    expect(getAllByLabelText(/Judging opens in .* Not yet available\./).length).toBeGreaterThan(0);
+    expect(getAllByLabelText('You already judged this jump. Score submitted.').length).toBeGreaterThan(0);
+    expect(getAllByLabelText('Judge this Jump').length).toBeGreaterThan(0);
+  });
+});
+
 test('pull-to-refresh replaces existing Feed contents', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy
@@ -197,4 +270,35 @@ test('shows Post Jump button when no session', async () => {
     },
     { timeout: 10000 }
   );
+});
+
+test('guest Feed requests omit bearer auth', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => Response.json(feedResponse([])));
+
+  await render(<FeedScreen onNavigateDetail={() => {}} />);
+
+  await waitFor(() => {
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:8080/v1/feed?limit=20',
+      expect.objectContaining({
+        headers: { Accept: 'application/json' },
+      })
+    );
+  });
+});
+
+test('Feed key interactive targets meet minimum touch size', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => Response.json(feedResponse([publicJump()])));
+
+  const { getAllByLabelText, getByLabelText } = await render(<FeedScreen onNavigateDetail={() => {}} onRequestAuth={() => {}} />);
+
+  await waitFor(() => {
+    expect(getByLabelText('Post a new Jump').props.style).toEqual(expect.objectContaining({ minHeight: 44 }));
+    expect(getAllByLabelText('Judge this Jump')[0].props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ minHeight: 44 })])
+    );
+    expect(getByLabelText('alice profile coming soon').props.style).toEqual(expect.objectContaining({ minHeight: 44 }));
+  });
 });
