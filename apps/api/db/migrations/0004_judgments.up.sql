@@ -3,6 +3,7 @@ CREATE TABLE guest_sessions (
     judgment_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE guest_sessions ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE judgments (
     id TEXT PRIMARY KEY,
@@ -17,6 +18,7 @@ CREATE TABLE judgments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK ((player_id IS NOT NULL) OR (guest_session_id IS NOT NULL))
 );
+ALTER TABLE judgments ENABLE ROW LEVEL SECURITY;
 
 CREATE UNIQUE INDEX judgments_jump_player_unique ON judgments (jump_id, player_id) WHERE player_id IS NOT NULL;
 CREATE UNIQUE INDEX judgments_jump_guest_unique ON judgments (jump_id, guest_session_id) WHERE guest_session_id IS NOT NULL;

@@ -23,6 +23,11 @@ export function buildAdminURL(databaseURL) {
   return parsed.toString();
 }
 
+export function describeDatabaseURL(databaseURL) {
+  const parsed = new URL(databaseURL);
+  return `${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}${parsed.pathname}`;
+}
+
 export function runPsqlCommand(databaseURL, sql, isLocalDocker) {
   if (isLocalDocker) {
     return spawnSync("docker", ["compose", "exec", "-T", "postgres", "psql", databaseURL, "-c", sql], {
@@ -61,6 +66,8 @@ export function runMigrations(databaseURL, env = process.env) {
     console.error(`Local migrate binary not found at ${migratePath}. Run \`npm run setup\` first.`);
     return { status: 1 };
   }
+
+  console.log(`Migration database: ${describeDatabaseURL(databaseURL)}`);
 
   return spawnSync(
     migratePath,

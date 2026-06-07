@@ -3,6 +3,7 @@ CREATE TABLE accounts (
     email TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE auth_identities (
     provider TEXT NOT NULL,
@@ -11,6 +12,7 @@ CREATE TABLE auth_identities (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (provider, subject)
 );
+ALTER TABLE auth_identities ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE players (
     id TEXT PRIMARY KEY,
@@ -18,3 +20,4 @@ CREATE TABLE players (
     display_name TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE players ENABLE ROW LEVEL SECURITY;

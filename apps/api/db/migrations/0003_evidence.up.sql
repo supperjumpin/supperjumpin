@@ -7,6 +7,7 @@ CREATE TABLE evidence_upload_authorizations (
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE evidence_upload_authorizations ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX evidence_upload_authorizations_jump_id_idx ON evidence_upload_authorizations(jump_id);
 
@@ -19,3 +20,4 @@ CREATE TABLE evidences (
     media_object_key TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE evidences ENABLE ROW LEVEL SECURITY;

@@ -16,5 +16,6 @@ CREATE TABLE jumps (
         OR status = 'Judged Jump'
     )
 );
+ALTER TABLE jumps ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX jumps_player_id_idx ON jumps(player_id);
