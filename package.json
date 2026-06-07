@@ -8,14 +8,6 @@
     "apps/mobile",
     "packages/api-client"
   ],
-  "overrides": {
-    "jest": "29.7.0",
-    "jest-runtime": "29.7.0",
-    "jest-cli": "29.7.0",
-    "@jest/globals": "29.7.0",
-    "@jest/core": "29.7.0",
-    "@jest/transform": "29.7.0"
-  },
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "node ./scripts/test-coverage.mjs",

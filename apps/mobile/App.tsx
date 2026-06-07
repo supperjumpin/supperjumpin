@@ -5,7 +5,6 @@ import { getMe, updateDisplayName } from "@supperjumpin/api-client";
 import FeedScreen from "./FeedScreen";
 import JumpDetailScreen from "./JumpDetailScreen";
 import CreateJumpScreen from "./CreateJumpScreen";
-import AuthGate from "./AuthGate";
 import DisplayNameSetupScreen from "./DisplayNameSetupScreen";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -100,8 +99,19 @@ export default function App() {
   }, []);
 
   const handleNavigateCreate = useCallback(() => {
+    if (session) {
+      if (!player) {
+        pendingCreateRef.current = true;
+        return;
+      }
+      if (!player.displayName) {
+        pendingCreateRef.current = true;
+        setShowDisplayNameSetup(true);
+        return;
+      }
+    }
     setScreen({ name: "create" });
-  }, []);
+  }, [player, session]);
 
   const handleBack = useCallback(() => {
     setScreen({ name: "feed" });

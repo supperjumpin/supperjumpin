@@ -325,6 +325,7 @@ export default function FeedScreen({ onNavigateDetail, onNavigateCreate, onReque
         </TouchableOpacity>
       </View>
       <FlatList
+        testID="feed-list"
         data={jumps}
         renderItem={renderCard}
         keyExtractor={(item: any) => item.id}
