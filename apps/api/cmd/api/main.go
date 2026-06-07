@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
@@ -17,6 +18,13 @@ func main() {
 	}
 
 	auth := httpapi.AuthVerifierChain{}
+	if jwksURL := supabaseJWKSURL(); jwksURL != "" {
+		verifier, err := httpapi.NewSupabaseJWKSVerifier(jwksURL, time.Now)
+		if err != nil {
+			log.Fatalf("load Supabase JWKS: %v", err)
+		}
+		auth = append(auth, verifier)
+	}
 	if jwtSecret := os.Getenv("SUPABASE_JWT_SECRET"); jwtSecret != "" {
 		auth = append(auth, httpapi.SupabaseJWTVerifier{Secret: []byte(jwtSecret), Now: time.Now})
 	}
@@ -56,4 +64,14 @@ func envOrDefault(name string, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func supabaseJWKSURL() string {
+	if value := os.Getenv("SUPABASE_JWKS_URL"); value != "" {
+		return value
+	}
+	if value := os.Getenv("SUPABASE_URL"); value != "" {
+		return strings.TrimRight(value, "/") + "/auth/v1/.well-known/jwks.json"
+	}
+	return ""
 }

@@ -119,7 +119,7 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 ## NOTES
 
 - `DATABASE_URL` is mandatory for the Go binary, but npm scripts set it for local Docker Postgres by default. Use `SUPPERJUMPIN_DATABASE_URL` to intentionally target Supabase staging. See `docs/supabase.md`.
-- Supabase Auth JWT verification is enabled by `SUPABASE_JWT_SECRET`; dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
+- Supabase Auth JWT verification is enabled by `SUPABASE_URL`/`SUPABASE_JWKS_URL`; legacy HS256 fallback uses `SUPABASE_JWT_SECRET`. Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
 - Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`. Put the Supabase publishable key in the legacy `EXPO_PUBLIC_SUPABASE_ANON_KEY` variable.
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
 - `npm run api:test:coverage` writes `coverage/api.coverprofile`, prints `go tool cover -func` output, and appends a summary when `GITHUB_STEP_SUMMARY` is set.

@@ -57,7 +57,7 @@ from schema_migrations;
 
 ## API Auth
 
-The API accepts real Supabase Auth access tokens when `SUPABASE_JWT_SECRET` is set:
+The API accepts real Supabase Auth access tokens when `SUPABASE_URL` is set. It fetches the project's current JWT signing keys from Supabase JWKS, including the newer `ECC (P-256)` signing keys:
 
 ```sh
 set -a
@@ -66,7 +66,7 @@ set +a
 npm run api:dev
 ```
 
-`SUPABASE_JWT_SECRET` is the project's JWT signing secret from Supabase auth/API settings. It is not the client publishable key and not the new Supabase secret API key.
+Set `SUPABASE_URL` to the project URL, for example `https://<project-ref>.supabase.co`. If needed, `SUPABASE_JWKS_URL` can override the derived JWKS endpoint. `SUPABASE_JWT_SECRET` is only a legacy fallback for old `Legacy HS256 (Shared Secret)` projects; most new Supabase projects should not need it.
 
 The local dev token still works when `SUPPERJUMPIN_DEV_AUTH_TOKEN` is set. `npm run api:dev` defaults it to `dev-token` for local smoke testing.
 
