@@ -38,6 +38,7 @@ export function runPsqlCommand(databaseURL, sql, isLocalDocker) {
   return spawnSync("psql", [databaseURL, "-c", sql], { stdio: "pipe" });
 }
 
+
 export function waitForPostgresReady(timeoutMs = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
