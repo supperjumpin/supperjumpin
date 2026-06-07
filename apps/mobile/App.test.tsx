@@ -3,21 +3,36 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import App from './App';
 import { mockPublicFetch, feedResponse, jumpDetailResponse } from './test/mockApi';
 
-test('renders empty feed when public-read API returns no jumps', async () => {
-  const fetchSpy = mockPublicFetch();
-  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+const mockGetSession = jest.fn() as jest.MockedFunction<() => Promise<{ data: { session: any } }>>;
+const mockSignInWithOAuth = jest.fn(async () => ({ error: null }));
+
+jest.mock('@supabase/auth-js', () => ({
+  GoTrueClient: jest.fn(() => ({
+    getSession: mockGetSession,
+    signInWithOAuth: mockSignInWithOAuth,
+  })),
+}));
+
+beforeEach(() => {
+  mockGetSession.mockResolvedValue({ data: { session: null } });
+  mockSignInWithOAuth.mockResolvedValue({ error: null });
+});
+
+test('renders feed screen with Post Jump button even when unauthenticated', async () => {
+  mockPublicFetch().mockImplementation(async (url) => {
     if (url.toString().includes('/v1/feed')) {
       return Response.json(feedResponse([]));
     }
     return Response.json({});
   });
 
-  const { getByText } = await render(<App />);
+  const renderResult = await render(<App />);
 
   await waitFor(() => {
-    expect(getByText('Supperjumpin')).toBeTruthy();
-    expect(getByText('No jumps yet. The feed is empty.')).toBeTruthy();
-  });
+    expect(renderResult.getByText('Supperjumpin')).toBeTruthy();
+    expect(renderResult.getByText('+ Jump')).toBeTruthy();
+    expect(renderResult.getByText('No jumps yet. The feed is empty.')).toBeTruthy();
+  }, { timeout: 10000 });
 });
 
 test('renders feed after public-read API succeeds', async () => {
@@ -101,5 +116,35 @@ test('opens jump detail after tapping a Feed card', async () => {
   await waitFor(() => {
     expect(getByText('Detail caption')).toBeTruthy();
     expect(getByText('Running Average')).toBeTruthy();
+  });
+});
+
+test('routes signed-in players without a display name through setup before creating a Jump', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    if (url.toString().includes('/v1/me')) {
+      return Response.json({ player: { id: 'player_1', displayName: '' } });
+    }
+    return Response.json({});
+  });
+  mockGetSession.mockResolvedValue({
+    data: { session: { access_token: 'tok', user: { id: 'user_1' } } },
+  });
+
+  const { getByText } = await render(<App />);
+
+  await waitFor(() => {
+    expect(getByText('+ Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Choose your display name')).toBeTruthy();
   });
 });

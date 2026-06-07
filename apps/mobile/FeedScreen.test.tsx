@@ -78,7 +78,7 @@ test('shows Feed error state and retries after a failed request', async () => {
 
 test('renders Jump card anatomy from public Feed data', async () => {
   const fetchSpy = mockPublicFetch();
-  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+  fetchSpy.mockImplementation(async (url) => {
     if (url.toString().includes('/v1/feed')) {
       return Response.json(
         feedResponse([
@@ -153,4 +153,48 @@ test('load-more appends Feed cards without dropping existing cards', async () =>
     expect(getByText('Crunchwrap')).toBeTruthy();
     expect(getByText('Lasagna')).toBeTruthy();
   });
+});
+
+test('shows Post Jump button when session is provided', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    return Response.json({});
+  });
+
+  const { getByText } = await render(
+    <FeedScreen
+      onNavigateDetail={() => {}}
+      onRequestAuth={() => {}}
+      session={{ access_token: 'tok', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(
+    () => {
+      expect(getByText('+ Jump')).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+});
+
+test('shows Post Jump button when no session', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    return Response.json({});
+  });
+
+  const { getByText } = await render(<FeedScreen onNavigateDetail={() => {}} onRequestAuth={() => {}} />);
+
+  await waitFor(
+    () => {
+      expect(getByText('+ Jump')).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
 });

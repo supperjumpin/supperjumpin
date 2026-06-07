@@ -64,6 +64,13 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 - Adding ESLint/Prettier/golangci-lint configs without team discussion — none exist today; minimal tooling is the current stance.
 - Using domain-forbidden synonyms in code, comments, or error messages.
 
+## GIT WORKFLOW
+
+- **Feature branches for all changes** — never push to main directly.
+- **Before every push**: `git fetch origin && git rebase origin/main` so your branch is always on top of the latest shared state from other devs.
+- **If rebase conflicts**: Stop and report them. Never force-push through conflicts.
+- **Only push after**: rebase resolves cleanly + build/tests pass.
+
 ## UNIQUE STYLES
 
 - **Agent-native repo scaffolding**: `.agents/`, `.claude/`, `.work-issue/`, `skills-lock.json`, `opencode.json` are first-class project infrastructure, not afterthoughts.
