@@ -149,7 +149,7 @@ function main() {
   }
 
   console.log("Applying migrations...");
-  const migrateResult = runMigrations(testDatabaseURL, env);
+  const migrateResult = runMigrations(testDatabaseURL, { ...env, DATABASE_URL: undefined });
   if (migrateResult.status !== 0) {
     console.error("Migrations failed.");
     process.exit(1);

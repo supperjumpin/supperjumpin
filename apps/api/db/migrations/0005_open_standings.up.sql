@@ -9,6 +9,7 @@ CREATE TABLE open_standings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(year, month, player_id)
 );
+ALTER TABLE open_standings ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX open_standings_year_month_idx ON open_standings(year, month);
 CREATE INDEX open_standings_player_id_idx ON open_standings(player_id);

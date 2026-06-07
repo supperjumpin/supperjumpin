@@ -43,6 +43,14 @@ set +a
 npm run db:migrate:staging
 ```
 
+While migrations are still pre-stable, you can rebuild the staging schema from the current migration files instead of preserving every intermediate migration revision:
+
+```sh
+SUPPERJUMPIN_RESET_STAGING=1 npm run db:reset:staging
+```
+
+This drops only known Supperjumpin app tables plus `schema_migrations`, then reapplies migrations. It keeps the Supabase project, auth settings, keys, storage, and MCP connection. Do not use this once migrations are declared stable.
+
 Verify migrations in Supabase SQL Editor:
 
 ```sql
@@ -84,4 +92,4 @@ Supabase now calls client-safe keys **publishable keys**. The app still uses the
 
 ## RLS
 
-Application tables should have Row Level Security enabled with no permissive client policies unless direct Supabase table access is intentionally introduced. Tracked in GitHub issue #258.
+Application tables have Row Level Security enabled with no permissive client policies. The intended data path is mobile app -> Go API -> Postgres, not direct mobile access to Supabase application tables.
