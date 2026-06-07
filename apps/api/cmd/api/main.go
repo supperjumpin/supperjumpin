@@ -16,13 +16,16 @@ func main() {
 		port = "8080"
 	}
 
-	auth := httpapi.StaticAuthVerifier{}
+	auth := httpapi.AuthVerifierChain{}
+	if jwtSecret := os.Getenv("SUPABASE_JWT_SECRET"); jwtSecret != "" {
+		auth = append(auth, httpapi.SupabaseJWTVerifier{Secret: []byte(jwtSecret), Now: time.Now})
+	}
 	if token := os.Getenv("SUPPERJUMPIN_DEV_AUTH_TOKEN"); token != "" {
-		auth[token] = httpapi.AuthIdentity{
+		auth = append(auth, httpapi.StaticAuthVerifier{token: {
 			Provider: "supabase",
 			Subject:  envOrDefault("SUPPERJUMPIN_DEV_AUTH_SUBJECT", "dev-supabase-subject"),
 			Email:    envOrDefault("SUPPERJUMPIN_DEV_AUTH_EMAIL", "player@example.com"),
-		}
+		}})
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")

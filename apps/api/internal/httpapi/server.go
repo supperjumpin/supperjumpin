@@ -21,13 +21,6 @@ type AuthVerifier interface {
 	Verify(token string) (AuthIdentity, bool)
 }
 
-type StaticAuthVerifier map[string]AuthIdentity
-
-func (v StaticAuthVerifier) Verify(token string) (AuthIdentity, bool) {
-	identity, ok := v[token]
-	return identity, ok
-}
-
 type ServerConfig struct {
 	Auth         AuthVerifier
 	Store        Store

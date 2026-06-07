@@ -32,7 +32,7 @@ cp apps/mobile/.env.example apps/mobile/.env
 You need:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` (use the Supabase publishable key)
 - `EXPO_PUBLIC_API_BASE_URL` (usually `http://localhost:8080`)
 
 4. Start the API in one terminal:
@@ -42,6 +42,8 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=di
 ```
 
 If you already have Postgres running and only want to reapply migrations, use `npm run db:migrate` instead of `npm run db:reset`.
+
+For Supabase staging setup, IPv4 pooler connection strings, and auth env vars, see `docs/supabase.md`.
 
 5. In a second terminal, start the Expo app:
 
