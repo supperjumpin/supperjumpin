@@ -308,6 +308,7 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
         <Text style={styles.title}>Supperjumpin</Text>
       </View>
       <FlatList
+        testID="feed-list"
         data={jumps}
         renderItem={renderCard}
         keyExtractor={(item: any) => item.id}

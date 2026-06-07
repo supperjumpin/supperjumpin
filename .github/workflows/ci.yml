@@ -62,6 +62,9 @@ jobs:
       - name: Run mobile typecheck
         run: npm --workspace @supperjumpin/mobile run typecheck
 
+      - name: Run mobile tests
+        run: npm --workspace @supperjumpin/mobile test
+
       - name: Run API tests (Postgres-backed)
         run: npm run api:test:coverage
         env:
