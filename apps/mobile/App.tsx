@@ -145,7 +145,7 @@ export default function App() {
           session={session}
         />
       ) : screen.name === "create" ? (
-        <CreateJumpScreen onBack={handleBack} />
+        <CreateJumpScreen session={session} onBack={handleBack} />
       ) : (() => {
         const s = screen as { name: "detail"; jumpId: string };
         return (

@@ -24,6 +24,17 @@ export function updateDisplayName(args: {
   fetchImpl?: typeof fetch;
 }): Promise<UpdateDisplayNameResponse>;
 
+export function createJump(args: {
+  baseUrl: string;
+  accessToken: string;
+  source: string;
+  destination: string;
+  food: string;
+  caption: string;
+  mediaObjectKey: string;
+  fetchImpl?: typeof fetch;
+}): Promise<Jump>;
+
 export function submitJudgment(args: {
   baseUrl: string;
   accessToken: string;
