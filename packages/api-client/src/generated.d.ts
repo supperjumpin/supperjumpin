@@ -38,6 +38,23 @@ export interface paths {
         patch: operations["updateDisplayName"];
         trace?: never;
     };
+    "/v1/jumps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a Performed Jump with Evidence metadata */
+        post: operations["createJump"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/guest-sessions": {
         parameters: {
             query?: never;
@@ -154,6 +171,11 @@ export interface components {
             destination: string;
             food: string;
             finalScore: number | null;
+            openFinalScore: number | null;
+            /** Format: date-time */
+            gracePeriodExpiresAt: string;
+            /** Format: date-time */
+            createdAt: string;
         };
         Judgment: {
             id: string;
@@ -300,6 +322,50 @@ export interface operations {
                 };
             };
             /** @description Invalid or missing display name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createJump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    source: string;
+                    destination: string;
+                    food: string;
+                    caption: string;
+                    mediaObjectKey: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The created Performed Jump. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Jump"];
+                };
+            };
+            /** @description Invalid or missing Jump fields. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -22,6 +22,29 @@ export async function updateDisplayName({ baseUrl, accessToken, displayName, fet
   return response.json();
 }
 
+export async function createJump({
+  baseUrl,
+  accessToken,
+  source,
+  destination,
+  food,
+  caption,
+  mediaObjectKey,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(`${baseUrl}/v1/jumps`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ source, destination, food, caption, mediaObjectKey }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`createJump failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function submitJudgment({
   baseUrl,
   accessToken,

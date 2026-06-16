@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createJump,
   getJumpDetail,
   getMe,
   getPublicFeed,
@@ -71,6 +72,53 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
   });
   assert.equal(judgment.playerId, "player_456");
   assert.equal(judgment.transgression, 5);
+});
+
+test("createJump posts the required Jump fields with bearer auth", async () => {
+  const seen = {};
+  const jump = await createJump({
+    baseUrl: "http://api.example.test",
+    accessToken: "supabase-access-token",
+    source: "Taco Bell",
+    destination: "Olive Garden",
+    food: "Crunchwrap",
+    caption: "Best jump ever",
+    mediaObjectKey: "evidence/jump_123.jpg",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json(
+        {
+          id: "jump_123",
+          playerId: "player_456",
+          status: "Performed Jump",
+          source: "Taco Bell",
+          destination: "Olive Garden",
+          food: "Crunchwrap",
+          finalScore: null,
+          openFinalScore: null,
+          gracePeriodExpiresAt: "2026-06-16T12:10:00Z",
+          createdAt: "2026-06-16T12:00:00Z",
+        },
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/jumps");
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.deepEqual(seen.body, {
+    source: "Taco Bell",
+    destination: "Olive Garden",
+    food: "Crunchwrap",
+    caption: "Best jump ever",
+    mediaObjectKey: "evidence/jump_123.jpg",
+  });
+  assert.equal(jump.id, "jump_123");
+  assert.equal(jump.status, "Performed Jump");
 });
 
 test("updateDisplayName patches the player's display name with bearer auth", async () => {
