@@ -3,27 +3,8 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import App from './App';
 import { mockPublicFetch, feedResponse, jumpDetailResponse } from './test/mockApi';
 
-const mockGetSession = jest.fn() as jest.MockedFunction<() => Promise<{ data: { session: any } }>>;
-const mockSignInWithOAuth = jest.fn(async () => ({ error: null }));
-const mockOnAuthStateChange = jest.fn();
-let authStateChangeCallback: ((event: string, session: any) => void) | null = null;
-
-jest.mock('@supabase/auth-js', () => ({
-  GoTrueClient: jest.fn(() => ({
-    getSession: mockGetSession,
-    signInWithOAuth: mockSignInWithOAuth,
-    onAuthStateChange: mockOnAuthStateChange.mockImplementation((callback) => {
-      authStateChangeCallback = callback;
-      return { data: { subscription: { unsubscribe: jest.fn() } } };
-    }),
-  })),
-}));
-
 beforeEach(() => {
-  mockGetSession.mockResolvedValue({ data: { session: null } });
-  mockSignInWithOAuth.mockResolvedValue({ error: null });
-  mockOnAuthStateChange.mockClear();
-  authStateChangeCallback = null;
+  jest.clearAllMocks();
 });
 
 test('renders feed screen with Post Jump button even when unauthenticated', async () => {
@@ -128,9 +109,6 @@ test('opens jump detail after tapping a Feed card', async () => {
 });
 
 test('signed-in players open Jump detail with bearer auth and viewer context', async () => {
-  mockGetSession.mockResolvedValue({
-    data: { session: { access_token: 'tok_detail', user: { id: 'user_1' } } },
-  });
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
     if (url.toString().includes('/v1/feed')) {
@@ -163,7 +141,7 @@ test('signed-in players open Jump detail with bearer auth and viewer context', a
         expect.objectContaining({
           headers: expect.objectContaining({
             Accept: 'application/json',
-            Authorization: 'Bearer tok_detail',
+            Authorization: 'Bearer dev-token',
           }),
         })
       );
@@ -183,6 +161,22 @@ test('signed-in players open Jump detail with bearer auth and viewer context', a
   });
 
   await act(async () => {
+    fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Post a Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Back to Feed'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Crunchwrap')).toBeTruthy();
+  });
+
+  await act(async () => {
     fireEvent.press(getByRole('button', { name: /alice jumped Crunchwrap/ }));
   });
 
@@ -191,7 +185,7 @@ test('signed-in players open Jump detail with bearer auth and viewer context', a
   });
 });
 
-test('routes signed-in players without a display name through setup before creating a Jump', async () => {
+test('routes local dev sign-in without a display name through setup before creating a Jump', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
     if (url.toString().includes('/v1/feed')) {
@@ -202,10 +196,6 @@ test('routes signed-in players without a display name through setup before creat
     }
     return Response.json({});
   });
-  mockGetSession.mockResolvedValue({
-    data: { session: { access_token: 'tok', user: { id: 'user_1' } } },
-  });
-
   const { getByText } = await render(<App />);
 
   await waitFor(() => {
@@ -243,15 +233,6 @@ test('routes unauthenticated Post Jump taps through sign in and into Create Jump
     fireEvent.press(getByText('+ Jump'));
   });
 
-  expect(mockSignInWithOAuth).toHaveBeenCalledWith({ provider: 'google' });
-
-  await act(async () => {
-    authStateChangeCallback?.('SIGNED_IN', {
-      access_token: 'tok_signed_in',
-      user: { id: 'user_1' },
-    });
-  });
-
   await waitFor(() => {
     expect(getByText('Post a Jump')).toBeTruthy();
   });
@@ -268,10 +249,6 @@ test('preserves a composed Jump draft when leaving and returning to Create Jump'
     }
     return Response.json({});
   });
-  mockGetSession.mockResolvedValue({
-    data: { session: { access_token: 'tok', user: { id: 'user_1' } } },
-  });
-
   const { getByText, getByTestId } = await render(<App />);
 
   await waitFor(() => {

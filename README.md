@@ -31,9 +31,9 @@ cp apps/mobile/.env.example apps/mobile/.env
 
 You need:
 
-- `EXPO_PUBLIC_SUPABASE_URL`
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY` (use the Supabase publishable key)
 - `EXPO_PUBLIC_API_BASE_URL` (usually `http://localhost:8080`)
+- `EXPO_PUBLIC_DEV_AUTH_TOKEN` (defaults to `dev-token`)
+- `EXPO_PUBLIC_MEDIA_BASE_URL` (optional; leave blank for local MVP flows without image hosting)
 
 4. Start the API in one terminal:
 
@@ -43,9 +43,7 @@ npm run api:dev
 
 If you already have Postgres running and only want to reapply migrations, use `npm run db:migrate` instead of `npm run db:reset`.
 
-For Supabase staging setup, IPv4 pooler connection strings, and auth env vars, see `docs/supabase.md`.
-
-Local scripts intentionally ignore an ambient shell `DATABASE_URL`. To target a non-local database, set `SUPPERJUMPIN_DATABASE_URL` for that command.
+Local scripts intentionally ignore an ambient shell `DATABASE_URL`. To target a non-local database explicitly, set `SUPPERJUMPIN_DATABASE_URL` for that command.
 
 5. In a second terminal, start the Expo app:
 

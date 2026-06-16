@@ -9,11 +9,11 @@ import (
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
 
-func testGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity(t *testing.T) {
+func testGetMeBootstrapsAccountAndPlayerFromLocalIdentity(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"valid-token": {Provider: "supabase", Subject: "auth-user-123", Email: "player@example.com"},
+			"valid-token": {Provider: "local-dev", Subject: "auth-user-123", Email: "player@example.com"},
 		},
 		Store:        store,
 		Now:          store.Now,
@@ -101,6 +101,6 @@ func testGetMeRejectsMissingBearerToken(t *testing.T) {
 }
 
 func TestMe(t *testing.T) {
-	t.Run("bootstraps account and player from supabase identity", testGetMeBootstrapsAccountAndPlayerFromSupabaseIdentity)
+	t.Run("bootstraps account and player from local identity", testGetMeBootstrapsAccountAndPlayerFromLocalIdentity)
 	t.Run("rejects missing bearer token", testGetMeRejectsMissingBearerToken)
 }

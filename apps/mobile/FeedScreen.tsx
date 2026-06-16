@@ -12,12 +12,11 @@ import {
 import { getPublicFeed } from "@supperjumpin/api-client";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const STORAGE_BUCKET = "evidence";
+const MEDIA_BASE_URL = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? "";
 
 function mediaUrl(key: string): string | null {
-  if (!key || !SUPABASE_URL) return null;
-  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+  if (!key || !MEDIA_BASE_URL) return null;
+  return `${MEDIA_BASE_URL.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
 }
 
 function formatTimeAgo(dateStr: string): string {

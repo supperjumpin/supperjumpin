@@ -10,7 +10,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "@supabase/auth-js": "^2.106.1",
     "@supperjumpin/api-client": "0.1.0",
     "expo": "^54.0.34",
     "react": "19.1.0",

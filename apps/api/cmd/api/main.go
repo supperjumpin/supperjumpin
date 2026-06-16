@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
@@ -18,20 +17,10 @@ func main() {
 	}
 
 	auth := httpapi.AuthVerifierChain{}
-	if jwksURL := supabaseJWKSURL(); jwksURL != "" {
-		verifier, err := httpapi.NewSupabaseJWKSVerifier(jwksURL, time.Now)
-		if err != nil {
-			log.Fatalf("load Supabase JWKS: %v", err)
-		}
-		auth = append(auth, verifier)
-	}
-	if jwtSecret := os.Getenv("SUPABASE_JWT_SECRET"); jwtSecret != "" {
-		auth = append(auth, httpapi.SupabaseJWTVerifier{Secret: []byte(jwtSecret), Now: time.Now})
-	}
 	if token := os.Getenv("SUPPERJUMPIN_DEV_AUTH_TOKEN"); token != "" {
 		auth = append(auth, httpapi.StaticAuthVerifier{token: {
-			Provider: "supabase",
-			Subject:  envOrDefault("SUPPERJUMPIN_DEV_AUTH_SUBJECT", "dev-supabase-subject"),
+			Provider: "local-dev",
+			Subject:  envOrDefault("SUPPERJUMPIN_DEV_AUTH_SUBJECT", "dev-player"),
 			Email:    envOrDefault("SUPPERJUMPIN_DEV_AUTH_EMAIL", "player@example.com"),
 		}})
 	}
@@ -66,14 +55,4 @@ func envOrDefault(name string, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func supabaseJWKSURL() string {
-	if value := os.Getenv("SUPABASE_JWKS_URL"); value != "" {
-		return value
-	}
-	if value := os.Getenv("SUPABASE_URL"); value != "" {
-		return strings.TrimRight(value, "/") + "/auth/v1/.well-known/jwks.json"
-	}
-	return ""
 }

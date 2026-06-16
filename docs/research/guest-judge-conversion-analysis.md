@@ -182,16 +182,16 @@ The current docs mention only "claim your history" — this alone is unlikely to
 |--------|--------|
 | Product Vision | "One-tap social login; no email verification on first tap" |
 | MVP Roadmap | "One-tap social login (no email verification on first tap)" |
-| ADR-0006 | "Supabase Auth for MVP authentication, including email magic links and social login providers where practical" |
+| ADR-0006 | Hosted auth is deferred until the local MVP is playable end-to-end; local development uses a static bearer token while preserving internal Accounts. |
 
 ### What's Missing
 
-**No explicit provider list.** The docs say "social login" but don't specify which providers. Based on ADR-0006 (Supabase Auth) and iOS requirements:
+**No explicit provider list.** Hosted auth is deferred, so provider choice remains unresolved. When social login is introduced, iOS requirements still shape the provider set:
 
 | Provider | Likely Included? | Rationale |
 |----------|------------------|-----------|
 | **Apple Sign-In** | Yes | App Store-required if any third-party social login is offered |
-| **Google** | Yes | Largest reach, standard for Supabase Auth |
+| **Google** | Likely | Large reach and low-friction consumer login |
 | **Email magic link** | Yes | Mentioned explicitly in ADR-0006; no password required |
 | Facebook | Maybe | Declining usage; adds complexity |
 | Microsoft/GitHub | No | B2B/developer-focused, not relevant |

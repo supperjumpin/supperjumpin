@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, StatusBar } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { GoTrueClient } from "@supabase/auth-js";
 import { getMe, updateDisplayName } from "@supperjumpin/api-client";
 import FeedScreen from "./FeedScreen";
 import JumpDetailScreen from "./JumpDetailScreen";
@@ -9,7 +8,7 @@ import CreateJumpScreen from "./CreateJumpScreen";
 import DisplayNameSetupScreen from "./DisplayNameSetupScreen";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const DEV_AUTH_TOKEN = process.env.EXPO_PUBLIC_DEV_AUTH_TOKEN ?? "dev-token";
 
 interface Session {
   access_token: string;
@@ -48,37 +47,8 @@ export default function App() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [showDisplayNameSetup, setShowDisplayNameSetup] = useState(false);
   const [jumpDraft, setJumpDraft] = useState<JumpDraft>(emptyJumpDraft);
-  const [client] = useState(() => SUPABASE_URL ? new GoTrueClient({ url: SUPABASE_URL, autoRefreshToken: false, persistSession: false }) : null);
 
   const pendingCreateRef = useRef(false);
-
-  // On mount, check for existing session
-  useEffect(() => {
-    (async () => {
-      if (!client) return;
-      const { data } = await client.getSession();
-      if (data?.session) {
-        setSession({ access_token: data.session.access_token, user: { id: data.session.user.id } });
-      }
-    })();
-  }, [client]);
-
-  // Keep session in sync after OAuth redirects while the app stays mounted.
-  useEffect(() => {
-    if (!client) return;
-
-    const { data } = client.onAuthStateChange((_event, authSession) => {
-      if (authSession) {
-        setSession({ access_token: authSession.access_token, user: { id: authSession.user.id } });
-      } else {
-        setSession(null);
-      }
-    });
-
-    return () => {
-      data.subscription.unsubscribe();
-    };
-  }, [client]);
 
   // When session changes, fetch player profile
   useEffect(() => {
@@ -110,10 +80,8 @@ export default function App() {
   }, [session]);
 
   const handleSignIn = useCallback(async () => {
-    if (!client) return;
-    const { error } = await client.signInWithOAuth({ provider: "google" });
-    if (error) throw error;
-  }, [client]);
+    setSession({ access_token: DEV_AUTH_TOKEN, user: { id: "local-dev-player" } });
+  }, []);
 
   const handleRequestAuth = useCallback(() => {
     pendingCreateRef.current = true;

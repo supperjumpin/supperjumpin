@@ -11,7 +11,7 @@ Expo React Native player-facing app. Pre-MVP single-file prototype shell. Render
 | Entry point | `index.js` | `registerRootComponent(App)` |
 | Entire app UI | `App.tsx` | Single file (~550 lines). All screens, state, auth, API calls inline. |
 | Expo config | `app.json` | Slug, scheme `supperjumpin`, portrait, automatic UI style |
-| Env vars | `.env.example` | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL` |
+| Env vars | `.env.example` | `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_DEV_AUTH_TOKEN`, optional `EXPO_PUBLIC_MEDIA_BASE_URL` |
 | TypeScript config | `tsconfig.json` | Extends `expo/tsconfig.base`, strict, react-jsx, bundler resolution |
 | Tests | `*.test.tsx` alongside source | Jest with `jest-expo` preset, `@testing-library/react-native` v14 |
 | API mocking | `test/mockApi.ts` | Intercept `global.fetch` for `@supperjumpin/api-client` public-read calls |
@@ -20,7 +20,7 @@ Expo React Native player-facing app. Pre-MVP single-file prototype shell. Render
 
 - **No routing library**: Conditional rendering blocks inside a single `ScrollView`. No React Navigation.
 - **No state management library**: Raw `useState` hooks only (~15 state variables). No Context, Zustand, Redux, or Jotai.
-- **Supabase auth directly**: `GoTrueClient` instantiated in `App.tsx`.
+- **Local-first auth**: `App.tsx` uses `EXPO_PUBLIC_DEV_AUTH_TOKEN` to exercise signed-in flows until hosted auth is chosen.
 - **API calls via `@supperjumpin/api-client`**: Direct imports, no custom fetch wrapper in the mobile app.
 - **PanResponder for gestures**: Judging UI uses `PanResponder` for swipe-based score adjustment.
 - **Standard RN primitives**: `SafeAreaView`, `ScrollView`, `StyleSheet`, `TextInput`, `Button`.
