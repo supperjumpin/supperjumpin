@@ -363,12 +363,13 @@ func testPostgresPublicFeedSelfJudgingViewerContext(t *testing.T) {
 
 func performCustomJump(t *testing.T, server http.Handler, token string, food string, caption string) jumpBody {
 	t.Helper()
+	mediaObjectKey := "evidence_object_" + strconv.Itoa(int(time.Now().UnixNano()))
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", token, map[string]string{
 		"source":         "Taco Bell",
 		"destination":    "Olive Garden parking lot",
 		"food":           food,
 		"caption":        caption,
-		"mediaObjectKey": "evidence_object_123",
+		"mediaObjectKey": mediaObjectKey,
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
