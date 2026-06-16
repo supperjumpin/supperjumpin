@@ -45,6 +45,23 @@ export default function App() {
     })();
   }, [client]);
 
+  // Keep session in sync after OAuth redirects while the app stays mounted.
+  useEffect(() => {
+    if (!client) return;
+
+    const { data } = client.onAuthStateChange((_event, authSession) => {
+      if (authSession) {
+        setSession({ access_token: authSession.access_token, user: { id: authSession.user.id } });
+      } else {
+        setSession(null);
+      }
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, [client]);
+
   // When session changes, fetch player profile
   useEffect(() => {
     if (!session) {
@@ -82,7 +99,7 @@ export default function App() {
 
   const handleRequestAuth = useCallback(() => {
     pendingCreateRef.current = true;
-    handleSignIn();
+    void handleSignIn();
   }, [handleSignIn]);
 
   const handleDisplayNameSet = useCallback(async (displayName: string) => {
