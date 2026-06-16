@@ -12,19 +12,29 @@ function isStorageObjectKey(value: string): boolean {
 interface CreateJumpScreenProps {
   session: { access_token: string; user: { id: string } } | null;
   onBack: () => void;
+  draft: {
+    source: string;
+    destination: string;
+    food: string;
+    caption: string;
+    mediaObjectKey: string;
+  };
+  onDraftChange: React.Dispatch<React.SetStateAction<{
+    source: string;
+    destination: string;
+    food: string;
+    caption: string;
+    mediaObjectKey: string;
+  }>>;
+  onSubmitSuccess: () => void;
 }
 
-export default function CreateJumpScreen({ session, onBack }: CreateJumpScreenProps) {
-  const [source, setSource] = useState('');
-  const [destination, setDestination] = useState('');
-  const [food, setFood] = useState('');
-  const [caption, setCaption] = useState('');
-  const [mediaObjectKey, setMediaObjectKey] = useState('');
+export default function CreateJumpScreen({ session, onBack, draft, onDraftChange, onSubmitSuccess }: CreateJumpScreenProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = Boolean(
-    session?.access_token && source.trim() && destination.trim() && food.trim() && caption.trim() && isStorageObjectKey(mediaObjectKey),
+    session?.access_token && draft.source.trim() && draft.destination.trim() && draft.food.trim() && draft.caption.trim() && isStorageObjectKey(draft.mediaObjectKey),
   );
 
   const handleSubmit = async () => {
@@ -36,12 +46,13 @@ export default function CreateJumpScreen({ session, onBack }: CreateJumpScreenPr
       await createJump({
         baseUrl: API_BASE,
         accessToken: session.access_token,
-        source: source.trim(),
-        destination: destination.trim(),
-        food: food.trim(),
-        caption: caption.trim(),
-        mediaObjectKey: mediaObjectKey.trim(),
+        source: draft.source.trim(),
+        destination: draft.destination.trim(),
+        food: draft.food.trim(),
+        caption: draft.caption.trim(),
+        mediaObjectKey: draft.mediaObjectKey.trim(),
       });
+      onSubmitSuccess();
       onBack();
     } catch (err: any) {
       setError(err?.message ?? 'Could not create Jump');
@@ -61,32 +72,32 @@ export default function CreateJumpScreen({ session, onBack }: CreateJumpScreenPr
 
         <TextInput
           style={styles.input}
-          value={source}
-          onChangeText={setSource}
+          value={draft.source}
+          onChangeText={(source) => onDraftChange((current) => ({ ...current, source }))}
           placeholder="Source"
           accessibilityLabel="Source"
           testID="source-input"
         />
         <TextInput
           style={styles.input}
-          value={destination}
-          onChangeText={setDestination}
+          value={draft.destination}
+          onChangeText={(destination) => onDraftChange((current) => ({ ...current, destination }))}
           placeholder="Destination"
           accessibilityLabel="Destination"
           testID="destination-input"
         />
         <TextInput
           style={styles.input}
-          value={food}
-          onChangeText={setFood}
+          value={draft.food}
+          onChangeText={(food) => onDraftChange((current) => ({ ...current, food }))}
           placeholder="Food"
           accessibilityLabel="Food"
           testID="food-input"
         />
         <TextInput
           style={[styles.input, styles.multilineInput]}
-          value={caption}
-          onChangeText={setCaption}
+          value={draft.caption}
+          onChangeText={(caption) => onDraftChange((current) => ({ ...current, caption }))}
           placeholder="Caption"
           multiline
           accessibilityLabel="Caption"
@@ -94,8 +105,8 @@ export default function CreateJumpScreen({ session, onBack }: CreateJumpScreenPr
         />
         <TextInput
           style={styles.input}
-          value={mediaObjectKey}
-          onChangeText={setMediaObjectKey}
+          value={draft.mediaObjectKey}
+          onChangeText={(mediaObjectKey) => onDraftChange((current) => ({ ...current, mediaObjectKey }))}
           placeholder="Paste uploaded evidence object key"
           accessibilityLabel="Evidence photo"
           autoCapitalize="none"

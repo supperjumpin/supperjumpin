@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
+
+var jumpEvidenceSequence atomic.Uint64
 
 // ---------------------------------------------------------------------------
 // Response body types
@@ -21,6 +25,8 @@ type jumpBody struct {
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
 	Food        string `json:"food"`
+	Caption     string `json:"caption"`
+	MediaObjectKey string `json:"mediaObjectKey"`
 }
 
 type judgmentBody struct {
@@ -98,18 +104,20 @@ func newTestServerWithStore(store *httpapi.PostgresStore) http.Handler {
 
 func performJump(t *testing.T, server http.Handler, token string) jumpBody {
 	t.Helper()
+	mediaObjectKey := "evidence_object_" + strconv.FormatUint(jumpEvidenceSequence.Add(1), 10)
 	rec := doJSON(server, http.MethodPost, "/v1/jumps", token, map[string]string{
 		"source":         "Taco Bell",
 		"destination":    "Olive Garden parking lot",
 		"food":           "Crunchwrap",
 		"caption":        "Crunchwrap successfully smuggled into the parking lot.",
-		"mediaObjectKey": "evidence_object_123",
+		"mediaObjectKey": mediaObjectKey,
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 	var body jumpBody
 	decodeResponse(t, rec, &body)
+	body.MediaObjectKey = mediaObjectKey
 	return body
 }
 

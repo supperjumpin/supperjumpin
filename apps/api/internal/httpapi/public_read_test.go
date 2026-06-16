@@ -42,8 +42,8 @@ func testPublicFeedReturnsJumps(t *testing.T) {
 	if card.Caption != "Crunchwrap successfully smuggled into the parking lot." {
 		t.Fatalf("expected caption %q, got %q", "Crunchwrap successfully smuggled into the parking lot.", card.Caption)
 	}
-	if card.MediaObjectKey != "evidence_object_123" {
-		t.Fatalf("expected mediaObjectKey %q, got %q", "evidence_object_123", card.MediaObjectKey)
+	if card.MediaObjectKey != performed.MediaObjectKey {
+		t.Fatalf("expected mediaObjectKey %q, got %q", performed.MediaObjectKey, card.MediaObjectKey)
 	}
 	if card.ViewerContext != nil {
 		t.Fatal("expected unauthenticated feed card to omit viewerContext")
@@ -204,8 +204,8 @@ func testPublicJumpDetailReturnsJump(t *testing.T) {
 	if detail.Caption != "Crunchwrap successfully smuggled into the parking lot." {
 		t.Fatalf("expected caption %q, got %q", "Crunchwrap successfully smuggled into the parking lot.", detail.Caption)
 	}
-	if detail.MediaObjectKey != "evidence_object_123" {
-		t.Fatalf("expected mediaObjectKey %q, got %q", "evidence_object_123", detail.MediaObjectKey)
+	if detail.MediaObjectKey != performed.MediaObjectKey {
+		t.Fatalf("expected mediaObjectKey %q, got %q", performed.MediaObjectKey, detail.MediaObjectKey)
 	}
 	if detail.ViewerContext == nil {
 		t.Fatal("expected viewerContext even for unauthenticated requests")

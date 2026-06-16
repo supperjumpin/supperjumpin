@@ -19,6 +19,12 @@ func (s *PostgresStore) InsertPerformedJump(ctx context.Context, params game.Ins
 	}
 	defer tx.Rollback()
 
+	if jumpSnap, evidenceSnap, found, err := performedJumpByMediaObjectKey(ctx, tx, params.MediaObjectKey); err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
+	} else if found {
+		return jumpSnap, evidenceSnap, nil
+	}
+
 	jumpID, err := randomToken("jump")
 	if err != nil {
 		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
@@ -45,6 +51,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		MediaObjectKey:        params.MediaObjectKey,
 		CreatedAt:             now,
 	}); err != nil {
+		if isUniqueViolation(err) {
+			if jumpSnap, evidenceSnap, found, lookupErr := performedJumpByMediaObjectKey(ctx, s.db, params.MediaObjectKey); lookupErr == nil && found {
+				return jumpSnap, evidenceSnap, nil
+			}
+		}
 		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, err
 	}
 
@@ -70,6 +81,32 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		CreatedAt:      now,
 	}
 	return jumpSnap, evidenceSnap, nil
+}
+
+func performedJumpByMediaObjectKey(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, mediaObjectKey string) (game.JumpSnapshot, game.EvidenceSnapshot, bool, error) {
+	row := q.QueryRowContext(ctx, `
+SELECT j.id, j.player_id, j.source, j.destination, j.food, j.grace_period_expires_at,
+       e.id, e.player_id, e.caption, e.media_object_key, e.created_at
+FROM evidences e
+JOIN jumps j ON j.id = e.jump_id
+WHERE e.media_object_key = $1`, mediaObjectKey)
+
+	var jump game.JumpSnapshot
+	var evidence game.EvidenceSnapshot
+	if err := row.Scan(
+		&jump.ID, &jump.PlayerID, &jump.Source, &jump.Destination, &jump.Food, &jump.GracePeriodExpiresAt,
+		&evidence.ID, &evidence.PlayerID, &evidence.Caption, &evidence.MediaObjectKey, &evidence.CreatedAt,
+	); errors.Is(err, sql.ErrNoRows) {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, false, nil
+	} else if err != nil {
+		return game.JumpSnapshot{}, game.EvidenceSnapshot{}, false, err
+	}
+
+	jump.Status = "Performed Jump"
+	evidence.JumpID = jump.ID
+	return jump, evidence, true, nil
 }
 
 // FeedJumps returns a page of public Feed Jumps with cursor-based pagination.
