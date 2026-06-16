@@ -30,10 +30,36 @@ When breaking down a PRD, prefer GitHub sub-issues under the PRD issue for imple
 
 When creating issues on behalf of the current operator, assign them to the current GitHub user. `gh issue edit <numbers...> --add-assignee @me` is the default unless the user says otherwise.
 
-When creating sub-issues, set both relationship surfaces:
+When creating sub-issues, set both relationship surfaces before calling the work done:
 
-- **Parent relationship**: attach each implementation issue as a GitHub sub-issue of the parent PRD. The REST API requires an integer issue database id, so use `-F`, not `-f`: `gh api --method POST repos/supperjumpin/supperjumpin/issues/<parent>/sub_issues -F sub_issue_id=<database_id>`.
-- **Blocker relationship**: for implementation dependencies, add GitHub's relationship field through GraphQL: `addBlockedBy(input: { issueId: <blocked_issue_node_id>, blockingIssueId: <blocker_issue_node_id> })`.
+- **Parent relationship**: attach each implementation issue as a GitHub sub-issue of the parent PRD using GraphQL `addSubIssue(input: { issueId: <parent_issue_node_id>, subIssueId: <child_issue_node_id>, replaceParent: true })`.
+- **Blocker relationship**: for implementation dependencies, add GitHub's relationship field through GraphQL `addBlockedBy(input: { issueId: <blocked_issue_node_id>, blockingIssueId: <blocker_issue_node_id> })`.
+
+Fetch node IDs with GraphQL before applying relationships:
+
+```sh
+gh api graphql -f query='query { repository(owner:"supperjumpin", name:"supperjumpin") { parent: issue(number: 268) { id number title } child: issue(number: 269) { id number title } } }'
+```
+
+Then apply the relationships:
+
+```sh
+gh api graphql \
+  -f query='mutation($parent: ID!, $sub: ID!) { addSubIssue(input: {issueId: $parent, subIssueId: $sub, replaceParent: true}) { issue { number } subIssue { number } } }' \
+  -F parent='<parent_issue_node_id>' \
+  -F sub='<child_issue_node_id>'
+
+gh api graphql \
+  -f query='mutation($issue: ID!, $blocking: ID!) { addBlockedBy(input: {issueId: $issue, blockingIssueId: $blocking}) { issue { number } blockingIssue { number } } }' \
+  -F issue='<blocked_issue_node_id>' \
+  -F blocking='<blocker_issue_node_id>'
+```
+
+Verify the graph after creating it:
+
+```sh
+gh api graphql -f query='query { repository(owner:"supperjumpin", name:"supperjumpin") { issue(number: 268) { number title subIssues(first: 20) { nodes { number title } } } } }'
+```
 
 Keep the `## Parent` and `## Blocked by` sections in the issue body too. The structured GitHub relationships drive project views; the body keeps the dependency readable in CLI output and notifications.
 
