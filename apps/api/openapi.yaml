@@ -159,6 +159,41 @@ paths:
           description: Performed Jump not found.
         "409":
           description: The Judging Window is closed.
+  /v1/jumps/{jumpId}/retract:
+    post:
+      operationId: retractJump
+      summary: Retract the authenticated Player's Performed Jump during its Author Grace Period
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Jump retracted successfully. Feed excludes it; detail returns tombstone.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Retraction not allowed — Author Grace Period expired or requesting Player is not the performer.
+        "404":
+          description: Jump not found.
+        "500":
+          description: The retraction could not be applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/opens/{year}/{month}/compute:
     post:
       operationId: computeOpenScores

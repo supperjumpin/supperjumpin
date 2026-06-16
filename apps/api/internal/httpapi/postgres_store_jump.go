@@ -14,6 +14,9 @@ import (
 
 func (s *PostgresStore) JumpForEdit(ctx context.Context, jumpID string) (game.JumpSnapshot, error) {
 	row, err := s.queries.GetJump(ctx, jumpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.JumpSnapshot{}, game.ErrJumpNotFound
+	}
 	if err != nil {
 		return game.JumpSnapshot{}, err
 	}
@@ -32,6 +35,35 @@ func (s *PostgresStore) UpdateCaption(ctx context.Context, jumpID string, captio
 	return s.queries.UpdateEvidenceCaption(ctx, db.UpdateEvidenceCaptionParams{
 		JumpID:  jumpID,
 		Caption: caption,
+	})
+}
+
+func (s *PostgresStore) JumpForRetract(ctx context.Context, jumpID string) (game.JumpSnapshot, error) {
+	row, err := s.queries.GetJump(ctx, jumpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return game.JumpSnapshot{}, game.ErrJumpNotFound
+	}
+	if err != nil {
+		return game.JumpSnapshot{}, err
+	}
+	snap := game.JumpSnapshot{
+		ID:       row.ID,
+		PlayerID: row.PlayerID,
+		Status:   row.Status,
+	}
+	if row.GracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
+	}
+	return snap, nil
+}
+
+func (s *PostgresStore) RetractJump(ctx context.Context, jumpID string, removedAt time.Time) error {
+	return s.queries.RetractJump(ctx, db.RetractJumpParams{
+		ID: jumpID,
+		RemovedAt: sql.NullTime{
+			Time:  removedAt,
+			Valid: true,
+		},
 	})
 }
 

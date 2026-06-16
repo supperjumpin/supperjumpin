@@ -95,6 +95,8 @@ func newTestServerWithStore(store *httpapi.PostgresStore) http.Handler {
 		Judgment:     store,
 		PublicRead:   store,
 		Open:         store,
+		CaptionEdit:  store,
+		JumpRetract:  store,
 	})
 }
 

@@ -102,6 +102,12 @@ type CaptionEditFlow interface {
 	game.CaptionEditRepository
 }
 
+// JumpRetractFlow is the narrow interface needed by the retract transport
+// helper.
+type JumpRetractFlow interface {
+	game.RetractJumpRepository
+}
+
 // --- Transport-layer DTO helpers (game-command → DTO conversion) ---
 
 func createPerformedJump(ctx context.Context, db JumpPlanningFlow, player Player, source, destination, food, caption, mediaObjectKey string, now time.Time) (Jump, error) {
@@ -154,6 +160,17 @@ func editCaption(ctx context.Context, db CaptionEditFlow, jumpID string, playerI
 		JumpID:   jumpID,
 		PlayerID: playerID,
 		Caption:  caption,
+	}, now)
+	if result.Err != nil {
+		return false, mapGameErr(result.Err)
+	}
+	return result.Allowed, nil
+}
+
+func retractJump(ctx context.Context, db JumpRetractFlow, jumpID string, playerID string, now time.Time) (bool, error) {
+	result := game.RetractJump(ctx, db, game.RetractJumpInput{
+		JumpID:   jumpID,
+		PlayerID: playerID,
 	}, now)
 	if result.Err != nil {
 		return false, mapGameErr(result.Err)

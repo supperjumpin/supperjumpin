@@ -7,3 +7,8 @@ WHERE id = $1;
 UPDATE jumps
 SET status = 'Judged Jump'
 WHERE id = $1 AND status = 'Performed Jump';
+
+-- name: RetractJump :exec
+UPDATE jumps
+SET status = 'Removed Jump', removed_at = $2
+WHERE id = $1;

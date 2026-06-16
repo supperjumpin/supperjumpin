@@ -595,6 +595,141 @@ func testPublicFeedOtherPlayerCanJudge(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Retract Jump tests
+// ---------------------------------------------------------------------------
+
+func testRetractJumpByPerformerDuringGracePeriod(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Status string `json:"status"`
+	}
+	decodeResponse(t, rec, &resp)
+	if resp.Status != "retracted" {
+		t.Fatalf("expected status 'retracted', got %q", resp.Status)
+	}
+}
+
+func testRetractedJumpExcludedFromFeed(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	// Retract the jump
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify feed no longer includes it
+	feedRec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
+	if feedRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", feedRec.Code, feedRec.Body.String())
+	}
+
+	var feed publicFeedBody
+	decodeResponse(t, feedRec, &feed)
+	if len(feed.Jumps) != 0 {
+		t.Fatalf("expected 0 jumps in feed after retraction, got %d", len(feed.Jumps))
+	}
+}
+
+func testRetractedJumpReturnsTombstoneOnDetail(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	// Retract the jump
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify detail returns tombstone
+	detailRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", detailRec.Code, detailRec.Body.String())
+	}
+
+	var tombstone struct {
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Message   string `json:"message"`
+		RemovedAt string `json:"removedAt"`
+	}
+	decodeResponse(t, detailRec, &tombstone)
+	if tombstone.Status != "Removed Jump" {
+		t.Fatalf("expected tombstone status 'Removed Jump', got %q", tombstone.Status)
+	}
+	if tombstone.Message == "" {
+		t.Fatal("expected tombstone message to be populated")
+	}
+}
+
+func testRetractJumpRejectedAfterGracePeriodExpires(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	// Advance clock past the grace period
+	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "grace_period_expired" {
+		t.Fatalf("expected 'grace_period_expired', got %q", errBody.Error)
+	}
+}
+
+func testRetractJumpRejectedForNonPerformer(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "bob-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "not_performer" {
+		t.Fatalf("expected 'not_performer', got %q", errBody.Error)
+	}
+}
+
+func testRetractJumpRejectedForMissingJump(t *testing.T) {
+	server := newTestServer(t)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/nonexistent/retract", "alice-token", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "not_found" {
+		t.Fatalf("expected 'not_found', got %q", errBody.Error)
+	}
+}
+
 func removeJump(t *testing.T, jumpID string) {
 	t.Helper()
 	dbURL := postgresTestDatabaseURL(t)
@@ -735,5 +870,14 @@ func TestPublicRead(t *testing.T) {
 		t.Run("other player can judge", testPublicJumpDetailOtherPlayerCanJudge)
 		t.Run("already judged viewer context", testPublicDetailAlreadyJudgedViewerContext)
 		t.Run("grace period viewer context", testPublicJumpDetailGracePeriodViewerContext)
+	})
+
+	t.Run("retract jump", func(t *testing.T) {
+		t.Run("performer retracts during grace period", testRetractJumpByPerformerDuringGracePeriod)
+		t.Run("retracted jump excluded from feed", testRetractedJumpExcludedFromFeed)
+		t.Run("retracted jump returns tombstone on detail", testRetractedJumpReturnsTombstoneOnDetail)
+		t.Run("retract rejected after grace period expires", testRetractJumpRejectedAfterGracePeriodExpires)
+		t.Run("retract rejected for non-performer", testRetractJumpRejectedForNonPerformer)
+		t.Run("retract rejected for missing jump", testRetractJumpRejectedForMissingJump)
 	})
 }

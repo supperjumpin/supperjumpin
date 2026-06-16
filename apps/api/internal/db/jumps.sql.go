@@ -55,3 +55,19 @@ func (q *Queries) GetJump(ctx context.Context, id string) (GetJumpRow, error) {
 	)
 	return i, err
 }
+
+const retractJump = `-- name: RetractJump :exec
+UPDATE jumps
+SET status = 'Removed Jump', removed_at = $2
+WHERE id = $1
+`
+
+type RetractJumpParams struct {
+	ID        string
+	RemovedAt sql.NullTime
+}
+
+func (q *Queries) RetractJump(ctx context.Context, arg RetractJumpParams) error {
+	_, err := q.db.ExecContext(ctx, retractJump, arg.ID, arg.RemovedAt)
+	return err
+}
