@@ -20,6 +20,22 @@ interface Player {
   displayName: string;
 }
 
+interface JumpDraft {
+  source: string;
+  destination: string;
+  food: string;
+  caption: string;
+  mediaObjectKey: string;
+}
+
+const emptyJumpDraft = (): JumpDraft => ({
+  source: '',
+  destination: '',
+  food: '',
+  caption: '',
+  mediaObjectKey: '',
+});
+
 type Screen =
   | { name: "feed" }
   | { name: "detail"; jumpId: string }
@@ -30,6 +46,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [player, setPlayer] = useState<Player | null>(null);
   const [showDisplayNameSetup, setShowDisplayNameSetup] = useState(false);
+  const [jumpDraft, setJumpDraft] = useState<JumpDraft>(emptyJumpDraft);
   const [client] = useState(() => SUPABASE_URL ? new GoTrueClient({ url: SUPABASE_URL, autoRefreshToken: false, persistSession: false }) : null);
 
   const pendingCreateRef = useRef(false);
@@ -134,6 +151,10 @@ export default function App() {
     setScreen({ name: "feed" });
   }, []);
 
+  const handleJumpDraftSubmitSuccess = useCallback(() => {
+    setJumpDraft(emptyJumpDraft());
+  }, []);
+
   const content = (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7efe2" />
@@ -145,7 +166,13 @@ export default function App() {
           session={session}
         />
       ) : screen.name === "create" ? (
-        <CreateJumpScreen session={session} onBack={handleBack} />
+        <CreateJumpScreen
+          session={session}
+          onBack={handleBack}
+          draft={jumpDraft}
+          onDraftChange={setJumpDraft}
+          onSubmitSuccess={handleJumpDraftSubmitSuccess}
+        />
       ) : (() => {
         const s = screen as { name: "detail"; jumpId: string };
         return (

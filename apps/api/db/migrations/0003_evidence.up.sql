@@ -17,7 +17,7 @@ CREATE TABLE evidences (
     player_id TEXT NOT NULL REFERENCES players(id),
     upload_authorization_id TEXT UNIQUE REFERENCES evidence_upload_authorizations(id) ON DELETE SET NULL,
     caption TEXT NOT NULL,
-    media_object_key TEXT NOT NULL,
+    media_object_key TEXT NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE evidences ENABLE ROW LEVEL SECURITY;

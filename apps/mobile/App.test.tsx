@@ -256,3 +256,61 @@ test('routes unauthenticated Post Jump taps through sign in and into Create Jump
     expect(getByText('Post a Jump')).toBeTruthy();
   });
 });
+
+test('preserves a composed Jump draft when leaving and returning to Create Jump', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    if (url.toString().includes('/v1/me')) {
+      return Response.json({ player: { id: 'player_1', displayName: 'alice' } });
+    }
+    return Response.json({});
+  });
+  mockGetSession.mockResolvedValue({
+    data: { session: { access_token: 'tok', user: { id: 'user_1' } } },
+  });
+
+  const { getByText, getByTestId } = await render(<App />);
+
+  await waitFor(() => {
+    expect(getByText('+ Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Post a Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.changeText(getByTestId('source-input'), 'Taco Bell');
+    fireEvent.changeText(getByTestId('destination-input'), 'Olive Garden');
+    fireEvent.changeText(getByTestId('food-input'), 'Crunchwrap');
+    fireEvent.changeText(getByTestId('caption-input'), 'Keep this draft');
+    fireEvent.changeText(getByTestId('evidence-photo-input'), 'evidence/jump_1.jpg');
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Back to Feed'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('+ Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Post a Jump')).toBeTruthy();
+  });
+
+  expect(getByTestId('source-input').props.value).toBe('Taco Bell');
+  expect(getByTestId('caption-input').props.value).toBe('Keep this draft');
+  expect(getByTestId('evidence-photo-input').props.value).toBe('evidence/jump_1.jpg');
+});
