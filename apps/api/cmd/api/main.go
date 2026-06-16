@@ -54,6 +54,7 @@ func main() {
 		Judgment:     store,
 		PublicRead:   store,
 		Open:         store,
+		CaptionEdit:  store,
 	})
 	log.Printf("Supperjumpin API listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, server))

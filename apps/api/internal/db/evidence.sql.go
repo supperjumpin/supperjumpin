@@ -38,3 +38,19 @@ func (q *Queries) InsertEvidence(ctx context.Context, arg InsertEvidenceParams) 
 	)
 	return err
 }
+
+const updateEvidenceCaption = `-- name: UpdateEvidenceCaption :exec
+UPDATE evidences
+SET caption = $2
+WHERE jump_id = $1
+`
+
+type UpdateEvidenceCaptionParams struct {
+	JumpID  string
+	Caption string
+}
+
+func (q *Queries) UpdateEvidenceCaption(ctx context.Context, arg UpdateEvidenceCaptionParams) error {
+	_, err := q.db.ExecContext(ctx, updateEvidenceCaption, arg.JumpID, arg.Caption)
+	return err
+}

@@ -12,6 +12,29 @@ import (
 
 // game.JumpRepository adapter methods for PostgresStore
 
+func (s *PostgresStore) JumpForEdit(ctx context.Context, jumpID string) (game.JumpSnapshot, error) {
+	row, err := s.queries.GetJump(ctx, jumpID)
+	if err != nil {
+		return game.JumpSnapshot{}, err
+	}
+	snap := game.JumpSnapshot{
+		ID:       row.ID,
+		PlayerID: row.PlayerID,
+		Status:   row.Status,
+	}
+	if row.GracePeriodExpiresAt.Valid {
+		snap.GracePeriodExpiresAt = row.GracePeriodExpiresAt.Time
+	}
+	return snap, nil
+}
+
+func (s *PostgresStore) UpdateCaption(ctx context.Context, jumpID string, caption string) error {
+	return s.queries.UpdateEvidenceCaption(ctx, db.UpdateEvidenceCaptionParams{
+		JumpID:  jumpID,
+		Caption: caption,
+	})
+}
+
 func (s *PostgresStore) InsertPerformedJump(ctx context.Context, params game.InsertPerformedJumpParams) (game.JumpSnapshot, game.EvidenceSnapshot, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

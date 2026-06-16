@@ -231,6 +231,46 @@ paths:
         "400":
           description: Invalid cursor or limit parameter.
   /v1/jumps/{jumpId}:
+    patch:
+      operationId: editJumpCaption
+      summary: Edit a Performed Jump's Caption during the Author Grace Period
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [caption]
+              properties:
+                caption:
+                  type: string
+      responses:
+        "200":
+          description: Caption updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "400":
+          description: Invalid or missing caption.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Edit not allowed — Author Grace Period expired or requesting Player is not the performer.
+        "404":
+          description: Jump not found.
     get:
       operationId: getJumpDetail
       summary: Public Jump Detail — full read view or tombstone
