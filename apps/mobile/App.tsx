@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SafeAreaView, StyleSheet, StatusBar } from "react-native";
+import { StyleSheet, StatusBar } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GoTrueClient } from "@supabase/auth-js";
 import { getMe, updateDisplayName } from "@supperjumpin/api-client";
 import FeedScreen from "./FeedScreen";
@@ -187,15 +188,11 @@ export default function App() {
     </SafeAreaView>
   );
 
-  // Display name setup overlay — shown when first-time auth user taps "+ Jump"
-  // before confirming their display name
-  if (showDisplayNameSetup) {
-    return (
-      <DisplayNameSetupScreen onSubmit={handleDisplayNameSet} />
-    );
-  }
+  const appContent = showDisplayNameSetup ? (
+    <DisplayNameSetupScreen onSubmit={handleDisplayNameSet} />
+  ) : content;
 
-  return content;
+  return <SafeAreaProvider>{appContent}</SafeAreaProvider>;
 }
 
 const styles = StyleSheet.create({

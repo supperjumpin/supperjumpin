@@ -34,7 +34,9 @@ test('shows initial loading state while Feed request is pending', async () => {
 
   expect(getByText('Loading jumps...')).toBeTruthy();
 
-  resolveFeed(Response.json(feedResponse([])));
+  await act(() => {
+    resolveFeed(Response.json(feedResponse([])));
+  });
 
   await waitFor(() => {
     expect(getByText('No jumps yet. The feed is empty.')).toBeTruthy();
