@@ -30,6 +30,7 @@ type ServerConfig struct {
 	PublicRead   PublicReadFlow
 	Open         OpenFlow
 	CaptionEdit  CaptionEditFlow
+	JumpRetract  JumpRetractFlow
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -142,6 +143,32 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	})
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/retract", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		allowed, err := retractJump(r.Context(), config.JumpRetract, r.PathValue("jumpID"), profile.Player.ID, config.Now())
+		if errors.Is(err, ErrJumpNotFound) {
+			writeAPIError(w, http.StatusNotFound, "not_found", "Jump not found.")
+			return
+		}
+		if errors.Is(err, ErrAuthorGracePeriodExpired) {
+			writeAPIError(w, http.StatusForbidden, "grace_period_expired", "Author Grace Period has expired.")
+			return
+		}
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not retract Jump. Please try again.")
+			return
+		}
+		if !allowed {
+			writeAPIError(w, http.StatusForbidden, "not_performer", "Only the performer may retract the Jump.")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "retracted"})
 	})
 	mux.HandleFunc("POST /v1/guest-sessions", func(w http.ResponseWriter, r *http.Request) {
 		id, err := randomToken("guest_session")
