@@ -67,7 +67,7 @@ test("buildAdminURL works without query params", () => {
 
 test("describeDatabaseURL excludes credentials", () => {
   assert.strictEqual(
-    describeDatabaseURL("postgresql://user:secret@aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require"),
-    "aws-1-us-west-2.pooler.supabase.com:5432/postgres"
+    describeDatabaseURL("postgresql://user:secret@db.example.com:5432/postgres?sslmode=require"),
+    "db.example.com:5432/postgres"
   );
 });

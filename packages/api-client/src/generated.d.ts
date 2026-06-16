@@ -170,7 +170,7 @@ export interface components {
             player: components["schemas"]["Player"];
         };
         Account: {
-            /** @description Internal Account identifier, distinct from Supabase subject. */
+            /** @description Internal Account identifier, distinct from external auth provider subject. */
             id: string;
             /** Format: email */
             email: string;

@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-process.env.EXPO_PUBLIC_SUPABASE_URL = 'http://supabase.test';
+process.env.EXPO_PUBLIC_MEDIA_BASE_URL = 'http://media.test';
 
 const originalError = console.error.bind(console);
 beforeAll(() => {

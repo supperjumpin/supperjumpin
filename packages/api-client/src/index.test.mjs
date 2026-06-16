@@ -10,11 +10,11 @@ import {
   submitJudgment,
 } from "./index.js";
 
-test("getMe calls the backend with the Supabase bearer token", async () => {
+test("getMe calls the backend with the bearer token", async () => {
   const seen = {};
   const me = await getMe({
     baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
+    accessToken: "test-access-token",
     fetchImpl: async (url, init) => {
       seen.url = url;
       seen.authorization = init.headers.Authorization;
@@ -26,7 +26,7 @@ test("getMe calls the backend with the Supabase bearer token", async () => {
   });
 
   assert.equal(seen.url, "http://api.example.test/v1/me");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(seen.authorization, "Bearer test-access-token");
   assert.equal(me.account.id, "account_123");
   assert.equal(me.player.id, "player_123");
 });
@@ -35,7 +35,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
   const seen = {};
   const judgment = await submitJudgment({
     baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
+    accessToken: "test-access-token",
     jumpId: "jump_123",
     commitment: 4,
     transgression: 5,
@@ -63,7 +63,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
 
   assert.equal(seen.url, "http://api.example.test/v1/jumps/jump_123/judgment");
   assert.equal(seen.method, "POST");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(seen.authorization, "Bearer test-access-token");
   assert.deepEqual(seen.body, {
     commitment: 4,
     transgression: 5,
@@ -78,7 +78,7 @@ test("createJump posts the required Jump fields with bearer auth", async () => {
   const seen = {};
   const jump = await createJump({
     baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
+    accessToken: "test-access-token",
     source: "Taco Bell",
     destination: "Olive Garden",
     food: "Crunchwrap",
@@ -109,7 +109,7 @@ test("createJump posts the required Jump fields with bearer auth", async () => {
 
   assert.equal(seen.url, "http://api.example.test/v1/jumps");
   assert.equal(seen.method, "POST");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(seen.authorization, "Bearer test-access-token");
   assert.deepEqual(seen.body, {
     source: "Taco Bell",
     destination: "Olive Garden",
@@ -125,7 +125,7 @@ test("updateDisplayName patches the player's display name with bearer auth", asy
   const seen = {};
   const response = await updateDisplayName({
     baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
+    accessToken: "test-access-token",
     displayName: "new-handle",
     fetchImpl: async (url, init) => {
       seen.url = url;
@@ -140,7 +140,7 @@ test("updateDisplayName patches the player's display name with bearer auth", asy
 
   assert.equal(seen.url, "http://api.example.test/v1/me/display-name");
   assert.equal(seen.method, "PATCH");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(seen.authorization, "Bearer test-access-token");
   assert.deepEqual(seen.body, { displayName: "new-handle" });
   assert.equal(response.player.displayName, "new-handle");
 });
@@ -187,7 +187,7 @@ test("getJumpDetail includes bearer auth when a viewer token is present", async 
   const seen = {};
   const detail = await getJumpDetail({
     baseUrl: "http://api.example.test",
-    accessToken: "supabase-access-token",
+    accessToken: "test-access-token",
     jumpId: "jump_123",
     fetchImpl: async (url, init) => {
       seen.url = url;
@@ -212,7 +212,7 @@ test("getJumpDetail includes bearer auth when a viewer token is present", async 
   });
 
   assert.equal(seen.url, "http://api.example.test/v1/jumps/jump_123");
-  assert.equal(seen.authorization, "Bearer supabase-access-token");
+  assert.equal(seen.authorization, "Bearer test-access-token");
   assert.equal(detail.id, "jump_123");
   assert.equal(detail.viewerContext.reason, "already-judged");
 });

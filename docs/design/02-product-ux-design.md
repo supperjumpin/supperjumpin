@@ -690,7 +690,7 @@ This document directly references and depends on:
 - **ADR-0023 (The Open):** Monthly competition, soft-close, platform-run
 - **ADR-0024 (House Rules):** Safety boundaries, Report flow, Removed Jump behavior
 - **ADR-0014 (Gluestack UI):** Component library for Expo app
-- **ADR-0006 (Supabase Auth):** Auth providers, magic links, social login
+- **ADR-0006 (Local-First Auth):** Internal Account model, local dev token, deferred hosted auth
 - **MVP Roadmap (04-mvp-roadmap.md):** Scope boundaries, success metrics, deferred features
 - **Guest Judge Conversion Analysis (docs/research/guest-judge-conversion-analysis.md):** Auth model contradiction, conversion mechanics, benchmarks
 - **Open Competitiveness Analysis (docs/analysis/open-competitiveness-analysis.md):** Leaderboard design risks, signal-first approach

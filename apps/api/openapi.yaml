@@ -359,7 +359,7 @@ components:
       properties:
         id:
           type: string
-          description: Internal Account identifier, distinct from Supabase subject.
+          description: Internal Account identifier, distinct from external auth provider subject.
         email:
           type: string
           format: email
