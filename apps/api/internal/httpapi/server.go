@@ -29,6 +29,7 @@ type ServerConfig struct {
 	Judgment     JudgmentFlow
 	PublicRead   PublicReadFlow
 	Open         OpenFlow
+	CaptionEdit  CaptionEditFlow
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -102,6 +103,45 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusCreated, jump)
+	})
+	mux.HandleFunc("PATCH /v1/jumps/{jumpID}", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request struct {
+			Caption string `json:"caption"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		caption := strings.TrimSpace(request.Caption)
+
+		allowed, err := editCaption(r.Context(), config.CaptionEdit, r.PathValue("jumpID"), profile.Player.ID, caption, config.Now())
+		if errors.Is(err, ErrJumpNotFound) {
+			writeAPIError(w, http.StatusNotFound, "not_found", "Jump not found.")
+			return
+		}
+		if errors.Is(err, ErrAuthorGracePeriodExpired) {
+			writeAPIError(w, http.StatusForbidden, "grace_period_expired", "Author Grace Period has expired.")
+			return
+		}
+		if errors.Is(err, ErrInvalidCaption) {
+			writeAPIError(w, http.StatusBadRequest, "invalid_caption", "Caption is required.")
+			return
+		}
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not update caption. Please try again.")
+			return
+		}
+		if !allowed {
+			writeAPIError(w, http.StatusForbidden, "not_performer", "Only the performer may edit the Caption.")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 	})
 	mux.HandleFunc("POST /v1/guest-sessions", func(w http.ResponseWriter, r *http.Request) {
 		id, err := randomToken("guest_session")

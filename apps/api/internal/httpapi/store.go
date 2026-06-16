@@ -22,6 +22,10 @@ var ErrInvalidJudgeIdentity = errors.New("Judgment must have exactly one judge i
 
 var ErrOpenMonthNotClosed = errors.New("Open month has not soft-closed yet")
 
+var ErrInvalidCaption = errors.New("Caption is required")
+
+var ErrAuthorGracePeriodExpired = errors.New("Author Grace Period has expired")
+
 // mapGameErr translates game-module typed errors into the corresponding
 // httpapi sentinel errors so HTTP handlers can use their existing errors.Is checks.
 func mapGameErr(err error) error {
@@ -45,6 +49,12 @@ func mapGameErr(err error) error {
 	}
 	if errors.Is(err, game.ErrOpenMonthNotClosed) {
 		return ErrOpenMonthNotClosed
+	}
+	if errors.Is(err, game.ErrAuthorGracePeriodExpired) {
+		return ErrAuthorGracePeriodExpired
+	}
+	if errors.Is(err, game.ErrInvalidCaption) {
+		return ErrInvalidCaption
 	}
 	return err
 }
@@ -86,7 +96,11 @@ type OpenFlow interface {
 	game.OpenRepository
 }
 
-
+// CaptionEditFlow is the narrow interface needed by the caption edit transport
+// helper.
+type CaptionEditFlow interface {
+	game.CaptionEditRepository
+}
 
 // --- Transport-layer DTO helpers (game-command → DTO conversion) ---
 
@@ -133,4 +147,16 @@ func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSession
 		Creativity:     result.Judgment.Creativity,
 		Presentation:   result.Judgment.Presentation,
 	}, true, result.Created, nil
+}
+
+func editCaption(ctx context.Context, db CaptionEditFlow, jumpID string, playerID string, caption string, now time.Time) (bool, error) {
+	result := game.EditCaption(ctx, db, game.EditCaptionInput{
+		JumpID:   jumpID,
+		PlayerID: playerID,
+		Caption:  caption,
+	}, now)
+	if result.Err != nil {
+		return false, mapGameErr(result.Err)
+	}
+	return result.Allowed, nil
 }
