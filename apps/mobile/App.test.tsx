@@ -5,17 +5,25 @@ import { mockPublicFetch, feedResponse, jumpDetailResponse } from './test/mockAp
 
 const mockGetSession = jest.fn() as jest.MockedFunction<() => Promise<{ data: { session: any } }>>;
 const mockSignInWithOAuth = jest.fn(async () => ({ error: null }));
+const mockOnAuthStateChange = jest.fn();
+let authStateChangeCallback: ((event: string, session: any) => void) | null = null;
 
 jest.mock('@supabase/auth-js', () => ({
   GoTrueClient: jest.fn(() => ({
     getSession: mockGetSession,
     signInWithOAuth: mockSignInWithOAuth,
+    onAuthStateChange: mockOnAuthStateChange.mockImplementation((callback) => {
+      authStateChangeCallback = callback;
+      return { data: { subscription: { unsubscribe: jest.fn() } } };
+    }),
   })),
 }));
 
 beforeEach(() => {
   mockGetSession.mockResolvedValue({ data: { session: null } });
   mockSignInWithOAuth.mockResolvedValue({ error: null });
+  mockOnAuthStateChange.mockClear();
+  authStateChangeCallback = null;
 });
 
 test('renders feed screen with Post Jump button even when unauthenticated', async () => {
@@ -210,5 +218,41 @@ test('routes signed-in players without a display name through setup before creat
 
   await waitFor(() => {
     expect(getByText('Choose your display name')).toBeTruthy();
+  });
+});
+
+test('routes unauthenticated Post Jump taps through sign in and into Create Jump', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    if (url.toString().includes('/v1/me')) {
+      return Response.json({ player: { id: 'player_1', displayName: 'alice' } });
+    }
+    return Response.json({});
+  });
+
+  const { getByText } = await render(<App />);
+
+  await waitFor(() => {
+    expect(getByText('+ Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('+ Jump'));
+  });
+
+  expect(mockSignInWithOAuth).toHaveBeenCalledWith({ provider: 'google' });
+
+  await act(async () => {
+    authStateChangeCallback?.('SIGNED_IN', {
+      access_token: 'tok_signed_in',
+      user: { id: 'user_1' },
+    });
+  });
+
+  await waitFor(() => {
+    expect(getByText('Post a Jump')).toBeTruthy();
   });
 });
