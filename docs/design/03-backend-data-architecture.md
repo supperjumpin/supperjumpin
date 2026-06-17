@@ -535,7 +535,7 @@ The Evidence upload flow follows ADR-0007 (direct uploads to object storage).
 | Concern | Design |
 |---------|--------|
 | Object key format | `uploads/{jump_id}/{uuid}.{ext}` — scoped to Jump for tombstoning |
-| Storage backend | S3-compatible object storage (e.g., R2, S3, MinIO for dev) |
+| Storage backend | S3-compatible object storage (e.g., R2, S3, MinIO for dev). Not required in local MVP development — evidence photo handling is additive when hosted infrastructure is introduced. `EXPO_PUBLIC_MEDIA_BASE_URL` is optional and unset in local dev. |
 | Upload method | `PUT` with signed URL (pre-signed, 15-minute expiry) |
 | Content type validation | Server validates `Content-Type` header is `image/*` before issuing authorization |
 | Size limit | 10 MB per upload (server-configurable) |

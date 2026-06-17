@@ -20,7 +20,7 @@ Expo React Native player-facing app. Pre-MVP single-file prototype shell. Render
 
 - **No routing library**: Conditional rendering blocks inside a single `ScrollView`. No React Navigation.
 - **No state management library**: Raw `useState` hooks only (~15 state variables). No Context, Zustand, Redux, or Jotai.
-- **Local-first auth**: `App.tsx` uses `EXPO_PUBLIC_DEV_AUTH_TOKEN` to exercise signed-in flows until hosted auth is chosen.
+- **Local-first auth**: `App.tsx` uses `EXPO_PUBLIC_DEV_AUTH_TOKEN` for signed-in flows. When hosted auth is added, it will be additive — the dev token remains the local development path.
 - **API calls via `@supperjumpin/api-client`**: Direct imports, no custom fetch wrapper in the mobile app.
 - **PanResponder for gestures**: Judging UI uses `PanResponder` for swipe-based score adjustment.
 - **Standard RN primitives**: `SafeAreaView`, `ScrollView`, `StyleSheet`, `TextInput`, `Button`.
@@ -36,3 +36,4 @@ Expo React Native player-facing app. Pre-MVP single-file prototype shell. Render
 - React 19.1.0, React Native 0.81.5, Expo 54.0.34.
 - As the UI grows, `App.tsx` should be the first file to split into screens and components.
 - If navigation is introduced, evaluate React Navigation before custom solutions.
+- A local profile switcher will be added when acceptance testing requires switching between two authenticated Players inside one local mobile app session. This is a developer tool, not a user-facing feature — it toggles the `EXPO_PUBLIC_DEV_AUTH_TOKEN` value at runtime.

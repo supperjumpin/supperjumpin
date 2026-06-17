@@ -214,7 +214,7 @@ Feed (root, default screen)
 | Jump Detail | `GET /v1/jumps/{id}` | All except Draft and Removed | No |
 | Judging | `POST /v1/jumps/{id}/judgments` | Performed Jump (post-grace), Judged Jump | No (Guest allowed) |
 | Create Jump | `POST /v1/jumps` + Evidence flow | N/A (creates new Jump) | Yes |
-| Auth Gate | N/A (deferred until hosted auth provider is chosen) | N/A | N/A (conversion screen) |
+| Auth Gate | N/A (local bearer token for MVP; hosted auth providers additive when introduced) | N/A | N/A (conversion screen) |
 | Open Standings | `GET /v1/opens/{month}/standings` | N/A | No |
 | Player Profile | `GET /v1/players/{id}` | Performed Jump, Judged Jump | No |
 | Report | `POST /v1/jumps/{id}/reports` | Any visible Jump | Yes |
@@ -317,6 +317,8 @@ type GuestSessionRepo interface {
 ## 6. Evidence Upload Flow
 
 ### 6.1 Sequence
+
+**Scoping note:** This flow is specified for when hosted object storage is available. In local MVP development, evidence uploads are not required — `EXPO_PUBLIC_MEDIA_BASE_URL` is optional and the evidence endpoints are not exercised. See ADR-0007.
 
 ```
 Player                     Server                      Object Store
@@ -748,6 +750,8 @@ Each tracer bullet is a vertical slice that delivers testable value. Slices are 
 **Key files:** `internal/game/open_service.go`, `internal/game/open_service_test.go`.
 
 ### Bullet 7: Evidence Upload and Safety
+
+**Scoping note:** The Evidence upload tracer bullet depends on hosted object storage. In local MVP development, this bullet is deferred — evidence photo handling is additive when object storage is introduced.
 
 **Scope:** Implement Evidence authorization + confirmation flow per §6. Implement Report endpoint (`POST /v1/jumps/{jumpID}/reports`). Admin removal tool. Write tests for EU-1 and EU-2.
 
