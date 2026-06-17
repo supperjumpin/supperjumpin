@@ -13,7 +13,7 @@ func testGetMeBootstrapsAccountAndPlayerFromLocalIdentity(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"valid-token": {Provider: "local-dev", Subject: "auth-user-123", Email: "player@example.com"},
+			"valid-token": {Provider: "test-provider", Subject: "auth-user-123", Email: "player@example.com"},
 		},
 		Store:        store,
 		Now:          store.Now,
@@ -100,7 +100,33 @@ func testGetMeRejectsMissingBearerToken(t *testing.T) {
 	}
 }
 
+func testGetMeRejectsInvalidBearerToken(t *testing.T) {
+	store := newCleanPostgresTestStore(t)
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"valid-token": {Provider: "test-provider", Subject: "auth-user-123", Email: "player@example.com"},
+		},
+		Store:        store,
+		Now:          store.Now,
+		JumpPlanning: store,
+		Judgment:     store,
+		PublicRead:   store,
+		Open:         store,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+	rec := httptest.NewRecorder()
+
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rec.Code)
+	}
+}
+
 func TestMe(t *testing.T) {
 	t.Run("bootstraps account and player from local identity", testGetMeBootstrapsAccountAndPlayerFromLocalIdentity)
 	t.Run("rejects missing bearer token", testGetMeRejectsMissingBearerToken)
+	t.Run("rejects invalid bearer token", testGetMeRejectsInvalidBearerToken)
 }
