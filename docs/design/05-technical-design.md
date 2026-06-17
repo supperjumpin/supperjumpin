@@ -214,7 +214,7 @@ Feed (root, default screen)
 | Jump Detail | `GET /v1/jumps/{id}` | All except Draft and Removed | No |
 | Judging | `POST /v1/jumps/{id}/judgments` | Performed Jump (post-grace), Judged Jump | No (Guest allowed) |
 | Create Jump | `POST /v1/jumps` + Evidence flow | N/A (creates new Jump) | Yes |
-| Auth Gate | N/A (auth provider SDK) | N/A | N/A (conversion screen) |
+| Auth Gate | N/A (deferred until hosted auth provider is chosen) | N/A | N/A (conversion screen) |
 | Open Standings | `GET /v1/opens/{month}/standings` | N/A | No |
 | Player Profile | `GET /v1/players/{id}` | Performed Jump, Judged Jump | No |
 | Report | `POST /v1/jumps/{id}/reports` | Any visible Jump | Yes |
