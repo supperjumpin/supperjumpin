@@ -8,7 +8,7 @@ Go backend API for Supperjumpin. Owns game rules, durable domain state, and the 
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN. npm scripts use local Docker Postgres by default; `SUPPERJUMPIN_DATABASE_URL` opts into a non-local Postgres database. |
+| Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, SUPPERJUMPIN_DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN. npm scripts use local Docker Postgres by default and pass `SUPPERJUMPIN_DATABASE_URL` explicitly. |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig; call transport helpers in `store.go` |
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
 | Postgres-backed tests | `npm run api:test` / `npm run api:test:coverage` | Canonical test path against Postgres; see root AGENTS.md |

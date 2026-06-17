@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -25,9 +26,9 @@ func main() {
 		}})
 	}
 
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required for durable Supperjumpin API state")
+	databaseURL, err := requiredDatabaseURL()
+	if err != nil {
+		log.Fatal(err)
 	}
 	store, err := httpapi.NewPostgresStore(context.Background(), databaseURL)
 	if err != nil {
@@ -55,4 +56,12 @@ func envOrDefault(name string, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func requiredDatabaseURL() (string, error) {
+	databaseURL := os.Getenv("SUPPERJUMPIN_DATABASE_URL")
+	if databaseURL == "" {
+		return "", fmt.Errorf("SUPPERJUMPIN_DATABASE_URL is required for durable Supperjumpin API state")
+	}
+	return databaseURL, nil
 }

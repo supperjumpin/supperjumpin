@@ -170,7 +170,7 @@ EOSQL
   # ── 4. Start API A (Player A) ──────────────────────────
   step "4/12  Starting API A — Player A (alice) on :$API_A_PORT"
   cd "$REPO_ROOT"
-  DATABASE_URL="$DB_URL" \
+  SUPPERJUMPIN_DATABASE_URL="$DB_URL" \
   SUPPERJUMPIN_DEV_AUTH_TOKEN="$TOKEN_A" \
   SUPPERJUMPIN_DEV_AUTH_SUBJECT="dev-subject-a" \
   SUPPERJUMPIN_DEV_AUTH_EMAIL="$EMAIL_A" \
@@ -195,7 +195,7 @@ EOSQL
   # ── 5. Start API B (Player B) ──────────────────────────
   step "5/12  Starting API B — Player B (bob) on :$API_B_PORT"
   cd "$REPO_ROOT"
-  DATABASE_URL="$DB_URL" \
+  SUPPERJUMPIN_DATABASE_URL="$DB_URL" \
   SUPPERJUMPIN_DEV_AUTH_TOKEN="$TOKEN_B" \
   SUPPERJUMPIN_DEV_AUTH_SUBJECT="dev-subject-b" \
   SUPPERJUMPIN_DEV_AUTH_EMAIL="$EMAIL_B" \
