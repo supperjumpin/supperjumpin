@@ -10,8 +10,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 |------|----------|-------|
 | Jump lifecycle | `jump_planning.go` | `CreatePerformedJump` (direct creation, evidence inline) |
 | Judgment scoring | `judgment.go` | `SubmitJudgment` (upsert, self-judge guard, score validation) |
-
-| Service wrapper | `game.go` | Thin `Service` struct with `Now` clock injection |
+| Open scoring | `open.go` | Monthly Open soft-close scoring and Standings update rules |
 | Domain unit tests | `*_test.go` | Hand-rolled `mock*Repo` structs, co-located |
 
 ## CONVENTIONS
@@ -20,7 +19,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 - **Input/Result structs**: Every operation has explicit `XxxInput` and `XxxResult{Allowed, Created, Err}` structs.
 - **Allowed bool**: Authorization failures return `Allowed=false`. HTTP layer maps this to 403.
 - **Snapshot pattern**: Read-only views use `XxxSnapshot` structs. Persistence layers assemble these from DB rows.
-- **Clock injection**: Time-dependent logic accepts `func() time.Time` (e.g., `Service.Now`, `PostgresStore` clock).
+- **Clock injection**: Time-dependent logic accepts explicit `time.Time` values from callers; adapters own their clocks.
 - **Error naming**: Sentinel errors use `ErrXxx` (e.g., `ErrInvalidJudgmentScore`, `ErrJumpNotFound`).
 
 ## ANTI-PATTERNS

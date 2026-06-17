@@ -331,55 +331,17 @@ func NewServer(config ServerConfig) http.Handler {
 			}
 		}
 
-		var cursorTS *time.Time
-		var cursorID string
-		if cursorStr != "" {
-			ts, id, err := decodeCursor(cursorStr)
-			if err != nil {
-				http.Error(w, "invalid cursor", http.StatusBadRequest)
-				return
-			}
-			cursorTS = &ts
-			cursorID = id
+		response, err := loadPublicFeed(r.Context(), config.PublicRead, config.Judgment, viewer, cursorStr, limit, config.Now())
+		if errors.Is(err, ErrInvalidFeedCursor) {
+			http.Error(w, "invalid cursor", http.StatusBadRequest)
+			return
 		}
-
-		// Fetch limit+1 to detect whether there's a next page
-		cards, err := config.PublicRead.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jumps. Please try again.")
 			return
 		}
 
-		// Attach viewer context to each card — batch already-judged check
-		if viewer != nil {
-			cardIDs := make([]string, len(cards))
-			for i, c := range cards {
-				cardIDs[i] = c.ID
-			}
-			judged, err := config.Judgment.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
-			if err != nil {
-				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
-				return
-			}
-			for i := range cards {
-				hint := game.JudgmentEligibility(game.JumpSnapshot{
-					ID:                   cards[i].ID,
-					PlayerID:             cards[i].PerformerID,
-					GracePeriodExpiresAt: cards[i].GracePeriodExpiresAt,
-				}, viewer.Player.ID, judged[cards[i].ID], config.Now())
-				cards[i].ViewerContext = viewerContextFromHint(hint)
-			}
-		}
-
-		var nextCursor *string
-		if len(cards) > limit {
-			cards = cards[:limit]
-			last := cards[len(cards)-1]
-			c := encodeCursor(last.CreatedAt, last.ID)
-			nextCursor = &c
-		}
-
-		writeJSON(w, http.StatusOK, PublicFeedResponse{Jumps: cards, NextCursor: nextCursor})
+		writeJSON(w, http.StatusOK, response)
 	})
 
 	// GET /v1/jumps/{jumpID} — public, unauthenticated Jump Detail
@@ -387,7 +349,7 @@ func NewServer(config ServerConfig) http.Handler {
 		viewer := optionalProfile(r, config)
 		jumpID := r.PathValue("jumpID")
 
-		detail, found, err := config.PublicRead.JumpDetail(r.Context(), jumpID)
+		response, found, err := loadPublicJumpDetail(r.Context(), config.PublicRead, config.Judgment, viewer, jumpID, config.Now())
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jump detail. Please try again.")
 			return
@@ -397,59 +359,15 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		// Tombstone for Removed Jumps
-		if detail.Status == "Removed Jump" {
-			removedAt := detail.CreatedAt
-			if detail.RemovedAt != nil {
-				removedAt = *detail.RemovedAt
-			}
-			writeJSON(w, http.StatusOK, JumpTombstone{
-				ID:        detail.ID,
-				Status:    "Removed Jump",
-				Message:   "This Jump is no longer available",
-				RemovedAt: removedAt.Format(time.RFC3339),
-			})
+		if response.Tombstone != nil {
+			writeJSON(w, http.StatusOK, response.Tombstone)
 			return
 		}
 
-		// Attach viewer context for all requests (unauthenticated = default canJudge: true)
-		if viewer != nil {
-			hasJudged, err := config.Judgment.HasJudgedJump(r.Context(), detail.ID, viewer.Player.ID)
-			if err != nil {
-				writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load judgment state. Please try again.")
-				return
-			}
-			hint := game.JudgmentEligibility(game.JumpSnapshot{
-				ID:                   detail.ID,
-				PlayerID:             detail.PerformerID,
-				GracePeriodExpiresAt: detail.GracePeriodExpiresAt,
-			}, viewer.Player.ID, hasJudged, config.Now())
-			detail.ViewerContext = viewerContextFromHint(hint)
-		} else {
-			detail.ViewerContext = &ViewerContext{CanJudge: true}
-		}
-
-		writeJSON(w, http.StatusOK, detail)
+		writeJSON(w, http.StatusOK, response.Detail)
 	})
 
 	return mux
-}
-
-// viewerContextFromHint converts a game.EligibilityHint into a transport-layer
-// ViewerContext DTO.
-func viewerContextFromHint(hint game.EligibilityHint) *ViewerContext {
-	vc := &ViewerContext{CanJudge: hint.CanJudge}
-	if hint.Reason != "" {
-		r := hint.Reason
-		vc.Reason = &r
-	}
-	if hint.GracePeriodEndsAt != nil {
-		vc.GracePeriodEndsAt = hint.GracePeriodEndsAt
-	}
-	if !hint.CanJudge && hint.Reason == "already-judged" {
-		vc.HasJudged = true
-	}
-	return vc
 }
 
 func signedInProfile(w http.ResponseWriter, r *http.Request, config ServerConfig) (MeResponse, bool) {
