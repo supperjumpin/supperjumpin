@@ -14,9 +14,9 @@ import { getPublicFeed } from "@supperjumpin/api-client";
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const MEDIA_BASE_URL = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? "";
 
-function mediaUrl(key: string): string | null {
-  if (!key || !MEDIA_BASE_URL) return null;
-  return `${MEDIA_BASE_URL.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
+export function mediaUrl(key: string, baseUrl = MEDIA_BASE_URL): string | null {
+  if (!key || !baseUrl) return null;
+  return `${baseUrl.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
 }
 
 function formatTimeAgo(dateStr: string): string {

@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import JumpDetailScreen from './JumpDetailScreen';
+import JumpDetailScreen, { mediaUrl } from './JumpDetailScreen';
 import { mockPublicFetch, jumpDetailResponse } from './test/mockApi';
 
 test('Jump detail exposes loading, performer stub, and back actions accessibly', async () => {
@@ -231,4 +231,79 @@ test('grace-period countdown updates live on Jump detail', async () => {
   expect(getByText('Judging opens in 0m 4s')).toBeTruthy();
 
   jest.useRealTimers();
+});
+
+describe('mediaUrl', () => {
+  test('returns null when key is empty', () => {
+    expect(mediaUrl('', 'https://media.example.com')).toBeNull();
+  });
+
+  test('returns null when baseUrl is empty', () => {
+    expect(mediaUrl('photos/abc.jpg', '')).toBeNull();
+  });
+
+  test('returns null when both arguments are empty', () => {
+    expect(mediaUrl('', '')).toBeNull();
+  });
+
+  test('constructs URL from key and base URL', () => {
+    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com'))
+      .toBe('https://media.example.com/photos/abc.jpg');
+  });
+
+  test('strips trailing slash from base URL', () => {
+    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com/'))
+      .toBe('https://media.example.com/photos/abc.jpg');
+  });
+
+  test('strips leading slash from key', () => {
+    expect(mediaUrl('/photos/abc.jpg', 'https://media.example.com'))
+      .toBe('https://media.example.com/photos/abc.jpg');
+  });
+});
+
+test('Jump detail shows media placeholder when mediaObjectKey is empty', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/jumps/jump_1')) {
+      return Response.json(jumpDetailResponse({ mediaObjectKey: '' }));
+    }
+    return Response.json({});
+  });
+
+  const { getByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByText('📸')).toBeTruthy();
+    expect(getByText('Crunchwrap')).toBeTruthy();
+  });
+});
+
+test('Jump detail renders media Image when mediaObjectKey is provided', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/jumps/jump_1')) {
+      return Response.json(jumpDetailResponse({ mediaObjectKey: 'photos/has-key.jpg' }));
+    }
+    return Response.json({});
+  });
+
+  const { getByText, queryByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+    />
+  );
+
+  await waitFor(() => {
+    expect(queryByText('📸')).toBeNull();
+    expect(getByText('Crunchwrap')).toBeTruthy();
+  });
 });
