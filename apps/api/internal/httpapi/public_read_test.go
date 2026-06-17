@@ -315,9 +315,9 @@ func testPublicJumpDetailInternalErrorReturnsMessageEnvelope(t *testing.T) {
 	store.SetClock(time.Now)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "local-dev", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "local-dev", Subject: "bob-auth", Email: "bob@example.com"},
-			"carol-token": {Provider: "local-dev", Subject: "carol-auth", Email: "carol@example.com"},
+			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "test-provider", Subject: "carol-auth", Email: "carol@example.com"},
 		},
 		Store:        store,
 		Now:          pgStore.Now,
@@ -351,9 +351,9 @@ func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
 	store.SetClock(time.Now)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "local-dev", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "local-dev", Subject: "bob-auth", Email: "bob@example.com"},
-			"carol-token": {Provider: "local-dev", Subject: "carol-auth", Email: "carol@example.com"},
+			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "test-provider", Subject: "carol-auth", Email: "carol@example.com"},
 		},
 		Store:        store,
 		Now:          pgStore.Now,
