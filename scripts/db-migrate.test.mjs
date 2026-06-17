@@ -53,7 +53,7 @@ test("invokes local migrate binary with default local database URL when env is u
   );
 });
 
-test("invokes local migrate binary with explicit SUPPERJUMPIN_DATABASE_URL when env is set", () => {
+test("ignores SUPPERJUMPIN_DATABASE_URL so shell config cannot retarget migrations", () => {
   const binDir = mkdtempSync(join(tmpdir(), "sj-test-"));
   const fakeMigrate = join(binDir, "migrate");
   writeFileSync(
@@ -67,8 +67,14 @@ test("invokes local migrate binary with explicit SUPPERJUMPIN_DATABASE_URL when 
 
   assert.strictEqual(result.status, 0, `Expected exit 0. stderr: ${result.stderr}`);
   const output = result.stdout + result.stderr;
-  assert.ok(output.includes(customURL),
-    `Expected custom SUPPERJUMPIN_DATABASE_URL in output. Got: ${output}`
+  assert.ok(output.includes("Ignoring SUPPERJUMPIN_DATABASE_URL"),
+    `Expected warning about ignored SUPPERJUMPIN_DATABASE_URL. Got: ${output}`
+  );
+  assert.ok(output.includes("postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable"),
+    `Expected local default DATABASE_URL in output. Got: ${output}`
+  );
+  assert.ok(!output.includes("host:9999"),
+    `Expected custom SUPPERJUMPIN_DATABASE_URL to be ignored. Got: ${output}`
   );
 });
 

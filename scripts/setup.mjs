@@ -246,7 +246,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log("  npm run api:dev       # Start the API dev server");
   console.log("  npm run api:test      # Run API tests against Postgres");
   console.log("  npm run db:up         # Start the local Postgres service");
-  console.log("  npm run db:migrate    # Apply database migrations");
+  console.log("  npm run db:migrate    # Apply database migrations to local Docker Postgres");
   console.log("  npm run db:reset      # Recreate the local test DB");
   console.log("  npm run docs          # Start the docs server");
   console.log("  npm run generate:api-client  # Regenerate the TypeScript API client");

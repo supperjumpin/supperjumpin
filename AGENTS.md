@@ -97,7 +97,7 @@ These files are maintained by convention, not automation. Follow these rules in 
 npm run db:up             # Start Docker Compose Postgres service
 npm run db:down           # Stop Docker Compose Postgres without deleting data
 npm run db:reset          # Recreate local dev DB and reapply migrations
-npm run db:migrate        # Apply migrations to local Docker Postgres by default
+npm run db:migrate        # Apply migrations to the local Docker Postgres only
 npm run api:dev           # Run API against existing DB
 
 # Testing
@@ -117,7 +117,7 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 
 ## NOTES
 
-- `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary. npm scripts set it for local Docker Postgres by default and ignore ambient `DATABASE_URL`.
+- `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary. Most npm scripts set it for local Docker Postgres by default and ignore ambient `DATABASE_URL`; `npm run db:migrate` is local-only and ignores both `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
 - Hosted staging/prod infrastructure is intentionally deferred until the local MVP is playable end-to-end.
 - Auth is local-first for MVP development: `SUPPERJUMPIN_DEV_AUTH_TOKEN` defaults to `dev-token` in `npm run api:dev`, and mobile uses `EXPO_PUBLIC_DEV_AUTH_TOKEN`.
 - Mobile needs `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_DEV_AUTH_TOKEN` in `.env`; `EXPO_PUBLIC_MEDIA_BASE_URL` is optional for evidence previews.
