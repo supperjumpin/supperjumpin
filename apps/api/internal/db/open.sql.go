@@ -12,7 +12,7 @@ import (
 )
 
 const listJumpsForOpenMonth = `-- name: ListJumpsForOpenMonth :many
-SELECT id, group_id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
+SELECT id, player_id, season_id, status, source, destination, food, final_score, grace_period_expires_at
 FROM jumps
 WHERE created_at >= $1 AND created_at < $2
   AND status IN ('Performed Jump', 'Judged Jump', 'Unjudged Jump', 'Disqualified Jump')
@@ -25,7 +25,6 @@ type ListJumpsForOpenMonthParams struct {
 
 type ListJumpsForOpenMonthRow struct {
 	ID                   string
-	GroupID              sql.NullString
 	PlayerID             string
 	SeasonID             sql.NullString
 	Status               string
@@ -47,7 +46,6 @@ func (q *Queries) ListJumpsForOpenMonth(ctx context.Context, arg ListJumpsForOpe
 		var i ListJumpsForOpenMonthRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.GroupID,
 			&i.PlayerID,
 			&i.SeasonID,
 			&i.Status,

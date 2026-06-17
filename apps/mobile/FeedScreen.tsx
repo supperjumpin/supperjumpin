@@ -12,12 +12,11 @@ import {
 import { getPublicFeed } from "@supperjumpin/api-client";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const STORAGE_BUCKET = "evidence";
+const MEDIA_BASE_URL = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? "";
 
 function mediaUrl(key: string): string | null {
-  if (!key || !SUPABASE_URL) return null;
-  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+  if (!key || !MEDIA_BASE_URL) return null;
+  return `${MEDIA_BASE_URL.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -37,16 +36,16 @@ function formatScore(avg: number, count: number): string {
   return `★ ${avg.toFixed(1)} (${count})`;
 }
 
-function formatCountdown(endsAt: string): string {
-  const remaining = new Date(endsAt).getTime() - Date.now();
+function formatCountdown(endsAt: string, nowMs = Date.now()): string {
+  const remaining = new Date(endsAt).getTime() - nowMs;
   if (remaining <= 0) return "0m 0s";
   const mins = Math.floor(remaining / 60000);
   const secs = Math.floor((remaining % 60000) / 1000);
   return `${mins}m ${secs}s`;
 }
 
-function formatGraceCountdown(endsAt: string): string {
-  const countdown = formatCountdown(endsAt);
+function formatGraceCountdown(endsAt: string, nowMs = Date.now()): string {
+  const countdown = formatCountdown(endsAt, nowMs);
   if (countdown === "0m 0s") return "Judging now available";
   return `Judging opens in ${countdown}`;
 }
@@ -95,6 +94,18 @@ function JumpCard({
 }: JumpCardProps) {
   const canJudge = viewerContext?.canJudge ?? true;
   const judgeReason = viewerContext?.reason;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (judgeReason !== "grace-period") return;
+
+    setNowMs(Date.now());
+    const intervalID = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(intervalID);
+  }, [judgeReason, gracePeriodExpiresAt]);
 
   let judgeLabel = "Judge";
   let judgeAccessibility = "Judge this Jump";
@@ -102,8 +113,8 @@ function JumpCard({
     judgeLabel = "Your Jump";
     judgeAccessibility = "You performed this jump. You cannot judge your own entry.";
   } else if (judgeReason === "grace-period") {
-    judgeLabel = formatGraceCountdown(gracePeriodExpiresAt);
-    judgeAccessibility = `Judging opens in ${formatCountdown(gracePeriodExpiresAt)}. Not yet available.`;
+    judgeLabel = formatGraceCountdown(gracePeriodExpiresAt, nowMs);
+    judgeAccessibility = `Judging opens in ${formatCountdown(gracePeriodExpiresAt, nowMs)}. Not yet available.`;
   } else if (judgeReason === "already-judged") {
     judgeLabel = "You judged this";
     judgeAccessibility = "You already judged this jump. Score submitted.";
@@ -157,9 +168,16 @@ function JumpCard({
           {caption}
         </Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.performer} accessibilityLabel={`${performerName}`}>
-            {performerName}
-          </Text>
+          <TouchableOpacity
+            style={styles.performerStub}
+            disabled
+            accessibilityRole="button"
+            accessibilityState={{ disabled: true }}
+            accessibilityLabel={`${performerName} profile coming soon`}
+            accessibilityHint="Player profiles are not available yet."
+          >
+            <Text style={styles.performer}>{performerName}</Text>
+          </TouchableOpacity>
           <Text style={styles.timestamp}>
             {formatTimeAgo(createdAt)}
           </Text>
@@ -185,7 +203,7 @@ function JumpCard({
             numberOfLines={1}
             accessibilityLabel={
               isGracePeriod
-                ? `Judging opens in ${formatCountdown(gracePeriodExpiresAt)}. Not yet available.`
+                ? `Judging opens in ${formatCountdown(gracePeriodExpiresAt, nowMs)}. Not yet available.`
                 : judgeAccessibility
             }
           >
@@ -199,9 +217,12 @@ function JumpCard({
 
 interface FeedScreenProps {
   onNavigateDetail: (jumpId: string) => void;
+  onNavigateCreate?: () => void;
+  onRequestAuth?: () => void;
+  session?: { access_token: string; user: { id: string } } | null;
 }
 
-export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
+export default function FeedScreen({ onNavigateDetail, onNavigateCreate, onRequestAuth, session }: FeedScreenProps) {
   const [jumps, setJumps] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,6 +235,7 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
       try {
         const data = await getPublicFeed({
           baseUrl: API_BASE,
+          accessToken: session?.access_token,
           cursor,
           limit: 20,
         });
@@ -228,7 +250,7 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
         setError(e.message ?? "Could not load jumps");
       }
     },
-    []
+    [session?.access_token]
   );
 
   useEffect(() => {
@@ -306,8 +328,23 @@ export default function FeedScreen({ onNavigateDetail }: FeedScreenProps) {
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Supperjumpin</Text>
+        <TouchableOpacity
+          style={styles.postJumpButton}
+          onPress={() => {
+            if (session) {
+              onNavigateCreate?.();
+            } else {
+              onRequestAuth?.();
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Post a new Jump"
+        >
+          <Text style={styles.postJumpButtonText}>+ Jump</Text>
+        </TouchableOpacity>
       </View>
       <FlatList
+        testID="feed-list"
         data={jumps}
         renderItem={renderCard}
         keyExtractor={(item: any) => item.id}
@@ -458,7 +495,12 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 4,
+  },
+  performerStub: {
+    minHeight: 44,
+    justifyContent: "center",
   },
   performer: {
     color: "#2f241d",
@@ -503,5 +545,20 @@ const styles = StyleSheet.create({
   footerLoader: {
     paddingVertical: 20,
     alignItems: "center",
+  },
+  postJumpButton: {
+    backgroundColor: "#c1673a",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "flex-end",
+  },
+  postJumpButtonText: {
+    color: "#fffaf2",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });

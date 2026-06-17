@@ -11,12 +11,11 @@ import {
 import { getJumpDetail } from "@supperjumpin/api-client";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const STORAGE_BUCKET = "evidence";
+const MEDIA_BASE_URL = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? "";
 
 function mediaUrl(key: string): string | null {
-  if (!key || !SUPABASE_URL) return null;
-  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${key}`;
+  if (!key || !MEDIA_BASE_URL) return null;
+  return `${MEDIA_BASE_URL.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
 }
 
 function formatDate(dateStr: string): string {
@@ -29,8 +28,8 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function formatGraceCountdown(endsAt: string): string {
-  const remaining = new Date(endsAt).getTime() - Date.now();
+function formatGraceCountdown(endsAt: string, nowMs = Date.now()): string {
+  const remaining = new Date(endsAt).getTime() - nowMs;
   if (remaining <= 0) return "Judging now available";
   const mins = Math.floor(remaining / 60000);
   const secs = Math.floor((remaining % 60000) / 1000);
@@ -51,23 +50,30 @@ interface JumpDetailScreenProps {
   jumpId: string;
   onBack: () => void;
   onBrowseFeed: () => void;
+  session?: { access_token: string; user: { id: string } } | null;
 }
 
 export default function JumpDetailScreen({
   jumpId,
   onBack,
   onBrowseFeed,
+  session,
 }: JumpDetailScreenProps) {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTombstone, setIsTombstone] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const data = await getJumpDetail({ baseUrl: API_BASE, jumpId });
+        const data = await getJumpDetail({
+          baseUrl: API_BASE,
+          accessToken: session?.access_token,
+          jumpId,
+        });
         if (data && data.status === "Removed Jump") {
           setIsTombstone(true);
           setDetail(data);
@@ -80,11 +86,22 @@ export default function JumpDetailScreen({
       }
       setLoading(false);
     })();
-  }, [jumpId]);
+  }, [jumpId, session?.access_token]);
+
+  useEffect(() => {
+    if (!detail || detail.viewerContext?.reason !== "grace-period") return;
+
+    setNowMs(Date.now());
+    const intervalID = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(intervalID);
+  }, [detail]);
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.centerContainer} accessible accessibilityLabel="Loading jump detail">
         <ActivityIndicator size="large" color="#c1673a" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
@@ -93,9 +110,14 @@ export default function JumpDetailScreen({
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.button} onPress={onBack}>
+      <View style={styles.centerContainer} accessible accessibilityLabel="Could not load jump detail">
+        <Text style={styles.errorText} accessibilityLabel={error}>{error}</Text>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={onBack}
+          accessibilityRole="button"
+          accessibilityLabel="Back to Feed"
+        >
           <Text style={styles.buttonText}>Back to Feed</Text>
         </TouchableOpacity>
       </View>
@@ -105,11 +127,16 @@ export default function JumpDetailScreen({
   if (isTombstone) {
     return (
       <View style={styles.screen}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          accessibilityRole="button"
+          accessibilityLabel="Back to Feed"
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-        <View style={styles.centerContainer}>
-          <Text style={styles.tombstoneMessage}>
+        <View style={styles.centerContainer} accessible accessibilityLabel="Jump no longer available">
+          <Text style={styles.tombstoneMessage} accessibilityLabel="This Jump is no longer available">
             This Jump is no longer available
           </Text>
           <TouchableOpacity
@@ -132,7 +159,7 @@ export default function JumpDetailScreen({
   } else if (vc.reason === "self-judging") {
     judgeState = "You can't judge your own Jump";
   } else if (vc.reason === "grace-period") {
-    judgeState = formatGraceCountdown(detail.gracePeriodExpiresAt);
+    judgeState = formatGraceCountdown(detail.gracePeriodExpiresAt, nowMs);
   } else if (vc.reason === "already-judged") {
     judgeState = "You already judged this jump. Score submitted.";
   } else {
@@ -143,7 +170,12 @@ export default function JumpDetailScreen({
 
   return (
     <View style={styles.screen}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={onBack}
+        accessibilityRole="button"
+        accessibilityLabel="Back to Feed"
+      >
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
@@ -164,9 +196,16 @@ export default function JumpDetailScreen({
 
         {/* Performer + timestamp */}
         <View style={styles.performerRow}>
-          <Text style={styles.performerName}>
-            {detail.performerName}
-          </Text>
+          <TouchableOpacity
+            style={styles.performerStub}
+            disabled
+            accessibilityRole="button"
+            accessibilityState={{ disabled: true }}
+            accessibilityLabel={`${detail.performerName} profile coming soon`}
+            accessibilityHint="Player profiles are not available yet."
+          >
+            <Text style={styles.performerName}>{detail.performerName}</Text>
+          </TouchableOpacity>
           <Text style={styles.timestamp}>
             {formatDate(detail.createdAt)}
           </Text>
@@ -254,6 +293,8 @@ const styles = StyleSheet.create({
   backButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: "center",
   },
   backText: {
     color: "#c1673a",
@@ -284,6 +325,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  performerStub: {
+    minHeight: 44,
+    justifyContent: "center",
   },
   performerName: {
     color: "#2f241d",

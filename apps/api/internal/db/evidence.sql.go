@@ -11,46 +11,6 @@ import (
 	"time"
 )
 
-const deleteEvidenceUploadAuthorization = `-- name: DeleteEvidenceUploadAuthorization :exec
-DELETE FROM evidence_upload_authorizations WHERE id = $1
-`
-
-func (q *Queries) DeleteEvidenceUploadAuthorization(ctx context.Context, id string) error {
-	_, err := q.db.ExecContext(ctx, deleteEvidenceUploadAuthorization, id)
-	return err
-}
-
-const getEvidenceUploadAuthorizationForUpdate = `-- name: GetEvidenceUploadAuthorizationForUpdate :one
-SELECT id, player_id, media_object_key, expires_at
-FROM evidence_upload_authorizations
-WHERE id = $1 AND jump_id = $2
-FOR UPDATE
-`
-
-type GetEvidenceUploadAuthorizationForUpdateParams struct {
-	ID     string
-	JumpID string
-}
-
-type GetEvidenceUploadAuthorizationForUpdateRow struct {
-	ID             string
-	PlayerID       string
-	MediaObjectKey string
-	ExpiresAt      time.Time
-}
-
-func (q *Queries) GetEvidenceUploadAuthorizationForUpdate(ctx context.Context, arg GetEvidenceUploadAuthorizationForUpdateParams) (GetEvidenceUploadAuthorizationForUpdateRow, error) {
-	row := q.db.QueryRowContext(ctx, getEvidenceUploadAuthorizationForUpdate, arg.ID, arg.JumpID)
-	var i GetEvidenceUploadAuthorizationForUpdateRow
-	err := row.Scan(
-		&i.ID,
-		&i.PlayerID,
-		&i.MediaObjectKey,
-		&i.ExpiresAt,
-	)
-	return i, err
-}
-
 const insertEvidence = `-- name: InsertEvidence :exec
 INSERT INTO evidences (id, jump_id, player_id, upload_authorization_id, caption, media_object_key, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -79,47 +39,18 @@ func (q *Queries) InsertEvidence(ctx context.Context, arg InsertEvidenceParams) 
 	return err
 }
 
-const insertEvidenceUploadAuthorization = `-- name: InsertEvidenceUploadAuthorization :one
-INSERT INTO evidence_upload_authorizations (id, jump_id, player_id, content_type, media_object_key, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, jump_id, player_id, content_type, media_object_key, expires_at
+const updateEvidenceCaption = `-- name: UpdateEvidenceCaption :exec
+UPDATE evidences
+SET caption = $2
+WHERE jump_id = $1
 `
 
-type InsertEvidenceUploadAuthorizationParams struct {
-	ID             string
-	JumpID         string
-	PlayerID       string
-	ContentType    string
-	MediaObjectKey string
-	ExpiresAt      time.Time
+type UpdateEvidenceCaptionParams struct {
+	JumpID  string
+	Caption string
 }
 
-type InsertEvidenceUploadAuthorizationRow struct {
-	ID             string
-	JumpID         string
-	PlayerID       string
-	ContentType    string
-	MediaObjectKey string
-	ExpiresAt      time.Time
-}
-
-func (q *Queries) InsertEvidenceUploadAuthorization(ctx context.Context, arg InsertEvidenceUploadAuthorizationParams) (InsertEvidenceUploadAuthorizationRow, error) {
-	row := q.db.QueryRowContext(ctx, insertEvidenceUploadAuthorization,
-		arg.ID,
-		arg.JumpID,
-		arg.PlayerID,
-		arg.ContentType,
-		arg.MediaObjectKey,
-		arg.ExpiresAt,
-	)
-	var i InsertEvidenceUploadAuthorizationRow
-	err := row.Scan(
-		&i.ID,
-		&i.JumpID,
-		&i.PlayerID,
-		&i.ContentType,
-		&i.MediaObjectKey,
-		&i.ExpiresAt,
-	)
-	return i, err
+func (q *Queries) UpdateEvidenceCaption(ctx context.Context, arg UpdateEvidenceCaptionParams) error {
+	_, err := q.db.ExecContext(ctx, updateEvidenceCaption, arg.JumpID, arg.Caption)
+	return err
 }

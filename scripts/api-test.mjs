@@ -1,10 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
   buildAdminURL,
   DEFAULT_TEST_DATABASE_URL,
+  describeDatabaseURL,
   parseDatabaseName,
   runMigrations,
   runPsqlCommand,
@@ -97,6 +98,7 @@ export function isSafeToReset(dbName, allowUnsafe) {
 function main() {
   const env = process.env;
   const testDatabaseURL = getTestDatabaseURL(env);
+  console.log(`Test database: ${describeDatabaseURL(testDatabaseURL)}`);
   const dbName = parseDatabaseName(testDatabaseURL);
   const allowUnsafe = env.SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET === "1";
   const isLocalDocker = !env.SUPPERJUMPIN_TEST_DATABASE_URL;
@@ -149,7 +151,7 @@ function main() {
   }
 
   console.log("Applying migrations...");
-  const migrateResult = runMigrations(testDatabaseURL, env);
+  const migrateResult = runMigrations(testDatabaseURL, { ...env, DATABASE_URL: undefined });
   if (migrateResult.status !== 0) {
     console.error("Migrations failed.");
     process.exit(1);
@@ -202,6 +204,11 @@ function main() {
     process.stdout.write(coverageSummary);
     if (env.GITHUB_STEP_SUMMARY) {
       appendFileSync(env.GITHUB_STEP_SUMMARY, `### Go API coverage\n\n\`\`\`\n${coverageSummary}\`\`\`\n`);
+    }
+
+    if (summaryMatch) {
+      mkdirSync("coverage", { recursive: true });
+      writeFileSync("coverage/go-report.json", JSON.stringify({ total: Number(summaryMatch[1]) }) + "\n");
     }
   }
 

@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"testing"
@@ -15,8 +16,8 @@ import (
 // ---------------------------------------------------------------------------
 
 func testPublicFeedReturnsJumps(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
@@ -29,20 +30,20 @@ func testPublicFeedReturnsJumps(t *testing.T) {
 		t.Fatalf("expected 1 jump in feed, got %d", len(res.Jumps))
 	}
 	card := res.Jumps[0]
-	if card.ID != performed.Jump.ID {
-		t.Fatalf("expected jump ID %q, got %q", performed.Jump.ID, card.ID)
+	if card.ID != performed.ID {
+		t.Fatalf("expected jump ID %q, got %q", performed.ID, card.ID)
 	}
 	if card.PerformerName != "alice" {
 		t.Fatalf("expected performerName alice, got %q", card.PerformerName)
 	}
-	if card.Source != performed.Jump.Source || card.Destination != performed.Jump.Destination || card.Food != performed.Jump.Food {
-		t.Fatalf("expected route %q -> %q with food %q, got %#v", performed.Jump.Source, performed.Jump.Destination, performed.Jump.Food, card)
+	if card.Source != performed.Source || card.Destination != performed.Destination || card.Food != performed.Food {
+		t.Fatalf("expected route %q -> %q with food %q, got %#v", performed.Source, performed.Destination, performed.Food, card)
 	}
-	if card.Caption != performed.Evidence.Caption {
-		t.Fatalf("expected caption %q, got %q", performed.Evidence.Caption, card.Caption)
+	if card.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected caption %q, got %q", "Crunchwrap successfully smuggled into the parking lot.", card.Caption)
 	}
-	if card.MediaObjectKey != performed.Evidence.MediaObjectKey {
-		t.Fatalf("expected mediaObjectKey %q, got %q", performed.Evidence.MediaObjectKey, card.MediaObjectKey)
+	if card.MediaObjectKey != performed.MediaObjectKey {
+		t.Fatalf("expected mediaObjectKey %q, got %q", performed.MediaObjectKey, card.MediaObjectKey)
 	}
 	if card.ViewerContext != nil {
 		t.Fatal("expected unauthenticated feed card to omit viewerContext")
@@ -56,11 +57,11 @@ func testPublicFeedReturnsMultipleJumpsInOrder(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
 	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) })
-	first := performJump(t, server, "alice-token", store.GroupID)
+	first := performJump(t, server, "alice-token")
 	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 1, 0, 0, time.UTC) })
-	second := performJump(t, server, "alice-token", store.GroupID)
+	second := performJump(t, server, "alice-token")
 	store.Store.SetClock(func() time.Time { return time.Date(2026, 6, 1, 12, 2, 0, 0, time.UTC) })
-	third := performJump(t, server, "alice-token", store.GroupID)
+	third := performJump(t, server, "alice-token")
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
@@ -72,62 +73,23 @@ func testPublicFeedReturnsMultipleJumpsInOrder(t *testing.T) {
 	if len(res.Jumps) != 3 {
 		t.Fatalf("expected 3 jumps, got %d", len(res.Jumps))
 	}
-	if res.Jumps[0].ID != third.Jump.ID || res.Jumps[1].ID != second.Jump.ID || res.Jumps[2].ID != first.Jump.ID {
-		t.Fatalf("expected reverse chronological order [%q %q %q], got [%q %q %q]", third.Jump.ID, second.Jump.ID, first.Jump.ID, res.Jumps[0].ID, res.Jumps[1].ID, res.Jumps[2].ID)
-	}
-}
-
-func testPublicFeedExcludesRemovedJumps(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
-
-	// Raise a dispute and resolve with "Removed Jump"
-	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "House Rules", "Should be removed")
-	resolutionRec := doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
-		"resolution":       "Removed Jump",
-		"resolutionReason": "Test removal",
-	})
-	if resolutionRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on dispute resolution, got %d: %s", resolutionRec.Code, resolutionRec.Body.String())
-	}
-
-	// Feed should exclude the removed jump
-	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var res publicFeedBody
-	decodeResponse(t, rec, &res)
-	if len(res.Jumps) != 0 {
-		t.Fatalf("expected 0 jumps (removed), got %d", len(res.Jumps))
+	if res.Jumps[0].ID != third.ID || res.Jumps[1].ID != second.ID || res.Jumps[2].ID != first.ID {
+		t.Fatalf("expected reverse chronological order [%q %q %q], got [%q %q %q]", third.ID, second.ID, first.ID, res.Jumps[0].ID, res.Jumps[1].ID, res.Jumps[2].ID)
 	}
 }
 
 func testPublicFeedCursorPagination(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
 
-	// Create 4 jumps with distinct food names and timestamps.
-	foods := []string{"Crunchwrap", "Taco", "Burrito", "Quesadilla"}
+	// Create 4 jumps with distinct timestamps.
 	var created []string
 	for i := 0; i < 4; i++ {
 		minute := i
 		store.Store.SetClock(func() time.Time {
 			return time.Date(2026, 6, 1, 13, minute, 0, 0, time.UTC)
 		})
-		idea := createIdea(t, server, "alice-token", store.GroupID, "Taco Bell", "Olive Garden parking lot", foods[i])
-		planned := createPlannedJump(t, server, "alice-token", idea.ID, false)
-		auth := authorizeEvidenceUpload(t, server, "alice-token", planned.ID, "image/jpeg")
-		rec := doJSON(server, http.MethodPost, "/v1/jumps/"+planned.ID+"/evidence", "alice-token", map[string]string{
-			"uploadAuthorizationId": auth.ID,
-			"caption":               "Jump " + foods[i],
-		})
-		if rec.Code != http.StatusCreated {
-			t.Fatalf("expected 201 for jump %d, got %d: %s", i, rec.Code, rec.Body.String())
-		}
-		var submission evidenceSubmissionBody
-		decodeResponse(t, rec, &submission)
-		created = append(created, submission.Jump.ID)
+		performed := performJump(t, server, "alice-token")
+		created = append(created, performed.ID)
 	}
 
 	// Fetch first page with limit=2 — expect cursor
@@ -180,7 +142,7 @@ func testPublicFeedCursorPagination(t *testing.T) {
 }
 
 func testPublicFeedInvalidCursorReturns400(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?cursor=not-base64", "", nil)
 	if rec.Code != http.StatusBadRequest {
@@ -189,7 +151,7 @@ func testPublicFeedInvalidCursorReturns400(t *testing.T) {
 }
 
 func testPublicFeedInvalidLimitReturns400(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?limit=abc", "", nil)
 	if rec.Code != http.StatusBadRequest {
@@ -207,10 +169,10 @@ func testPublicFeedInvalidLimitReturns400(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func testPublicJumpDetailReturnsJump(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
 
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -230,20 +192,20 @@ func testPublicJumpDetailReturnsJump(t *testing.T) {
 		} `json:"viewerContext"`
 	}
 	decodeResponse(t, rec, &detail)
-	if detail.ID != performed.Jump.ID {
-		t.Fatalf("expected jump ID %q, got %q", performed.Jump.ID, detail.ID)
+	if detail.ID != performed.ID {
+		t.Fatalf("expected jump ID %q, got %q", performed.ID, detail.ID)
 	}
 	if detail.PerformerName == "" {
 		t.Fatal("expected performerName to be populated")
 	}
-	if detail.Source != performed.Jump.Source || detail.Destination != performed.Jump.Destination || detail.Food != performed.Jump.Food {
-		t.Fatalf("expected jump route %q -> %q with food %q, got %#v", performed.Jump.Source, performed.Jump.Destination, performed.Jump.Food, detail)
+	if detail.Source != performed.Source || detail.Destination != performed.Destination || detail.Food != performed.Food {
+		t.Fatalf("expected jump route %q -> %q with food %q, got %#v", performed.Source, performed.Destination, performed.Food, detail)
 	}
-	if detail.Caption != performed.Evidence.Caption {
-		t.Fatalf("expected caption %q, got %q", performed.Evidence.Caption, detail.Caption)
+	if detail.Caption != "Crunchwrap successfully smuggled into the parking lot." {
+		t.Fatalf("expected caption %q, got %q", "Crunchwrap successfully smuggled into the parking lot.", detail.Caption)
 	}
-	if detail.MediaObjectKey != performed.Evidence.MediaObjectKey {
-		t.Fatalf("expected mediaObjectKey %q, got %q", performed.Evidence.MediaObjectKey, detail.MediaObjectKey)
+	if detail.MediaObjectKey != performed.MediaObjectKey {
+		t.Fatalf("expected mediaObjectKey %q, got %q", performed.MediaObjectKey, detail.MediaObjectKey)
 	}
 	if detail.ViewerContext == nil {
 		t.Fatal("expected viewerContext even for unauthenticated requests")
@@ -254,7 +216,7 @@ func testPublicJumpDetailReturnsJump(t *testing.T) {
 }
 
 func testPublicJumpDetailUnknownIDReturns404(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/jumps/unknown-id", "", nil)
 	if rec.Code != http.StatusNotFound {
@@ -273,10 +235,133 @@ func testPublicJumpDetailUnknownIDReturns404(t *testing.T) {
 	}
 }
 
-func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
-	store := &failingPublicReadStore{PostgresStore: newCleanPostgresTestStore(t)}
+func testPublicFeedExcludesRemovedJumps(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+	removeJump(t, performed.ID)
+
+	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res publicFeedBody
+	decodeResponse(t, rec, &res)
+	if len(res.Jumps) != 0 {
+		t.Fatalf("expected 0 jumps in feed, got %d", len(res.Jumps))
+	}
+	if res.NextCursor != nil {
+		t.Fatalf("expected nil cursor for empty feed, got %q", *res.NextCursor)
+	}
+}
+
+func testPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+	removeJump(t, performed.ID)
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var tombstone struct {
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Message   string `json:"message"`
+		RemovedAt string `json:"removedAt"`
+	}
+	decodeResponse(t, rec, &tombstone)
+	if tombstone.ID != performed.ID {
+		t.Fatalf("expected tombstone id %q, got %q", performed.ID, tombstone.ID)
+	}
+	if tombstone.Status != "Removed Jump" {
+		t.Fatalf("expected status 'Removed Jump', got %q", tombstone.Status)
+	}
+	if tombstone.Message == "" {
+		t.Fatal("expected message to be populated")
+	}
+	if tombstone.RemovedAt == "" {
+		t.Fatal("expected removedAt to be populated")
+	}
+}
+
+func testPublicJumpDetailTombstoneSuppressesContentFields(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+	removeJump(t, performed.ID)
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var raw map[string]any
+	decodeResponse(t, rec, &raw)
+	forbidden := []string{"caption", "mediaObjectKey", "source", "destination", "food", "performerName", "performerId", "runningAverage", "judgmentCount", "finalScore", "gracePeriodExpiresAt", "viewerContext"}
+	for _, key := range forbidden {
+		if _, ok := raw[key]; ok {
+			t.Fatalf("expected %q to be suppressed in tombstone response", key)
+		}
+	}
+}
+
+func testPublicJumpDetailInternalErrorReturnsMessageEnvelope(t *testing.T) {
+	pgStore := newCleanPostgresTestStore(t)
+	store := &failingPublicReadStore{
+		PostgresStore: pgStore,
+		jumpDetailErr: errors.New("database unavailable"),
+	}
 	store.SetClock(time.Now)
-	server := newGroupsTestServerWithStore(store)
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"alice-token": {Provider: "local-dev", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "local-dev", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "local-dev", Subject: "carol-auth", Email: "carol@example.com"},
+		},
+		Store:        store,
+		Now:          pgStore.Now,
+		JumpPlanning: pgStore,
+		Judgment:     pgStore,
+		PublicRead:   store,
+		Open:         pgStore,
+	})
+
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/some-id", "", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for detail load failure, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "internal_error" {
+		t.Fatalf("expected internal_error code, got %q", errBody.Error)
+	}
+	if errBody.Message != "Could not load jump detail. Please try again." {
+		t.Fatalf("expected public detail error message, got %q", errBody.Message)
+	}
+}
+
+func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
+	pgStore := newCleanPostgresTestStore(t)
+	store := &failingPublicReadStore{PostgresStore: pgStore, feedErr: errors.New("database unavailable")}
+	store.SetClock(time.Now)
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"alice-token": {Provider: "local-dev", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "local-dev", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "local-dev", Subject: "carol-auth", Email: "carol@example.com"},
+		},
+		Store:        store,
+		Now:          pgStore.Now,
+		JumpPlanning: pgStore,
+		Judgment:     pgStore,
+		PublicRead:   store,
+		Open:         pgStore,
+	})
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusInternalServerError {
@@ -296,47 +381,16 @@ func testPublicFeedInternalErrorReturnsMessageEnvelope(t *testing.T) {
 	}
 }
 
-func testPublicJumpDetailRemovedJumpReturnsTombstone(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
-
-	// Remove the jump via dispute resolution
-	dispute := raiseDispute(t, server, "bob-token", performed.Jump.ID, "House Rules", "Remove this")
-	doJSON(server, http.MethodPost, "/v1/disputes/"+dispute.ID+"/resolution", "alice-token", map[string]string{
-		"resolution":       "Removed Jump",
-		"resolutionReason": "Test removal",
-	})
-
-	// Detail should return tombstone
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "", nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 (tombstone), got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var tombstone struct {
-		ID      string `json:"id"`
-		Status  string `json:"status"`
-		Message string `json:"message"`
-	}
-	decodeResponse(t, rec, &tombstone)
-	if tombstone.Status != "Removed Jump" {
-		t.Fatalf("expected Removed Jump status, got %q", tombstone.Status)
-	}
-	if tombstone.Message != "This Jump is no longer available" {
-		t.Fatalf("expected tombstone message, got %q", tombstone.Message)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Viewer Context tests
 // ---------------------------------------------------------------------------
 
 func testPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
 
 	// Alice views her own jump detail
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "alice-token", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "alice-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -361,13 +415,13 @@ func testPublicJumpDetailSelfJudgingViewerContext(t *testing.T) {
 
 func testPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	performed := performJump(t, server, "alice-token")
 
 	// Advance past the Author Grace Period so judging is available
 	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob (different player) views detail — should be able to judge
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "bob-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -389,16 +443,16 @@ func testPublicJumpDetailOtherPlayerCanJudge(t *testing.T) {
 
 func testPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	performed := performJump(t, server, "alice-token")
 
 	// Advance past the Author Grace Period before judging
 	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob judges Alice's jump (scores must be 1-4)
-	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.ID, 4, 3, 2, 1, http.StatusCreated)
 
 	// Bob views detail again — should show "already-judged"
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "bob-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -426,11 +480,11 @@ func testPublicDetailAlreadyJudgedViewerContext(t *testing.T) {
 }
 
 func testPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
 
 	// Bob views Alice's jump while the Author Grace Period is still active
-	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.Jump.ID, "bob-token", nil)
+	rec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "bob-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -458,8 +512,8 @@ func testPublicJumpDetailGracePeriodViewerContext(t *testing.T) {
 }
 
 func testPublicFeedGracePeriodViewerContext(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performJump(t, server, "alice-token", store.GroupID)
+	server, _ := newPublicReadTestServer(t)
+	performJump(t, server, "alice-token")
 
 	// Bob requests the feed while the Author Grace Period is still active
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
@@ -486,8 +540,8 @@ func testPublicFeedGracePeriodViewerContext(t *testing.T) {
 }
 
 func testPublicFeedSelfJudgingViewerContext(t *testing.T) {
-	server, store := newPublicReadTestServer(t)
-	performJump(t, server, "alice-token", store.GroupID)
+	server, _ := newPublicReadTestServer(t)
+	performJump(t, server, "alice-token")
 
 	// Alice requests the feed and sees her own jump
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "alice-token", nil)
@@ -515,7 +569,7 @@ func testPublicFeedSelfJudgingViewerContext(t *testing.T) {
 
 func testPublicFeedOtherPlayerCanJudge(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
-	performJump(t, server, "alice-token", store.GroupID)
+	performJump(t, server, "alice-token")
 
 	// Advance past the Author Grace Period
 	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
@@ -541,24 +595,182 @@ func testPublicFeedOtherPlayerCanJudge(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Retract Jump tests
+// ---------------------------------------------------------------------------
+
+func testRetractJumpByPerformerDuringGracePeriod(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Status string `json:"status"`
+	}
+	decodeResponse(t, rec, &resp)
+	if resp.Status != "retracted" {
+		t.Fatalf("expected status 'retracted', got %q", resp.Status)
+	}
+}
+
+func testRetractedJumpExcludedFromFeed(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	// Retract the jump
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify feed no longer includes it
+	feedRec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
+	if feedRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", feedRec.Code, feedRec.Body.String())
+	}
+
+	var feed publicFeedBody
+	decodeResponse(t, feedRec, &feed)
+	if len(feed.Jumps) != 0 {
+		t.Fatalf("expected 0 jumps in feed after retraction, got %d", len(feed.Jumps))
+	}
+}
+
+func testRetractedJumpReturnsTombstoneOnDetail(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	// Retract the jump
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify detail returns tombstone
+	detailRec := doJSON(server, http.MethodGet, "/v1/jumps/"+performed.ID, "", nil)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", detailRec.Code, detailRec.Body.String())
+	}
+
+	var tombstone struct {
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Message   string `json:"message"`
+		RemovedAt string `json:"removedAt"`
+	}
+	decodeResponse(t, detailRec, &tombstone)
+	if tombstone.Status != "Removed Jump" {
+		t.Fatalf("expected tombstone status 'Removed Jump', got %q", tombstone.Status)
+	}
+	if tombstone.Message == "" {
+		t.Fatal("expected tombstone message to be populated")
+	}
+}
+
+func testRetractJumpRejectedAfterGracePeriodExpires(t *testing.T) {
+	server, store := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	// Advance clock past the grace period
+	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "alice-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "grace_period_expired" {
+		t.Fatalf("expected 'grace_period_expired', got %q", errBody.Error)
+	}
+}
+
+func testRetractJumpRejectedForNonPerformer(t *testing.T) {
+	server, _ := newPublicReadTestServer(t)
+	performed := performJump(t, server, "alice-token")
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/retract", "bob-token", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "not_performer" {
+		t.Fatalf("expected 'not_performer', got %q", errBody.Error)
+	}
+}
+
+func testRetractJumpRejectedForMissingJump(t *testing.T) {
+	server := newTestServer(t)
+
+	rec := doJSON(server, http.MethodPost, "/v1/jumps/nonexistent/retract", "alice-token", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var errBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, rec, &errBody)
+	if errBody.Error != "not_found" {
+		t.Fatalf("expected 'not_found', got %q", errBody.Error)
+	}
+}
+
+func removeJump(t *testing.T, jumpID string) {
+	t.Helper()
+	dbURL := postgresTestDatabaseURL(t)
+	db, err := sql.Open("pgx", dbURL)
+	if err != nil {
+		t.Fatalf("open db for removal: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.ExecContext(context.Background(), `UPDATE jumps SET status = 'Removed Jump', removed_at = NOW() WHERE id = $1`, jumpID); err != nil {
+		t.Fatalf("remove jump: %v", err)
+	}
+}
+
 type failingPublicReadStore struct {
 	*httpapi.PostgresStore
+	feedErr       error
+	jumpDetailErr error
 }
 
 func (s *failingPublicReadStore) FeedJumps(_ context.Context, _ *time.Time, _ string, _ int) ([]httpapi.JumpCard, error) {
+	if s.feedErr != nil {
+		return nil, s.feedErr
+	}
 	return nil, errors.New("database unavailable")
+}
+
+func (s *failingPublicReadStore) JumpDetail(_ context.Context, _ string) (httpapi.JumpDetail, bool, error) {
+	if s.jumpDetailErr != nil {
+		return httpapi.JumpDetail{}, false, s.jumpDetailErr
+	}
+	return httpapi.JumpDetail{}, false, errors.New("database unavailable")
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-// publicReadTestStore holds a pre-setup PostgresStore and a Group that tests can
-// use to create Jumps without repeating setup.
+// publicReadTestStore holds a pre-setup PostgresStore that tests can
+// use to create Jumps and set the clock.
 type publicReadTestStore struct {
-	Store   *httpapi.PostgresStore
-	DB      httpapi.Persistence
-	GroupID string
+	Store *httpapi.PostgresStore
 }
 
 type publicFeedBody struct {
@@ -583,25 +795,14 @@ type publicFeedJumpBody struct {
 	} `json:"viewerContext"`
 }
 
-// newPublicReadTestServer creates a server + store with an established Group
-// and two players (Alice + Bob) so tests can create Jumps and judgments.
+// newPublicReadTestServer creates a server + store with a clean database.
+// Tests create Jumps directly via POST /v1/jumps.
 func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) {
 	t.Helper()
 	store := newCleanPostgresTestStore(t)
-	server := newGroupsTestServerWithPersistence(store)
-	group := createGroup(t, server, "alice-token", "Read Test Group")
-
-	// Invite Bob
-	invite := createInvite(t, server, "alice-token", group.Group.ID)
-	joinRec := doJSON(server, http.MethodPost, "/v1/invites/"+invite.Token+"/accept", "bob-token", nil)
-	if joinRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on invite accept, got %d: %s", joinRec.Code, joinRec.Body.String())
-	}
-
+	server := newTestServerWithStore(store)
 	return server, &publicReadTestStore{
-		Store:   store,
-		DB:      store,
-		GroupID: group.Group.ID,
+		Store: store,
 	}
 }
 
@@ -609,13 +810,13 @@ func newPublicReadTestServer(t *testing.T) (http.Handler, *publicReadTestStore) 
 // for authenticated viewers who have judged a jump.
 func testPublicFeedAlreadyJudged(t *testing.T) {
 	server, store := newPublicReadTestServer(t)
-	performed := performJump(t, server, "alice-token", store.GroupID)
+	performed := performJump(t, server, "alice-token")
 
 	// Advance past the Author Grace Period before judging
 	store.Store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
 
 	// Bob judges Alice's jump
-	submitJudgment(t, server, "bob-token", performed.Jump.ID, 4, 3, 2, 1, http.StatusCreated)
+	submitJudgment(t, server, "bob-token", performed.ID, 4, 3, 2, 1, http.StatusCreated)
 
 	// Bob requests the feed — should see already-judged
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "bob-token", nil)
@@ -648,11 +849,11 @@ func TestPublicRead(t *testing.T) {
 	t.Run("public feed", func(t *testing.T) {
 		t.Run("returns jumps", testPublicFeedReturnsJumps)
 		t.Run("returns multiple jumps in order", testPublicFeedReturnsMultipleJumpsInOrder)
-		t.Run("excludes removed jumps", testPublicFeedExcludesRemovedJumps)
 		t.Run("cursor pagination", testPublicFeedCursorPagination)
 		t.Run("invalid cursor returns 400", testPublicFeedInvalidCursorReturns400)
 		t.Run("invalid limit returns 400", testPublicFeedInvalidLimitReturns400)
 		t.Run("internal error returns message envelope", testPublicFeedInternalErrorReturnsMessageEnvelope)
+		t.Run("excludes removed jumps", testPublicFeedExcludesRemovedJumps)
 		t.Run("grace period viewer context", testPublicFeedGracePeriodViewerContext)
 		t.Run("self judging viewer context", testPublicFeedSelfJudgingViewerContext)
 		t.Run("other player can judge", testPublicFeedOtherPlayerCanJudge)
@@ -663,9 +864,20 @@ func TestPublicRead(t *testing.T) {
 		t.Run("returns jump", testPublicJumpDetailReturnsJump)
 		t.Run("unknown id returns 404", testPublicJumpDetailUnknownIDReturns404)
 		t.Run("removed jump returns tombstone", testPublicJumpDetailRemovedJumpReturnsTombstone)
+		t.Run("tombstone suppresses content fields", testPublicJumpDetailTombstoneSuppressesContentFields)
+		t.Run("internal error returns message envelope", testPublicJumpDetailInternalErrorReturnsMessageEnvelope)
 		t.Run("self judging viewer context", testPublicJumpDetailSelfJudgingViewerContext)
 		t.Run("other player can judge", testPublicJumpDetailOtherPlayerCanJudge)
 		t.Run("already judged viewer context", testPublicDetailAlreadyJudgedViewerContext)
 		t.Run("grace period viewer context", testPublicJumpDetailGracePeriodViewerContext)
+	})
+
+	t.Run("retract jump", func(t *testing.T) {
+		t.Run("performer retracts during grace period", testRetractJumpByPerformerDuringGracePeriod)
+		t.Run("retracted jump excluded from feed", testRetractedJumpExcludedFromFeed)
+		t.Run("retracted jump returns tombstone on detail", testRetractedJumpReturnsTombstoneOnDetail)
+		t.Run("retract rejected after grace period expires", testRetractJumpRejectedAfterGracePeriodExpires)
+		t.Run("retract rejected for non-performer", testRetractJumpRejectedForNonPerformer)
+		t.Run("retract rejected for missing jump", testRetractJumpRejectedForMissingJump)
 	})
 }

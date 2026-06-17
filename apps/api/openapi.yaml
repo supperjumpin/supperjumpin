@@ -18,24 +18,10 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           description: Missing or invalid bearer token.
-  /v1/groups:
-    get:
-      operationId: listGroups
-      summary: List the signed-in Player's Group Memberships
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Group Memberships for the signed-in Player.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ListGroupsResponse"
-        "401":
-          description: Missing or invalid bearer token.
-    post:
-      operationId: createGroup
-      summary: Create a Group and make the creator a Group Admin
+  /v1/me/display-name:
+    patch:
+      operationId: updateDisplayName
+      summary: Update the signed-in Player's display name
       security:
         - bearerAuth: []
       requestBody:
@@ -44,213 +30,34 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              required: [displayName]
               properties:
-                name:
+                displayName:
                   type: string
       responses:
-        "201":
-          description: The created Group home.
+        "200":
+          description: The updated Player profile.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupHomeResponse"
+                $ref: "#/components/schemas/UpdateDisplayNameResponse"
         "400":
-          description: Invalid Group creation request.
+          description: Invalid or missing display name.
         "401":
           description: Missing or invalid bearer token.
-  /v1/groups/{groupId}/home:
-    get:
-      operationId: getGroupHome
-      summary: Fetch backend Group home data for a Group member
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Group identity, the Player's Group Membership, current Season state, recent Jumps, and Standings.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupHomeResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player does not have a Group Membership for this Group.
-  /v1/groups/{groupId}/invites:
+  /v1/jumps:
     post:
-      operationId: createInvite
-      summary: Create an Invite for a Group
+      operationId: createJump
+      summary: Create a Performed Jump with Evidence metadata
       security:
         - bearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "201":
-          description: Invite that another signed-in Account can accept.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Invite"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player does not have a Group Membership for this Group.
-  /v1/invites/{token}/accept:
-    post:
-      operationId: acceptInvite
-      summary: Accept an Invite and join its Group
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: token
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: The invited Group home after the signed-in Player joins.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupHomeResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "404":
-          description: Invite is invalid.
-        "409":
-          description: Invite was already used, or the signed-in Player already has a Group Membership.
-        "410":
-          description: Invite expired.
-  /v1/groups/{groupId}/seasons:
-    post:
-      operationId: startSeason
-      summary: Start a Season for a Group with no active or closing Season
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "201":
-          description: The Group home after starting the Active Season.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupHomeResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player does not have a Group Membership for this Group.
-        "409":
-          description: The Group already has an active or closing Season.
-  /v1/seasons/{seasonId}/close-submissions:
-    post:
-      operationId: closeSeasonSubmissions
-      summary: Close the Submission Window and move the Season into Judging Grace Period
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: seasonId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: The Group home after the Season moves into Judging Grace Period.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupHomeResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player is not the Season Commissioner or a Group Admin override actor.
-        "404":
-          description: Season not found.
-  /v1/seasons/{seasonId}/finalize:
-    post:
-      operationId: finalizeSeason
-      summary: Finalize a Season, cap remaining Judging Windows, and lock Standings
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: seasonId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: The Group home after the Season is finalized.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupHomeResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player is not the Season Commissioner or a Group Admin override actor.
-        "404":
-          description: Season not found.
-  /v1/seasons/{seasonId}/history:
-    get:
-      operationId: getSeasonHistory
-      summary: Fetch visible Season history, including Group Admin override actions
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: seasonId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Audit-style Season history entries.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SeasonHistoryResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player does not have a Group Membership for this Season's Group.
-        "404":
-          description: Season not found.
-  /v1/groups/{groupId}/ideas:
-    post:
-      operationId: createIdea
-      summary: Create an Idea in exactly one Group
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [source, destination, food]
+              required: [source, destination, food, caption, mediaObjectKey]
               properties:
                 source:
                   type: string
@@ -258,133 +65,21 @@ paths:
                   type: string
                 food:
                   type: string
-      responses:
-        "201":
-          description: The created Group-scoped Idea.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Jump"
-        "400":
-          description: Invalid Idea creation request.
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player does not have a Group Membership for this Group.
-  /v1/ideas/{ideaId}/planned-jump:
-    post:
-      operationId: createPlannedJump
-      deprecated: true
-      summary: Create a Planned Jump from an Idea
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: ideaId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                offSeason:
-                  type: boolean
-                  description: When true, the Planned Jump is explicitly Off-Season even during an Active Season.
-      responses:
-        "201":
-          description: The Planned Jump, Season-linked by default during an Active Season.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Jump"
-        "400":
-          description: Invalid Planned Jump request.
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player is not allowed to plan this Idea.
-        "404":
-          description: Idea not found.
-  /v1/jumps/{jumpId}/evidence-upload-authorizations:
-    post:
-      operationId: authorizeEvidenceUpload
-      summary: Authorize direct Evidence upload for a performer's Planned Jump
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: jumpId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [contentType]
-              properties:
-                contentType:
-                  type: string
-      responses:
-        "201":
-          description: Direct upload target and authorization metadata for the Evidence media.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EvidenceUploadAuthorization"
-        "400":
-          description: Invalid Evidence upload authorization request.
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player is not the performer of this Planned Jump.
-        "404":
-          description: Planned Jump not found.
-  /v1/jumps/{jumpId}/evidence:
-    post:
-      operationId: submitEvidence
-      summary: Finalize an Evidence record and transition a Planned Jump into a Performed Jump
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: jumpId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [uploadAuthorizationId, caption]
-              properties:
-                uploadAuthorizationId:
-                  type: string
                 caption:
                   type: string
+                mediaObjectKey:
+                  type: string
       responses:
         "201":
-          description: Backend-owned Evidence record and the updated Performed Jump.
+          description: The created Performed Jump.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EvidenceSubmission"
+                $ref: "#/components/schemas/Jump"
         "400":
-          description: Invalid Evidence submission request.
+          description: Invalid or missing Jump fields.
         "401":
           description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player is not the performer of this Planned Jump.
-        "404":
-          description: Planned Jump or upload authorization not found.
   /v1/guest-sessions:
     post:
       operationId: createGuestSession
@@ -464,6 +159,41 @@ paths:
           description: Performed Jump not found.
         "409":
           description: The Judging Window is closed.
+  /v1/jumps/{jumpId}/retract:
+    post:
+      operationId: retractJump
+      summary: Retract the authenticated Player's Performed Jump during its Author Grace Period
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Jump retracted successfully. Feed excludes it; detail returns tombstone.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Retraction not allowed — Author Grace Period expired or requesting Player is not the performer.
+        "404":
+          description: Jump not found.
+        "500":
+          description: The retraction could not be applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/opens/{year}/{month}/compute:
     post:
       operationId: computeOpenScores
@@ -502,86 +232,6 @@ paths:
           description: Compute Open scores not allowed.
         "409":
           description: Open month has not soft-closed yet.
-  /v1/jumps/{jumpId}/disputes:
-    post:
-      operationId: createDispute
-      summary: Raise a Dispute on a visible Jump in the Group
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: jumpId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [concern, details]
-              properties:
-                concern:
-                  type: string
-                  enum: [House Rules, Credibility, Source, Destination, Food, duplicate, other]
-                details:
-                  type: string
-      responses:
-        "201":
-          description: The created Dispute.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Dispute"
-        "400":
-          description: Invalid Dispute request.
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player does not have a Group Membership for this Group.
-        "404":
-          description: Visible Jump not found.
-  /v1/disputes/{disputeId}/resolution:
-    post:
-      operationId: resolveDispute
-      summary: Resolve or override a Dispute with visible Jump outcome changes
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: disputeId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [resolution, resolutionReason]
-              properties:
-                resolution:
-                  type: string
-                  enum: [No Action, Disqualified Jump, Removed Jump]
-                resolutionReason:
-                  type: string
-      responses:
-        "200":
-          description: The updated Jump and Dispute resolution state.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DisputeResolution"
-        "400":
-          description: Invalid Dispute resolution request.
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: The signed-in Player is not an authorized resolver for this Dispute.
-        "404":
-          description: Dispute not found.
   /v1/feed:
     get:
       operationId: getPublicFeed
@@ -616,6 +266,46 @@ paths:
         "400":
           description: Invalid cursor or limit parameter.
   /v1/jumps/{jumpId}:
+    patch:
+      operationId: editJumpCaption
+      summary: Edit a Performed Jump's Caption during the Author Grace Period
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [caption]
+              properties:
+                caption:
+                  type: string
+      responses:
+        "200":
+          description: Caption updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "400":
+          description: Invalid or missing caption.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Edit not allowed — Author Grace Period expired or requesting Player is not the performer.
+        "404":
+          description: Jump not found.
     get:
       operationId: getJumpDetail
       summary: Public Jump Detail — full read view or tombstone
@@ -657,13 +347,19 @@ components:
           $ref: "#/components/schemas/Account"
         player:
           $ref: "#/components/schemas/Player"
+    UpdateDisplayNameResponse:
+      type: object
+      required: [player]
+      properties:
+        player:
+          $ref: "#/components/schemas/Player"
     Account:
       type: object
       required: [id, email]
       properties:
         id:
           type: string
-          description: Internal Account identifier, distinct from Supabase subject.
+          description: Internal Account identifier, distinct from external auth provider subject.
         email:
           type: string
           format: email
@@ -676,165 +372,37 @@ components:
           description: Internal in-game Player identifier.
         displayName:
           type: string
-    Group:
-      type: object
-      required: [id, name]
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-    GroupMembership:
-      type: object
-      required: [groupId, playerId, role]
-      properties:
-        groupId:
-          type: string
-        playerId:
-          type: string
-        role:
-          type: string
-          enum: [Group Admin, Player]
-    Invite:
-      type: object
-      required: [id, groupId, token, createdBy, expiresAt]
-      properties:
-        id:
-          type: string
-        groupId:
-          type: string
-        token:
-          type: string
-        createdBy:
-          type: string
-        expiresAt:
-          type: string
-          format: date-time
-    Season:
-      type: object
-      required: [id, groupId, commissionerPlayerId, status]
-      properties:
-        id:
-          type: string
-        groupId:
-          type: string
-        commissionerPlayerId:
-          type: string
-        status:
-          type: string
-          enum: [Active, Judging Grace Period, Finalized]
-    SeasonHistoryEntry:
-      type: object
-      required: [id, seasonId, action, actorPlayerId, actorRole, override, fromStatus, toStatus, createdAt]
-      properties:
-        id:
-          type: string
-        seasonId:
-          type: string
-        action:
-          type: string
-          enum: [Submissions Closed, Season Finalized]
-        actorPlayerId:
-          type: string
-        actorRole:
-          type: string
-          enum: [Player, Group Admin]
-        override:
-          type: boolean
-        fromStatus:
-          type: string
-          enum: [Active, Judging Grace Period, Finalized]
-        toStatus:
-          type: string
-          enum: [Active, Judging Grace Period, Finalized]
-        createdAt:
-          type: string
-          format: date-time
-    SeasonHistoryResponse:
-      type: object
-      required: [entries]
-      properties:
-        entries:
-          type: array
-          items:
-            $ref: "#/components/schemas/SeasonHistoryEntry"
     Jump:
       type: object
-      required: [id, groupId, playerId, seasonId, status, source, destination, food, offSeason, finalScore]
+      required: [id, playerId, status, source, destination, food, finalScore, openFinalScore, gracePeriodExpiresAt, createdAt]
       properties:
         id:
           type: string
-        groupId:
-          type: string
-          description: The exactly one Group this Jump belongs to.
         playerId:
           type: string
-        seasonId:
-          anyOf:
-            - type: string
-            - type: "null"
-          description: Present only for Season-linked Planned Jumps.
         status:
           type: string
-          enum: [Idea, Planned Jump, Performed Jump, Judged Jump, Unjudged Jump, Disqualified Jump, Removed Jump]
+          enum: [Performed Jump, Judged Jump, Unjudged Jump, Disqualified Jump, Removed Jump]
         source:
           type: string
         destination:
           type: string
         food:
           type: string
-        offSeason:
-          type: boolean
         finalScore:
           anyOf:
             - type: integer
             - type: "null"
-          description: Present only after a Season-linked Performed Jump becomes a Judged Jump.
-    EvidenceUploadAuthorization:
-      type: object
-      required: [id, jumpId, uploadUrl, uploadMethod, uploadHeaders, mediaObjectKey, expiresAt]
-      properties:
-        id:
-          type: string
-        jumpId:
-          type: string
-        uploadUrl:
-          type: string
-        uploadMethod:
-          type: string
-          enum: [PUT]
-        uploadHeaders:
-          type: object
-          additionalProperties:
-            type: string
-        mediaObjectKey:
-          type: string
-        expiresAt:
+        openFinalScore:
+          anyOf:
+            - type: integer
+            - type: "null"
+        gracePeriodExpiresAt:
           type: string
           format: date-time
-    Evidence:
-      type: object
-      required: [id, jumpId, caption, mediaObjectKey, createdAt]
-      properties:
-        id:
-          type: string
-        jumpId:
-          type: string
-        caption:
-          type: string
-        mediaObjectKey:
-          type: string
         createdAt:
           type: string
           format: date-time
-    EvidenceSubmission:
-      type: object
-      required: [jump, evidence]
-      properties:
-        jump:
-          $ref: "#/components/schemas/Jump"
-        evidence:
-          $ref: "#/components/schemas/Evidence"
     Judgment:
       type: object
       required: [id, jumpId, commitment, transgression, creativity, presentation]
@@ -875,119 +443,6 @@ components:
       properties:
         id:
           type: string
-    PerformedJumpView:
-      type: object
-      required: [jump, performer, evidence, disputes]
-      properties:
-        jump:
-          $ref: "#/components/schemas/Jump"
-        performer:
-          $ref: "#/components/schemas/Player"
-        evidence:
-          $ref: "#/components/schemas/Evidence"
-        disputes:
-          type: array
-          items:
-            $ref: "#/components/schemas/Dispute"
-    Dispute:
-      type: object
-      required: [id, jumpId, raisedByPlayerId, concern, details, status]
-      properties:
-        id:
-          type: string
-        jumpId:
-          type: string
-        raisedByPlayerId:
-          type: string
-        concern:
-          type: string
-          enum: [House Rules, Credibility, Source, Destination, Food, duplicate, other]
-        details:
-          type: string
-        status:
-          type: string
-          enum: [Open, Resolved, Overridden]
-        resolution:
-          anyOf:
-            - type: string
-              enum: [No Action, Disqualified Jump, Removed Jump]
-            - type: "null"
-        resolutionReason:
-          anyOf:
-            - type: string
-            - type: "null"
-        resolvedByPlayerId:
-          anyOf:
-            - type: string
-            - type: "null"
-        overrideResolution:
-          anyOf:
-            - type: string
-              enum: [Disqualified Jump, Removed Jump]
-            - type: "null"
-        overrideReason:
-          anyOf:
-            - type: string
-            - type: "null"
-        overrideByPlayerId:
-          anyOf:
-            - type: string
-            - type: "null"
-    DisputeResolution:
-      type: object
-      required: [jump, dispute]
-      properties:
-        jump:
-          $ref: "#/components/schemas/Jump"
-        dispute:
-          $ref: "#/components/schemas/Dispute"
-    StandingEntry:
-      type: object
-      required: [player, seasonScore, judgedJumps]
-      properties:
-        player:
-          $ref: "#/components/schemas/Player"
-        seasonScore:
-          type: integer
-        judgedJumps:
-          type: integer
-    GroupHomeResponse:
-      type: object
-      required: [group, membership, activeSeason, recentJumps, standings]
-      properties:
-        group:
-          $ref: "#/components/schemas/Group"
-        membership:
-          $ref: "#/components/schemas/GroupMembership"
-        activeSeason:
-          anyOf:
-            - $ref: "#/components/schemas/Season"
-            - type: "null"
-          description: The Group's currently open Season, including Judging Grace Period, or null when none exists.
-        recentJumps:
-          type: array
-          items:
-            $ref: "#/components/schemas/PerformedJumpView"
-        standings:
-          type: array
-          items:
-            $ref: "#/components/schemas/StandingEntry"
-    GroupMembershipSummary:
-      type: object
-      required: [group, membership]
-      properties:
-        group:
-          $ref: "#/components/schemas/Group"
-        membership:
-          $ref: "#/components/schemas/GroupMembership"
-    ListGroupsResponse:
-      type: object
-      required: [memberships]
-      properties:
-        memberships:
-          type: array
-          items:
-            $ref: "#/components/schemas/GroupMembershipSummary"
     PublicFeedResponse:
       type: object
       required: [jumps, nextCursor]
@@ -1070,10 +525,6 @@ components:
         finalScore:
           type: integer
           nullable: true
-        disputes:
-          type: array
-          items:
-            $ref: "#/components/schemas/Dispute"
         viewerContext:
           $ref: "#/components/schemas/ViewerContext"
     JumpTombstone:

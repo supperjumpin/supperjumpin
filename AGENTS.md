@@ -64,6 +64,13 @@ Go backend (`apps/api`) + Expo React Native mobile app (`apps/mobile`) + generat
 - Adding ESLint/Prettier/golangci-lint configs without team discussion — none exist today; minimal tooling is the current stance.
 - Using domain-forbidden synonyms in code, comments, or error messages.
 
+## GIT WORKFLOW
+
+- **Feature branches for all changes** — never push to main directly.
+- **Before every push**: `git fetch origin && git rebase origin/main` so your branch is always on top of the latest shared state from other devs.
+- **If rebase conflicts**: Stop and report them. Never force-push through conflicts.
+- **Only push after**: rebase resolves cleanly + build/tests pass.
+
 ## UNIQUE STYLES
 
 - **Agent-native repo scaffolding**: `.agents/`, `.claude/`, `.work-issue/`, `skills-lock.json`, `opencode.json` are first-class project infrastructure, not afterthoughts.
@@ -74,7 +81,6 @@ These are known compromises that exist for pre-MVP speed but should converge tow
 
 | Current state | Why it exists | Converge when |
 |---|---|---|
-| Single-file `App.tsx` (~550 lines, no router, no state lib) | Pre-MVP speed; not enough UI surface to justify splitting | There are 2+ screens or 3+ distinct UI sections → split into files + add React Navigation |
 ## MAINTENANCE CONTRACT
 
 These files are maintained by convention, not automation. Follow these rules in every PR:
@@ -91,7 +97,7 @@ These files are maintained by convention, not automation. Follow these rules in 
 npm run db:up             # Start Docker Compose Postgres service
 npm run db:down           # Stop Docker Compose Postgres without deleting data
 npm run db:reset          # Recreate local dev DB and reapply migrations
-npm run db:migrate        # Apply migrations using repo-local golang-migrate
+npm run db:migrate        # Apply migrations to the local Docker Postgres only
 npm run api:dev           # Run API against existing DB
 
 # Testing
@@ -99,6 +105,7 @@ npm run api:test          # Run Go API tests against Postgres (local Docker or S
 npm run api:test:coverage  # Run Go API tests with coverage output and summary
 npm test                  # npm workspace tests (api-client + scripts)
 npm run test:coverage     # npm workspace tests with coverage output and summary
+npm --workspace @supperjumpin/mobile test  # Jest + React Native Testing Library mobile tests
 npm --workspace @supperjumpin/mobile run typecheck  # tsc --noEmit
 
 # API client regeneration
@@ -110,12 +117,14 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 
 ## NOTES
 
-- `DATABASE_URL` is mandatory — API refuses to start without it.
-- Dev auth token defaults to `dev-token` via `SUPPERJUMPIN_DEV_AUTH_TOKEN`.
-- Mobile needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_BASE_URL` in `.env`.
+- `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary. Most npm scripts set it for local Docker Postgres by default and ignore ambient `DATABASE_URL`; `npm run db:migrate` is local-only and ignores both `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
+- Hosted staging/prod infrastructure is intentionally deferred until the local MVP is playable end-to-end.
+- Auth is local-first for MVP development: `SUPPERJUMPIN_DEV_AUTH_TOKEN` defaults to `dev-token` in `npm run api:dev`, and mobile uses `EXPO_PUBLIC_DEV_AUTH_TOKEN`.
+- Mobile needs `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_DEV_AUTH_TOKEN` in `.env`; `EXPO_PUBLIC_MEDIA_BASE_URL` is optional for evidence previews.
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests. Uses local Docker Compose Postgres by default, or `SUPPERJUMPIN_TEST_DATABASE_URL` when set. Refuses destructive reset on non-test databases unless `SUPPERJUMPIN_TEST_ALLOW_UNSAFE_RESET=1` is set.
 - `npm run api:test:coverage` writes `coverage/api.coverprofile`, prints `go tool cover -func` output, and appends a summary when `GITHUB_STEP_SUMMARY` is set.
 - `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.
+- Mobile now has a lightweight Jest + React Native Testing Library harness for screen-level tests in `apps/mobile/*.test.tsx`; `apps/mobile/test/mockApi.ts` is the default public-read API mocking seam.
 - No production deployment configs (Dockerfile, K8s, Terraform) exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`). See `docs/agents/issue-tracker.md`.
 - Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.

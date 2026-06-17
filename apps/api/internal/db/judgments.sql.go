@@ -151,61 +151,6 @@ func (q *Queries) ListJudgmentsForJump(ctx context.Context, jumpID string) ([]Li
 	return items, nil
 }
 
-const listJumpsForJudging = `-- name: ListJumpsForJudging :many
-SELECT j.id, j.player_id, j.source, j.destination, j.food
-FROM jumps j
-WHERE j.group_id = $1
-  AND j.status = 'Performed Jump'
-  AND j.player_id != $2
-  AND NOT EXISTS (
-      SELECT 1 FROM judgments sub
-      WHERE sub.jump_id = j.id AND sub.player_id = $2
-  )
-ORDER BY j.created_at DESC
-`
-
-type ListJumpsForJudgingParams struct {
-	GroupID  sql.NullString
-	PlayerID string
-}
-
-type ListJumpsForJudgingRow struct {
-	ID          string
-	PlayerID    string
-	Source      string
-	Destination string
-	Food        string
-}
-
-func (q *Queries) ListJumpsForJudging(ctx context.Context, arg ListJumpsForJudgingParams) ([]ListJumpsForJudgingRow, error) {
-	rows, err := q.db.QueryContext(ctx, listJumpsForJudging, arg.GroupID, arg.PlayerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListJumpsForJudgingRow
-	for rows.Next() {
-		var i ListJumpsForJudgingRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.PlayerID,
-			&i.Source,
-			&i.Destination,
-			&i.Food,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const upsertGuestJudgment = `-- name: UpsertGuestJudgment :one
 WITH upsert AS (
   INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)

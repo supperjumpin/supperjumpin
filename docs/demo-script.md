@@ -46,7 +46,7 @@ npm install
 
 ```
                   ┌──────────────────┐
-                  │   Supabase Auth   │
+                  │ Local Dev Auth    │
                   │  (magic links)    │
                   └────────┬─────────┘
                            │ bearer token
@@ -65,7 +65,7 @@ npm install
 - Backend owns all game rules (stunt lifecycle, judging eligibility, scoring).
 - Mobile is a thin view layer with gesture-driven scoring UI.
 - API contract defined in `apps/api/openapi.yaml` (17 endpoints).
-- Dev mode uses a static bearer token instead of Supabase.
+- Dev mode uses a static bearer token; hosted auth is deferred.
 
 ---
 
@@ -99,7 +99,7 @@ sleep 10
 **Terminal 2 — Player A API (:8080):**
 
 ```sh
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
+SUPPERJUMPIN_DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
 SUPPERJUMPIN_DEV_AUTH_TOKEN=player-a-token \
 SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-a \
 SUPPERJUMPIN_DEV_AUTH_EMAIL="alice@example.com" \
@@ -110,7 +110,7 @@ go run ./apps/api/cmd/api
 **Terminal 3 — Player B API (:8081):**
 
 ```sh
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
+SUPPERJUMPIN_DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
 SUPPERJUMPIN_DEV_AUTH_TOKEN=player-b-token \
 SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-b \
 SUPPERJUMPIN_DEV_AUTH_EMAIL="bob@example.com" \
@@ -772,7 +772,7 @@ The Expo React Native mobile app renders the same flow with a gesture-driven UI.
 cp apps/mobile/.env.example apps/mobile/.env
 ```
 
-Edit `apps/mobile/.env` with your Supabase project URL, anon key, and API base URL.
+Edit `apps/mobile/.env` with your API base URL and local dev auth token.
 
 ### Start
 
@@ -784,7 +784,7 @@ npm run demo:mobile
 
 | Feature | Implementation |
 |---------|---------------|
-| Auth | Supabase magic link sign-in via email |
+| Auth | Local dev bearer token for MVP development |
 | Group creation | Name input, POST to backend |
 | Group list | Shows memberships from GET /v1/groups |
 | Invite creation | Generates token, shows invite code |

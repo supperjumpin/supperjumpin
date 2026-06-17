@@ -1,10 +1,8 @@
 package httpapi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,17 +21,16 @@ type AuthVerifier interface {
 	Verify(token string) (AuthIdentity, bool)
 }
 
-type StaticAuthVerifier map[string]AuthIdentity
-
-func (v StaticAuthVerifier) Verify(token string) (AuthIdentity, bool) {
-	identity, ok := v[token]
-	return identity, ok
-}
-
 type ServerConfig struct {
-	Auth  AuthVerifier
-	Store Store
-	DB    Persistence
+	Auth         AuthVerifier
+	Store        Store
+	Now          func() time.Time
+	JumpPlanning JumpPlanningFlow
+	Judgment     JudgmentFlow
+	PublicRead   PublicReadFlow
+	Open         OpenFlow
+	CaptionEdit  CaptionEditFlow
+	JumpRetract  JumpRetractFlow
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -46,284 +43,32 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, profile)
 	})
-	mux.HandleFunc("POST /v1/groups", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PATCH /v1/me/display-name", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
 		}
 
 		var request struct {
-			Name string `json:"name"`
+			DisplayName string `json:"displayName"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		name := strings.TrimSpace(request.Name)
-		if name == "" {
-			http.Error(w, "Group name is required", http.StatusBadRequest)
+		displayName := strings.TrimSpace(request.DisplayName)
+		if displayName == "" {
+			http.Error(w, "displayName is required", http.StatusBadRequest)
 			return
 		}
 
-		home, err := createGroup(r.Context(), config.DB, profile.Player, name)
+		player, err := config.Store.UpdateDisplayName(r.Context(), profile.Player.ID, displayName)
 		if err != nil {
-			http.Error(w, "create Group", http.StatusInternalServerError)
+			http.Error(w, "update display name", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, home)
-	})
-	mux.HandleFunc("GET /v1/groups", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		groups, err := listGroups(r.Context(), config.DB, profile.Player)
-		if err != nil {
-			http.Error(w, "list Groups", http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, groups)
-	})
-	mux.HandleFunc("GET /v1/groups/{groupID}/home", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		home, ok, err := groupHomeHandler(r.Context(), config.DB, profile.Player, r.PathValue("groupID"))
-		if err != nil {
-			http.Error(w, "get Group home", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, home)
-	})
-	mux.HandleFunc("POST /v1/groups/{groupID}/invites", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		invite, ok, err := createInvite(r.Context(), config.DB, profile.Player, r.PathValue("groupID"))
-		if err != nil {
-			http.Error(w, "create Invite", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, invite)
-	})
-	mux.HandleFunc("POST /v1/invites/{token}/accept", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		home, status, err := acceptInvite(r.Context(), config.DB, profile.Player, r.PathValue("token"))
-		if err != nil {
-			http.Error(w, "accept Invite", http.StatusInternalServerError)
-			return
-		}
-		switch status {
-		case InviteInvalid:
-			http.Error(w, "Invite cannot be accepted", http.StatusNotFound)
-			return
-		case InviteUsed:
-			http.Error(w, "Invite already used", http.StatusConflict)
-			return
-		case InviteExpired:
-			http.Error(w, "Invite expired", http.StatusGone)
-			return
-		case InviteMember:
-			http.Error(w, "Player already has a Group Membership", http.StatusConflict)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, home)
-	})
-	mux.HandleFunc("POST /v1/groups/{groupID}/seasons", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		var body struct {
-			SubmissionDeadline string `json:"submissionDeadline"`
-			JudgingDeadline    string `json:"judgingDeadline"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		submissionDeadline, err := time.Parse(time.RFC3339, body.SubmissionDeadline)
-		if err != nil {
-			http.Error(w, "submissionDeadline must be ISO 8601 format", http.StatusBadRequest)
-			return
-		}
-		judgingDeadline, err := time.Parse(time.RFC3339, body.JudgingDeadline)
-		if err != nil {
-			http.Error(w, "judgingDeadline must be ISO 8601 format", http.StatusBadRequest)
-			return
-		}
-
-		home, ok, err := startSeason(r.Context(), config.DB, profile.Player, r.PathValue("groupID"), submissionDeadline, judgingDeadline)
-		if errors.Is(err, ErrSeasonAlreadyOpen) {
-			http.Error(w, "Group already has an active or closing Season", http.StatusConflict)
-			return
-		}
-		if err != nil {
-			http.Error(w, "start Season", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, home)
-	})
-	mux.HandleFunc("POST /v1/seasons/{seasonID}/close-submissions", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		home, ok, err := closeSeasonSubmissions(r.Context(), config.DB, profile.Player, r.PathValue("seasonID"))
-		if errors.Is(err, ErrSeasonNotFound) {
-			http.Error(w, "Season not found", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			http.Error(w, "close Season submissions", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Season Commissioner or Group Admin required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, home)
-	})
-	mux.HandleFunc("POST /v1/seasons/{seasonID}/finalize", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		home, ok, err := finalizeSeason(r.Context(), config.DB, profile.Player, r.PathValue("seasonID"))
-		if errors.Is(err, ErrSeasonNotFound) {
-			http.Error(w, "Season not found", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			http.Error(w, "finalize Season", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Season Commissioner or Group Admin required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, home)
-	})
-	mux.HandleFunc("GET /v1/seasons/{seasonID}/history", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		history, ok, err := seasonHistory(r.Context(), config.DB, profile.Player, r.PathValue("seasonID"))
-		if errors.Is(err, ErrSeasonNotFound) {
-			http.Error(w, "Season not found", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			http.Error(w, "get Season history", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, history)
-	})
-	mux.HandleFunc("POST /v1/groups/{groupID}/ideas", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		var request struct {
-			Source      string `json:"source"`
-			Destination string `json:"destination"`
-			Food        string `json:"food"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
-			return
-		}
-		source := strings.TrimSpace(request.Source)
-		destination := strings.TrimSpace(request.Destination)
-		food := strings.TrimSpace(request.Food)
-		if source == "" || destination == "" || food == "" {
-			http.Error(w, "Source, Destination, and Food are required", http.StatusBadRequest)
-			return
-		}
-
-		idea, ok, err := createIdea(r.Context(), config.DB, profile.Player, r.PathValue("groupID"), source, destination, food)
-		if err != nil {
-			http.Error(w, "create Idea", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, idea)
-	})
-	mux.HandleFunc("POST /v1/ideas/{ideaID}/planned-jump", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		var request struct {
-			OffSeason bool `json:"offSeason"`
-		}
-		if r.Body != nil && r.ContentLength != 0 {
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				http.Error(w, "invalid json", http.StatusBadRequest)
-				return
-			}
-		}
-		planned, ok, err := createPlannedJump(r.Context(), config.DB, profile.Player, r.PathValue("ideaID"), request.OffSeason)
-		if errors.Is(err, ErrJumpNotFound) {
-			http.Error(w, "Idea not found", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			http.Error(w, "create Planned Jump", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, planned)
+		writeJSON(w, http.StatusOK, UpdateDisplayNameResponse{Player: player})
 	})
 	mux.HandleFunc("POST /v1/jumps", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
@@ -332,12 +77,11 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		var request struct {
-			Source         string  `json:"source"`
-			Destination    string  `json:"destination"`
-			Food           string  `json:"food"`
-			Caption        string  `json:"caption"`
-			MediaObjectKey string  `json:"mediaObjectKey"`
-			GroupID        *string `json:"groupId"`
+			Source         string `json:"source"`
+			Destination    string `json:"destination"`
+			Food           string `json:"food"`
+			Caption        string `json:"caption"`
+			MediaObjectKey string `json:"mediaObjectKey"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -353,12 +97,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		groupID := ""
-		if request.GroupID != nil {
-			groupID = strings.TrimSpace(*request.GroupID)
-		}
-
-		jump, err := createPerformedJump(r.Context(), config.DB, profile.Player, source, destination, food, caption, mediaObjectKey, groupID)
+		jump, err := createPerformedJump(r.Context(), config.JumpPlanning, profile.Player, source, destination, food, caption, mediaObjectKey, config.Now())
 		if err != nil {
 			http.Error(w, "create Performed Jump", http.StatusInternalServerError)
 			return
@@ -366,85 +105,70 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, jump)
 	})
-	mux.HandleFunc("POST /v1/jumps/{jumpID}/evidence-upload-authorizations", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PATCH /v1/jumps/{jumpID}", func(w http.ResponseWriter, r *http.Request) {
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
 		}
 
 		var request struct {
-			ContentType string `json:"contentType"`
+			Caption string `json:"caption"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		contentType := strings.TrimSpace(request.ContentType)
-		if contentType == "" {
-			http.Error(w, "contentType is required", http.StatusBadRequest)
-			return
-		}
-
-		authorization, ok, err := authorizeEvidenceUpload(r.Context(), config.DB, profile.Player, r.PathValue("jumpID"), contentType)
-		if errors.Is(err, ErrJumpNotFound) {
-			http.Error(w, "Planned Jump not found", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			http.Error(w, "authorize Evidence upload", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "performer required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, authorization)
-	})
-	mux.HandleFunc("POST /v1/jumps/{jumpID}/evidence", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		var request struct {
-			UploadAuthorizationID string `json:"uploadAuthorizationId"`
-			Caption               string `json:"caption"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
-			return
-		}
-		uploadAuthorizationID := strings.TrimSpace(request.UploadAuthorizationID)
 		caption := strings.TrimSpace(request.Caption)
-		if uploadAuthorizationID == "" || caption == "" {
-			http.Error(w, "uploadAuthorizationId and caption are required", http.StatusBadRequest)
-			return
-		}
 
-		submission, ok, err := submitEvidence(r.Context(), config.DB, profile.Player, r.PathValue("jumpID"), uploadAuthorizationID, caption)
+		allowed, err := editCaption(r.Context(), config.CaptionEdit, r.PathValue("jumpID"), profile.Player.ID, caption, config.Now())
 		if errors.Is(err, ErrJumpNotFound) {
-			http.Error(w, "Planned Jump not found", http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "not_found", "Jump not found.")
 			return
 		}
-		if errors.Is(err, ErrEvidenceUploadAuthorizationNotFound) {
-			http.Error(w, "Evidence upload authorization not found", http.StatusNotFound)
+		if errors.Is(err, ErrAuthorGracePeriodExpired) {
+			writeAPIError(w, http.StatusForbidden, "grace_period_expired", "Author Grace Period has expired.")
 			return
 		}
-		if errors.Is(err, ErrSubmissionWindowClosed) {
-			http.Error(w, "Submission Window closed", http.StatusConflict)
+		if errors.Is(err, ErrInvalidCaption) {
+			writeAPIError(w, http.StatusBadRequest, "invalid_caption", "Caption is required.")
 			return
 		}
 		if err != nil {
-			http.Error(w, "submit Evidence", http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not update caption. Please try again.")
 			return
 		}
-		if !ok {
-			http.Error(w, "performer required", http.StatusForbidden)
+		if !allowed {
+			writeAPIError(w, http.StatusForbidden, "not_performer", "Only the performer may edit the Caption.")
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, submission)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	})
+	mux.HandleFunc("POST /v1/jumps/{jumpID}/retract", func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		allowed, err := retractJump(r.Context(), config.JumpRetract, r.PathValue("jumpID"), profile.Player.ID, config.Now())
+		if errors.Is(err, ErrJumpNotFound) {
+			writeAPIError(w, http.StatusNotFound, "not_found", "Jump not found.")
+			return
+		}
+		if errors.Is(err, ErrAuthorGracePeriodExpired) {
+			writeAPIError(w, http.StatusForbidden, "grace_period_expired", "Author Grace Period has expired.")
+			return
+		}
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not retract Jump. Please try again.")
+			return
+		}
+		if !allowed {
+			writeAPIError(w, http.StatusForbidden, "not_performer", "Only the performer may retract the Jump.")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "retracted"})
 	})
 	mux.HandleFunc("POST /v1/guest-sessions", func(w http.ResponseWriter, r *http.Request) {
 		id, err := randomToken("guest_session")
@@ -452,7 +176,7 @@ func NewServer(config ServerConfig) http.Handler {
 			http.Error(w, "create guest session", http.StatusInternalServerError)
 			return
 		}
-		if err := config.DB.CreateGuestSession(r.Context(), id); err != nil {
+		if err := config.Judgment.CreateGuestSession(r.Context(), id); err != nil {
 			http.Error(w, "create guest session", http.StatusInternalServerError)
 			return
 		}
@@ -503,7 +227,7 @@ func NewServer(config ServerConfig) http.Handler {
 
 		judgment, ok, created, err := submitJudgment(
 			r.Context(),
-			config.DB,
+			config.Judgment,
 			playerID,
 			guestSessionID,
 			"public",
@@ -512,6 +236,7 @@ func NewServer(config ServerConfig) http.Handler {
 			*request.Transgression,
 			*request.Creativity,
 			*request.Presentation,
+			config.Now(),
 		)
 		if errors.Is(err, ErrJumpNotFound) {
 			http.Error(w, "Performed Jump not found", http.StatusNotFound)
@@ -552,88 +277,6 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 		writeJSON(w, status, judgment)
 	})
-	mux.HandleFunc("POST /v1/jumps/{jumpID}/disputes", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		var request struct {
-			Concern string `json:"concern"`
-			Details string `json:"details"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
-			return
-		}
-		concern := strings.TrimSpace(request.Concern)
-		details := strings.TrimSpace(request.Details)
-		if concern == "" || details == "" {
-			http.Error(w, "concern and details are required", http.StatusBadRequest)
-			return
-		}
-
-		dispute, ok, err := createDispute(r.Context(), config.DB, profile.Player, r.PathValue("jumpID"), concern, details)
-		if errors.Is(err, ErrJumpNotFound) {
-			http.Error(w, "Visible Jump not found", http.StatusNotFound)
-			return
-		}
-		if errors.Is(err, ErrInvalidDisputeConcern) {
-			http.Error(w, "Dispute concern must be House Rules, Credibility, Source, Destination, Food, duplicate, or other", http.StatusBadRequest)
-			return
-		}
-		if err != nil {
-			http.Error(w, "create Dispute", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "Group Membership required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, dispute)
-	})
-	mux.HandleFunc("POST /v1/disputes/{disputeID}/resolution", func(w http.ResponseWriter, r *http.Request) {
-		profile, ok := signedInProfile(w, r, config)
-		if !ok {
-			return
-		}
-
-		var request struct {
-			Resolution       string `json:"resolution"`
-			ResolutionReason string `json:"resolutionReason"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
-			return
-		}
-		resolution := strings.TrimSpace(request.Resolution)
-		resolutionReason := strings.TrimSpace(request.ResolutionReason)
-		if resolution == "" || resolutionReason == "" {
-			http.Error(w, "resolution and resolutionReason are required", http.StatusBadRequest)
-			return
-		}
-
-		resolved, ok, err := resolveDispute(r.Context(), config.DB, profile.Player, r.PathValue("disputeID"), resolution, resolutionReason)
-		if errors.Is(err, ErrDisputeNotFound) {
-			http.Error(w, "Dispute not found", http.StatusNotFound)
-			return
-		}
-		if errors.Is(err, ErrInvalidDisputeResolution) {
-			http.Error(w, "Dispute resolution must be No Action, Disqualified Jump, or Removed Jump", http.StatusBadRequest)
-			return
-		}
-		if err != nil {
-			http.Error(w, "resolve Dispute", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Error(w, "authorized resolver required", http.StatusForbidden)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, resolved)
-	})
 	mux.HandleFunc("POST /v1/opens/{year}/{month}/compute", func(w http.ResponseWriter, r *http.Request) {
 		_, ok := signedInProfile(w, r, config)
 		if !ok {
@@ -653,10 +296,10 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		result := game.ComputeOpenScores(r.Context(), config.DB, game.ComputeOpenScoresInput{
+		result := game.ComputeOpenScores(r.Context(), config.Open, game.ComputeOpenScoresInput{
 			Year:  year,
 			Month: month,
-		}, config.DB.Now())
+		}, config.Now())
 
 		if errors.Is(result.Err, game.ErrOpenMonthNotClosed) {
 			http.Error(w, "Open month has not soft-closed yet", http.StatusConflict)
@@ -701,7 +344,7 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		// Fetch limit+1 to detect whether there's a next page
-		cards, err := config.DB.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
+		cards, err := config.PublicRead.FeedJumps(r.Context(), cursorTS, cursorID, limit+1)
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jumps. Please try again.")
 			return
@@ -713,13 +356,18 @@ func NewServer(config ServerConfig) http.Handler {
 			for i, c := range cards {
 				cardIDs[i] = c.ID
 			}
-			judged, err := config.DB.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
+			judged, err := config.Judgment.HasJudgedJumps(r.Context(), viewer.Player.ID, cardIDs)
 			if err != nil {
 				http.Error(w, "Could not load judgment state", http.StatusInternalServerError)
 				return
 			}
 			for i := range cards {
-				cards[i].ViewerContext = computeViewerContextCard(cards[i], *viewer, judged, config.DB.Now())
+				hint := game.JudgmentEligibility(game.JumpSnapshot{
+					ID:                   cards[i].ID,
+					PlayerID:             cards[i].PerformerID,
+					GracePeriodExpiresAt: cards[i].GracePeriodExpiresAt,
+				}, viewer.Player.ID, judged[cards[i].ID], config.Now())
+				cards[i].ViewerContext = viewerContextFromHint(hint)
 			}
 		}
 
@@ -739,9 +387,9 @@ func NewServer(config ServerConfig) http.Handler {
 		viewer := optionalProfile(r, config)
 		jumpID := r.PathValue("jumpID")
 
-		detail, found, err := config.DB.JumpDetail(r.Context(), jumpID)
+		detail, found, err := config.PublicRead.JumpDetail(r.Context(), jumpID)
 		if err != nil {
-			http.Error(w, "Could not load jump detail", http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load jump detail. Please try again.")
 			return
 		}
 		if !found {
@@ -765,7 +413,21 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		// Attach viewer context for all requests (unauthenticated = default canJudge: true)
-		detail.ViewerContext = computeViewerContext(detail, viewer, config.DB, r.Context(), config.DB.Now())
+		if viewer != nil {
+			hasJudged, err := config.Judgment.HasJudgedJump(r.Context(), detail.ID, viewer.Player.ID)
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not load judgment state. Please try again.")
+				return
+			}
+			hint := game.JudgmentEligibility(game.JumpSnapshot{
+				ID:                   detail.ID,
+				PlayerID:             detail.PerformerID,
+				GracePeriodExpiresAt: detail.GracePeriodExpiresAt,
+			}, viewer.Player.ID, hasJudged, config.Now())
+			detail.ViewerContext = viewerContextFromHint(hint)
+		} else {
+			detail.ViewerContext = &ViewerContext{CanJudge: true}
+		}
 
 		writeJSON(w, http.StatusOK, detail)
 	})
@@ -773,88 +435,20 @@ func NewServer(config ServerConfig) http.Handler {
 	return mux
 }
 
-// computeViewerContext determines the viewer's eligibility to judge a Jump.
-// viewer may be nil (unauthenticated) — returns default canJudge: true.
-//
-// Security boundary: canJudge:true for nil (guest) auth is intentional.
-// Guests see the judge UI and are prompted to authenticate before actually
-// submitting. The judgment submission endpoint independently verifies auth;
-// viewerContext is purely a UI hint, not an authorization gate.
-func computeViewerContext(detail JumpDetail, viewer *MeResponse, db Persistence, ctx context.Context, now time.Time) *ViewerContext {
-	vc := &ViewerContext{CanJudge: true}
-
-	if viewer == nil {
-		return vc
+// viewerContextFromHint converts a game.EligibilityHint into a transport-layer
+// ViewerContext DTO.
+func viewerContextFromHint(hint game.EligibilityHint) *ViewerContext {
+	vc := &ViewerContext{CanJudge: hint.CanJudge}
+	if hint.Reason != "" {
+		r := hint.Reason
+		vc.Reason = &r
 	}
-
-	// 1. Self-judging
-	if viewer.Player.ID == detail.PerformerID {
-		vc.CanJudge = false
-		reason := "self-judging"
-		vc.Reason = &reason
-		return vc
+	if hint.GracePeriodEndsAt != nil {
+		vc.GracePeriodEndsAt = hint.GracePeriodEndsAt
 	}
-
-	// 2. Grace period active
-	if now.Before(detail.GracePeriodExpiresAt) {
-		vc.CanJudge = false
-		reason := "grace-period"
-		vc.Reason = &reason
-		vc.GracePeriodEndsAt = &detail.GracePeriodExpiresAt
-		return vc
-	}
-
-	// 3. Already judged
-	hasJudged, err := db.HasJudgedJump(ctx, detail.ID, viewer.Player.ID)
-	if err == nil && hasJudged {
-		vc.CanJudge = false
+	if !hint.CanJudge && hint.Reason == "already-judged" {
 		vc.HasJudged = true
-		reason := "already-judged"
-		vc.Reason = &reason
 	}
-
-	return vc
-}
-
-// computeViewerContextCard determines the viewer's eligibility to judge a Jump
-// from a JumpCard (feed level). Uses the same logic as computeViewerContext but
-// accepts a JumpCard instead of JumpDetail. The judged parameter is a pre-fetched
-// batch map (from HasJudgedJumps) to avoid N+1 queries on the feed.
-//
-// Three-state resolution (checked in order):
-//  1. Self-judging — viewer is the performer → canJudge=false, reason="self-judging"
-//  2. Grace period active — now < GracePeriodExpiresAt → canJudge=false, reason="grace-period"
-//  3. Already judged — judged[card.ID] == true → canJudge=false, hasJudged=true, reason="already-judged"
-//     Default: canJudge=true (viewer can judge, no blocks detected)
-func computeViewerContextCard(card JumpCard, viewer MeResponse, judged map[string]bool, now time.Time) *ViewerContext {
-	vc := &ViewerContext{CanJudge: true}
-
-	// 1. Self-judging
-	if viewer.Player.ID == card.PerformerID {
-		vc.CanJudge = false
-		reason := "self-judging"
-		vc.Reason = &reason
-		return vc
-	}
-
-	// 2. Grace period active
-	if now.Before(card.GracePeriodExpiresAt) {
-		vc.CanJudge = false
-		reason := "grace-period"
-		vc.Reason = &reason
-		vc.GracePeriodEndsAt = &card.GracePeriodExpiresAt
-		return vc
-	}
-
-	// 3. Already judged (from pre-fetched batch map)
-	if judged[card.ID] {
-		vc.CanJudge = false
-		vc.HasJudged = true
-		reason := "already-judged"
-		vc.Reason = &reason
-		return vc
-	}
-
 	return vc
 }
 

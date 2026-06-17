@@ -7,7 +7,7 @@ import (
 )
 
 func testPublicFeedEmptyReturnsEmptyArrayAndNullCursor(t *testing.T) {
-	server := newGroupsTestServer(t)
+	server := newTestServer(t)
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed", "", nil)
 	if rec.Code != http.StatusOK {
@@ -32,8 +32,8 @@ func testPublicFeedCursorPaginationMultiPage(t *testing.T) {
 		store.Store.SetClock(func() time.Time {
 			return time.Date(2026, 6, 1, 13, minute, 0, 0, time.UTC)
 		})
-		performed := performJump(t, server, "alice-token", store.GroupID)
-		created = append(created, performed.Jump.ID)
+		performed := performJump(t, server, "alice-token")
+		created = append(created, performed.ID)
 	}
 
 	rec := doJSON(server, http.MethodGet, "/v1/feed?limit=10", "", nil)
@@ -106,8 +106,8 @@ func testPublicFeedSameTimestampTiebrokenByID(t *testing.T) {
 	})
 	var created []string
 	for i := 0; i < 5; i++ {
-		performed := performJump(t, server, "alice-token", store.GroupID)
-		created = append(created, performed.Jump.ID)
+		performed := performJump(t, server, "alice-token")
+		created = append(created, performed.ID)
 	}
 
 	rec1 := doJSON(server, http.MethodGet, "/v1/feed?limit=3", "", nil)

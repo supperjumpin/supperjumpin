@@ -21,42 +21,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/groups": {
+    "/v1/me/display-name": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List the signed-in Player's Group Memberships */
-        get: operations["listGroups"];
-        put?: never;
-        /** Create a Group and make the creator a Group Admin */
-        post: operations["createGroup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/groups/{groupId}/home": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Fetch backend Group home data for a Group member */
-        get: operations["getGroupHome"];
+        get?: never;
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update the signed-in Player's display name */
+        patch: operations["updateDisplayName"];
         trace?: never;
     };
-    "/v1/groups/{groupId}/invites": {
+    "/v1/jumps": {
         parameters: {
             query?: never;
             header?: never;
@@ -65,164 +47,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create an Invite for a Group */
-        post: operations["createInvite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/invites/{token}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Accept an Invite and join its Group */
-        post: operations["acceptInvite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/groups/{groupId}/seasons": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start a Season for a Group with no active or closing Season */
-        post: operations["startSeason"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seasons/{seasonId}/close-submissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Close the Submission Window and move the Season into Judging Grace Period */
-        post: operations["closeSeasonSubmissions"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seasons/{seasonId}/finalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Finalize a Season, cap remaining Judging Windows, and lock Standings */
-        post: operations["finalizeSeason"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seasons/{seasonId}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Fetch visible Season history, including Group Admin override actions */
-        get: operations["getSeasonHistory"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/groups/{groupId}/ideas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create an Idea in exactly one Group */
-        post: operations["createIdea"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/ideas/{ideaId}/planned-jump": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create a Planned Jump from an Idea
-         * @deprecated
-         */
-        post: operations["createPlannedJump"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/jumps/{jumpId}/evidence-upload-authorizations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Authorize direct Evidence upload for a performer's Planned Jump */
-        post: operations["authorizeEvidenceUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/jumps/{jumpId}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Finalize an Evidence record and transition a Planned Jump into a Performed Jump */
-        post: operations["submitEvidence"];
+        /** Create a Performed Jump with Evidence metadata */
+        post: operations["createJump"];
         delete?: never;
         options?: never;
         head?: never;
@@ -263,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/jumps/{jumpId}/retract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retract the authenticated Player's Performed Jump during its Author Grace Period */
+        post: operations["retractJump"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/opens/{year}/{month}/compute": {
         parameters: {
             query?: never;
@@ -274,40 +117,6 @@ export interface paths {
         put?: never;
         /** Compute Open Final Scores for a completed calendar month */
         post: operations["computeOpenScores"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/jumps/{jumpId}/disputes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Raise a Dispute on a visible Jump in the Group */
-        post: operations["createDispute"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/disputes/{disputeId}/resolution": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Resolve or override a Dispute with visible Jump outcome changes */
-        post: operations["resolveDispute"];
         delete?: never;
         options?: never;
         head?: never;
@@ -345,7 +154,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Edit a Performed Jump's Caption during the Author Grace Period */
+        patch: operations["editJumpCaption"];
         trace?: never;
     };
 }
@@ -356,8 +166,11 @@ export interface components {
             account: components["schemas"]["Account"];
             player: components["schemas"]["Player"];
         };
+        UpdateDisplayNameResponse: {
+            player: components["schemas"]["Player"];
+        };
         Account: {
-            /** @description Internal Account identifier, distinct from Supabase subject. */
+            /** @description Internal Account identifier, distinct from external auth provider subject. */
             id: string;
             /** Format: email */
             email: string;
@@ -367,90 +180,20 @@ export interface components {
             id: string;
             displayName: string;
         };
-        Group: {
-            id: string;
-            name: string;
-        };
-        GroupMembership: {
-            groupId: string;
-            playerId: string;
-            /** @enum {string} */
-            role: "Group Admin" | "Player";
-        };
-        Invite: {
-            id: string;
-            groupId: string;
-            token: string;
-            createdBy: string;
-            /** Format: date-time */
-            expiresAt: string;
-        };
-        Season: {
-            id: string;
-            groupId: string;
-            commissionerPlayerId: string;
-            /** @enum {string} */
-            status: "Active" | "Judging Grace Period" | "Finalized";
-        };
-        SeasonHistoryEntry: {
-            id: string;
-            seasonId: string;
-            /** @enum {string} */
-            action: "Submissions Closed" | "Season Finalized";
-            actorPlayerId: string;
-            /** @enum {string} */
-            actorRole: "Player" | "Group Admin";
-            override: boolean;
-            /** @enum {string} */
-            fromStatus: "Active" | "Judging Grace Period" | "Finalized";
-            /** @enum {string} */
-            toStatus: "Active" | "Judging Grace Period" | "Finalized";
-            /** Format: date-time */
-            createdAt: string;
-        };
-        SeasonHistoryResponse: {
-            entries: components["schemas"]["SeasonHistoryEntry"][];
-        };
         Jump: {
             id: string;
-            /** @description The exactly one Group this Jump belongs to. */
-            groupId: string;
             playerId: string;
-            /** @description Present only for Season-linked Planned Jumps. */
-            seasonId: string | null;
             /** @enum {string} */
-            status: "Idea" | "Planned Jump" | "Performed Jump" | "Judged Jump" | "Unjudged Jump" | "Disqualified Jump" | "Removed Jump";
+            status: "Performed Jump" | "Judged Jump" | "Unjudged Jump" | "Disqualified Jump" | "Removed Jump";
             source: string;
             destination: string;
             food: string;
-            offSeason: boolean;
-            /** @description Present only after a Season-linked Performed Jump becomes a Judged Jump. */
             finalScore: number | null;
-        };
-        EvidenceUploadAuthorization: {
-            id: string;
-            jumpId: string;
-            uploadUrl: string;
-            /** @enum {string} */
-            uploadMethod: "PUT";
-            uploadHeaders: {
-                [key: string]: string;
-            };
-            mediaObjectKey: string;
+            openFinalScore: number | null;
             /** Format: date-time */
-            expiresAt: string;
-        };
-        Evidence: {
-            id: string;
-            jumpId: string;
-            caption: string;
-            mediaObjectKey: string;
+            gracePeriodExpiresAt: string;
             /** Format: date-time */
             createdAt: string;
-        };
-        EvidenceSubmission: {
-            jump: components["schemas"]["Jump"];
-            evidence: components["schemas"]["Evidence"];
         };
         Judgment: {
             id: string;
@@ -471,52 +214,6 @@ export interface components {
         };
         GuestSession: {
             id: string;
-        };
-        PerformedJumpView: {
-            jump: components["schemas"]["Jump"];
-            performer: components["schemas"]["Player"];
-            evidence: components["schemas"]["Evidence"];
-            disputes: components["schemas"]["Dispute"][];
-        };
-        Dispute: {
-            id: string;
-            jumpId: string;
-            raisedByPlayerId: string;
-            /** @enum {string} */
-            concern: "House Rules" | "Credibility" | "Source" | "Destination" | "Food" | "duplicate" | "other";
-            details: string;
-            /** @enum {string} */
-            status: "Open" | "Resolved" | "Overridden";
-            resolution?: ("No Action" | "Disqualified Jump" | "Removed Jump") | null;
-            resolutionReason?: string | null;
-            resolvedByPlayerId?: string | null;
-            overrideResolution?: ("Disqualified Jump" | "Removed Jump") | null;
-            overrideReason?: string | null;
-            overrideByPlayerId?: string | null;
-        };
-        DisputeResolution: {
-            jump: components["schemas"]["Jump"];
-            dispute: components["schemas"]["Dispute"];
-        };
-        StandingEntry: {
-            player: components["schemas"]["Player"];
-            seasonScore: number;
-            judgedJumps: number;
-        };
-        GroupHomeResponse: {
-            group: components["schemas"]["Group"];
-            membership: components["schemas"]["GroupMembership"];
-            /** @description The Group's currently open Season, including Judging Grace Period, or null when none exists. */
-            activeSeason: components["schemas"]["Season"] | null;
-            recentJumps: components["schemas"]["PerformedJumpView"][];
-            standings: components["schemas"]["StandingEntry"][];
-        };
-        GroupMembershipSummary: {
-            group: components["schemas"]["Group"];
-            membership: components["schemas"]["GroupMembership"];
-        };
-        ListGroupsResponse: {
-            memberships: components["schemas"]["GroupMembershipSummary"][];
         };
         PublicFeedResponse: {
             jumps: components["schemas"]["JumpCard"][];
@@ -560,7 +257,6 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             finalScore?: number | null;
-            disputes?: components["schemas"]["Dispute"][];
             viewerContext?: components["schemas"]["ViewerContext"];
         };
         JumpTombstone: {
@@ -619,34 +315,7 @@ export interface operations {
             };
         };
     };
-    listGroups: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Group Memberships for the signed-in Player. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListGroupsResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    createGroup: {
+    updateDisplayName: {
         parameters: {
             query?: never;
             header?: never;
@@ -656,21 +325,21 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    name: string;
+                    displayName: string;
                 };
             };
         };
         responses: {
-            /** @description The created Group home. */
-            201: {
+            /** @description The updated Player profile. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GroupHomeResponse"];
+                    "application/json": components["schemas"]["UpdateDisplayNameResponse"];
                 };
             };
-            /** @description Invalid Group creation request. */
+            /** @description Invalid or missing display name. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -686,307 +355,11 @@ export interface operations {
             };
         };
     };
-    getGroupHome: {
+    createJump: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                groupId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Group identity, the Player's Group Membership, current Season state, recent Jumps, and Standings. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GroupHomeResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player does not have a Group Membership for this Group. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    createInvite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                groupId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Invite that another signed-in Account can accept. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Invite"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player does not have a Group Membership for this Group. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    acceptInvite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The invited Group home after the signed-in Player joins. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GroupHomeResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invite is invalid. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invite was already used, or the signed-in Player already has a Group Membership. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invite expired. */
-            410: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    startSeason: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                groupId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The Group home after starting the Active Season. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GroupHomeResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player does not have a Group Membership for this Group. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The Group already has an active or closing Season. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    closeSeasonSubmissions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                seasonId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The Group home after the Season moves into Judging Grace Period. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GroupHomeResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not the Season Commissioner or a Group Admin override actor. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Season not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    finalizeSeason: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                seasonId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The Group home after the Season is finalized. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GroupHomeResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not the Season Commissioner or a Group Admin override actor. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Season not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getSeasonHistory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                seasonId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Audit-style Season history entries. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeasonHistoryResponse"];
-                };
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player does not have a Group Membership for this Season's Group. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Season not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    createIdea: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                groupId: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -995,183 +368,22 @@ export interface operations {
                     source: string;
                     destination: string;
                     food: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The created Group-scoped Idea. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Jump"];
-                };
-            };
-            /** @description Invalid Idea creation request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player does not have a Group Membership for this Group. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    createPlannedJump: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ideaId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    /** @description When true, the Planned Jump is explicitly Off-Season even during an Active Season. */
-                    offSeason?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description The Planned Jump, Season-linked by default during an Active Season. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Jump"];
-                };
-            };
-            /** @description Invalid Planned Jump request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not allowed to plan this Idea. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Idea not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    authorizeEvidenceUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                jumpId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    contentType: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Direct upload target and authorization metadata for the Evidence media. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceUploadAuthorization"];
-                };
-            };
-            /** @description Invalid Evidence upload authorization request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not the performer of this Planned Jump. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Planned Jump not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    submitEvidence: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                jumpId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    uploadAuthorizationId: string;
                     caption: string;
+                    mediaObjectKey: string;
                 };
             };
         };
         responses: {
-            /** @description Backend-owned Evidence record and the updated Performed Jump. */
+            /** @description The created Performed Jump. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvidenceSubmission"];
+                    "application/json": components["schemas"]["Jump"];
                 };
             };
-            /** @description Invalid Evidence submission request. */
+            /** @description Invalid or missing Jump fields. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1180,20 +392,6 @@ export interface operations {
             };
             /** @description Missing or invalid bearer token. */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not the performer of this Planned Jump. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Planned Jump or upload authorization not found. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1302,6 +500,60 @@ export interface operations {
             };
         };
     };
+    retractJump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Jump retracted successfully. Feed excludes it; detail returns tombstone. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                    };
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Retraction not allowed — Author Grace Period expired or requesting Player is not the performer. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Jump not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The retraction could not be applied. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     computeOpenScores: {
         parameters: {
             query?: never;
@@ -1348,122 +600,6 @@ export interface operations {
             };
             /** @description Open month has not soft-closed yet. */
             409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    createDispute: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                jumpId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    concern: "House Rules" | "Credibility" | "Source" | "Destination" | "Food" | "duplicate" | "other";
-                    details: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The created Dispute. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Dispute"];
-                };
-            };
-            /** @description Invalid Dispute request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player does not have a Group Membership for this Group. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Visible Jump not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    resolveDispute: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                disputeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    resolution: "No Action" | "Disqualified Jump" | "Removed Jump";
-                    resolutionReason: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The updated Jump and Dispute resolution state. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DisputeResolution"];
-                };
-            };
-            /** @description Invalid Dispute resolution request. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or invalid bearer token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The signed-in Player is not an authorized resolver for this Dispute. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Dispute not found. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1538,6 +674,64 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
+            };
+        };
+    };
+    editJumpCaption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    caption: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Caption updated successfully. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                    };
+                };
+            };
+            /** @description Invalid or missing caption. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Edit not allowed — Author Grace Period expired or requesting Player is not the performer. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Jump not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

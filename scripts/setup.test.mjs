@@ -26,13 +26,19 @@ test("checkVersionRange returns false for version at maximum boundary", () => {
   assert.strictEqual(checkVersionRange("25.0.0", ">=24.16.0 <25"), false);
 });
 
-import { formatFailureMessage } from "./setup.mjs";
+import { formatFailureMessage, formatNodeVersionHint } from "./setup.mjs";
 
 test("formatFailureMessage includes tool name, current version, and requirement", () => {
   const msg = formatFailureMessage("Node", "24.15.0", ">=24.16.0 <25");
   assert.ok(msg.includes("Node"));
   assert.ok(msg.includes("24.15.0"));
   assert.ok(msg.includes(">=24.16.0 <25"));
+});
+
+test("formatNodeVersionHint includes nvm use command", () => {
+  const msg = formatNodeVersionHint();
+  assert.ok(msg.includes("nvm use"));
+  assert.ok(msg.includes(".nvmrc"));
 });
 
 import { checkExactVersion, formatExactFailureMessage, extractSqlcVersion, extractMigrateVersion } from "./setup.mjs";

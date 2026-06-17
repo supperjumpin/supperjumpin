@@ -41,6 +41,10 @@ export function formatFailureMessage(tool, current, requirement) {
   return `${tool} version ${current} does not satisfy requirement ${requirement}`;
 }
 
+export function formatNodeVersionHint() {
+  return "If you use nvm, run `nvm use` in this repo (it reads `.nvmrc` automatically).";
+}
+
 export function checkExactVersion(current, expected) {
   return current === expected;
 }
@@ -163,7 +167,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       ["--version"],
       extractNodeVersion,
       ">=24.16.0 <25",
-      "Install Node 24.16.0+ via your version manager (e.g. nvm install 24.16.0) or from https://nodejs.org/"
+      `Install Node 24.16.0+ via your version manager (e.g. nvm install 24.16.0) or from https://nodejs.org/. ${formatNodeVersionHint()}`
     ),
     checkTool(
       "Go",
@@ -240,6 +244,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log("npm ci completed ✅");
   console.log("\nSetup complete. You can now run:");
   console.log("  npm run api:dev       # Start the API dev server");
-  console.log("  npm run demo:api      # Start API with Docker Compose Postgres");
-  console.log("  npm run demo:mobile   # Start the Expo mobile app");
+  console.log("  npm run api:test      # Run API tests against Postgres");
+  console.log("  npm run db:up         # Start the local Postgres service");
+  console.log("  npm run db:migrate    # Apply database migrations to local Docker Postgres");
+  console.log("  npm run db:reset      # Recreate the local test DB");
+  console.log("  npm run docs          # Start the docs server");
+  console.log("  npm run generate:api-client  # Regenerate the TypeScript API client");
 }

@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,14 @@ function main() {
   const summaryPath = env.GITHUB_STEP_SUMMARY;
   if (summaryPath) {
     appendFileSync(summaryPath, `### Node workspace coverage\n${line}\n`);
+  }
+
+  if (match) {
+    mkdirSync("coverage", { recursive: true });
+    writeFileSync(
+      "coverage/node-report.json",
+      JSON.stringify({ total: Number(match[1]) }, null, 2) + "\n"
+    );
   }
 }
 
