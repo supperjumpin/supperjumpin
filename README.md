@@ -43,7 +43,8 @@ npm run api:dev
 
 If you already have Postgres running and only want to reapply migrations, use `npm run db:migrate` instead of `npm run db:reset`.
 
-Local scripts intentionally ignore an ambient shell `DATABASE_URL`. To target a non-local database explicitly, set `SUPPERJUMPIN_DATABASE_URL` for that command.
+`npm run db:migrate` always targets the local Docker Postgres database for now and ignores both ambient `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
+Other local scripts may still use `SUPPERJUMPIN_DATABASE_URL` where documented.
 
 5. In a second terminal, start the Expo app:
 
