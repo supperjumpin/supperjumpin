@@ -15,7 +15,8 @@ if (process.env.DATABASE_URL && !process.env.SUPPERJUMPIN_DATABASE_URL) {
 const api = spawn("go", ["run", "./apps/api/cmd/api"], {
   env: {
     ...process.env,
-    DATABASE_URL: databaseURL,
+    DATABASE_URL: undefined,
+    SUPPERJUMPIN_DATABASE_URL: databaseURL,
     SUPPERJUMPIN_DEV_AUTH_TOKEN: devToken,
   },
   stdio: "inherit",

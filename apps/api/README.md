@@ -6,4 +6,4 @@ The API owns game rules, durable domain state, and the REST/OpenAPI contract con
 
 ## Runtime configuration
 
-Set `DATABASE_URL` to a Postgres database with the migrations in `db/migrations` applied before starting the API. The API refuses to start without `DATABASE_URL` so Group and Group Membership state is not accidentally stored in process memory.
+Set `SUPPERJUMPIN_DATABASE_URL` to a Postgres database with the migrations in `db/migrations` applied before starting the API. The API refuses to start without `SUPPERJUMPIN_DATABASE_URL` so Group and Group Membership state is not accidentally stored in process memory.

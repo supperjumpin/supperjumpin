@@ -117,7 +117,7 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 
 ## NOTES
 
-- `DATABASE_URL` is mandatory for the Go binary, but npm scripts set it for local Docker Postgres by default. Use `SUPPERJUMPIN_DATABASE_URL` only when intentionally targeting a non-local Postgres database.
+- `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary. npm scripts set it for local Docker Postgres by default and ignore ambient `DATABASE_URL`.
 - Hosted staging/prod infrastructure is intentionally deferred until the local MVP is playable end-to-end.
 - Auth is local-first for MVP development: `SUPPERJUMPIN_DEV_AUTH_TOKEN` defaults to `dev-token` in `npm run api:dev`, and mobile uses `EXPO_PUBLIC_DEV_AUTH_TOKEN`.
 - Mobile needs `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_DEV_AUTH_TOKEN` in `.env`; `EXPO_PUBLIC_MEDIA_BASE_URL` is optional for evidence previews.

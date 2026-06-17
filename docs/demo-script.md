@@ -99,7 +99,7 @@ sleep 10
 **Terminal 2 — Player A API (:8080):**
 
 ```sh
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
+SUPPERJUMPIN_DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
 SUPPERJUMPIN_DEV_AUTH_TOKEN=player-a-token \
 SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-a \
 SUPPERJUMPIN_DEV_AUTH_EMAIL="alice@example.com" \
@@ -110,7 +110,7 @@ go run ./apps/api/cmd/api
 **Terminal 3 — Player B API (:8081):**
 
 ```sh
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
+SUPPERJUMPIN_DATABASE_URL="postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable" \
 SUPPERJUMPIN_DEV_AUTH_TOKEN=player-b-token \
 SUPPERJUMPIN_DEV_AUTH_SUBJECT=dev-subject-b \
 SUPPERJUMPIN_DEV_AUTH_EMAIL="bob@example.com" \
