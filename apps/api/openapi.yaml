@@ -100,7 +100,7 @@ paths:
   /v1/jumps/{jumpId}/judgment:
     post:
       operationId: submitJudgment
-      summary: Submit or edit a Judge's Judgment for a Performed Jump (authenticated or Guest)
+      summary: Submit an immutable first-time Judgment for a Performed Jump (authenticated or Guest)
       security:
         - bearerAuth: []
       parameters:
@@ -137,12 +137,6 @@ paths:
                   minimum: 1
                   maximum: 4
       responses:
-        "200":
-          description: The edited Judgment.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Judgment"
         "201":
           description: The created Judgment.
           content:
@@ -150,15 +144,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Judgment"
         "400":
-          description: Invalid Judgment request.
+          description: Invalid Judgment request (malformed identity or out-of-range scores).
         "401":
           description: Authentication or guestSessionId required.
         "403":
-          description: The Judge is not eligible for this Performed Jump (self-judge, cap reached, or grace period active).
+          description: The Judge is not eligible (self-judge, guest cap reached, or grace period active).
         "404":
           description: Performed Jump not found.
         "409":
-          description: The Judging Window is closed.
+          description: The Judgment is immutable and already exists, or the Judging Window is closed.
   /v1/jumps/{jumpId}/retract:
     post:
       operationId: retractJump

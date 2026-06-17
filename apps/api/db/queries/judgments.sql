@@ -1,33 +1,20 @@
--- name: UpsertPlayerJudgment :one
-WITH upsert AS (
-  INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
-  VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8)
-  ON CONFLICT (jump_id, player_id) WHERE player_id IS NOT NULL DO UPDATE SET
-    commitment = EXCLUDED.commitment,
-    transgression = EXCLUDED.transgression,
-    creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation
-  RETURNING (xmax = 0) AS created
-)
-SELECT created FROM upsert;
+-- name: InsertPlayerJudgment :exec
+INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
+VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8);
 
--- name: UpsertGuestJudgment :one
-WITH upsert AS (
-  INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
-  VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8)
-  ON CONFLICT (jump_id, guest_session_id) WHERE guest_session_id IS NOT NULL DO UPDATE SET
-    commitment = EXCLUDED.commitment,
-    transgression = EXCLUDED.transgression,
-    creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation
-  RETURNING (xmax = 0) AS created
-)
-SELECT created FROM upsert;
+-- name: InsertGuestJudgment :exec
+INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
+VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8);
 
 -- name: GetPlayerJudgment :one
 SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1 AND player_id = $2;
+
+-- name: GetGuestJudgment :one
+SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
+FROM judgments
+WHERE jump_id = $1 AND guest_session_id = $2;
 
 -- name: ListJudgmentsForJump :many
 SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
