@@ -206,7 +206,7 @@ Discovery relies on three mechanisms:
 | **Judging** | Submit verdict on 4 factors via tap-to-select tier buttons | Select tier for all 4 factors, then confirm | No (Guest allowed) | Jump Detail (tap Judge) | Judgment Receipt (tap "Enter Judgment into Record"); Jump Detail (tap back/cancel) |
 | **Judgment Receipt** | Review and confirm submitted verdict as a filing receipt | "Confirm and File" to submit Judgment | No | Judging Screen (tap "Enter Judgment into Record") | Jump Detail with updated scores (tap "Confirm and File") |
 | **Create Jump** | Compose and submit a new Jump with Evidence, Caption, Source, Destination, Food | Capture/upload Evidence photo, fill fields, submit | Yes | Feed (tap FAB); Prompt Card (tap "Perform this Prompt") | Feed (after submit); Feed (tap cancel) |
-| **Auth Gate** | Convert Guest to Player via one-tap social login | Select auth provider and authenticate | N/A (conversion screen) | Create Jump (if unauth); History claim; Guest cap prompt; Post-Judgment CTA | Create Jump (after auth); Feed (after auth); Feed (dismiss) |
+| **Auth Gate** | Convert Guest to Player (hosted auth additive in MVP; local dev token active) | Select auth provider and authenticate | N/A (conversion screen) | Create Jump (if unauth); History claim; Guest cap prompt; Post-Judgment CTA | Create Jump (after auth); Feed (after auth); Feed (dismiss) |
 | **Display Name Setup** | Set visible name (first-time only, after auth) | Tap "Continue" | Yes | Auth Gate (after successful auth) | Feed |
 | **Player Profile** | View a Player's Jumps, stats, and Open Standing | Browse Player's Jump history | No (view), Yes (own profile edits) | Feed (tap player name); Jump Detail (tap performer name); Open Standings (tap player) | Jump Detail (tap Jump card); Feed (back) |
 | **Open Standings** | Monthly competition rankings with score breakdowns | View rankings, tap Player profiles | No (view), Yes (compete) | Feed header icon; Feed (Open banner) | Player Profile (tap player row); Feed (back) |
@@ -690,7 +690,7 @@ This document directly references and depends on:
 - **ADR-0023 (The Open):** Monthly competition, soft-close, platform-run
 - **ADR-0024 (House Rules):** Safety boundaries, Report flow, Removed Jump behavior
 - **ADR-0014 (Gluestack UI):** Component library for Expo app
-- **ADR-0006 (Local-First Auth):** Internal Account model, local dev token, deferred hosted auth
+- **ADR-0006 (Local-First Auth):** Internal Account model, local dev token for MVP; hosted auth additive later
 - **MVP Roadmap (04-mvp-roadmap.md):** Scope boundaries, success metrics, deferred features
 - **Guest Judge Conversion Analysis (docs/research/guest-judge-conversion-analysis.md):** Auth model contradiction, conversion mechanics, benchmarks
 - **Open Competitiveness Analysis (docs/analysis/open-competitiveness-analysis.md):** Leaderboard design risks, signal-first approach

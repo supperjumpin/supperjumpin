@@ -43,7 +43,7 @@ npm run api:dev
 
 If you already have Postgres running and only want to reapply migrations, use `npm run db:migrate` instead of `npm run db:reset`.
 
-`npm run db:migrate` always targets the local Docker Postgres database for now and ignores both ambient `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
+`npm run db:migrate` always targets the local Docker Postgres database and ignores both ambient `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
 Other local scripts may still use `SUPPERJUMPIN_DATABASE_URL` where documented.
 
 5. In a second terminal, start the Expo app:
@@ -94,14 +94,16 @@ Run the API locally against an already configured database:
 npm run api:dev
 ```
 
-## First playable slice
+## Current state
 
-The first playable slice proves the Group Stunt loop:
+The MVP delivers the public Jump loop:
 
-1. A Player signs in.
-2. A Player creates or joins a Group.
-3. A Group starts a Season.
-4. A Player creates a Planned Stunt with a Source, Destination, and Food.
-5. A Player submits photo and Caption Evidence.
-6. Other Players Judge the Performed Stunt on Difficulty, Transgression, Creativity, and Documentation.
-7. The Group sees Season Standings.
+1. A Player signs in (local dev bearer token for development; see `.env.example`).
+2. A Player posts a Performed Jump with a Source, Destination, and Food.
+3. A Player submits photo and Caption Evidence.
+4. Other Players Judge the Jump on Commitment, Transgression, Creativity, and Presentation.
+5. Players compete in The Open (monthly competition with Standings).
+
+Groups, Seasons, and Invites are v2 concepts — removed per ADR-0019.
+
+See `docs/design/` for the full design package and `docs/adr/` for architecture decisions.
