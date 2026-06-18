@@ -225,7 +225,7 @@ func NewServer(config ServerConfig) http.Handler {
 			return
 		}
 
-		judgment, ok, created, err := submitJudgment(
+		judgment, ok, err := submitJudgment(
 			r.Context(),
 			config.Judgment,
 			playerID,
@@ -239,43 +239,43 @@ func NewServer(config ServerConfig) http.Handler {
 			config.Now(),
 		)
 		if errors.Is(err, ErrJumpNotFound) {
-			http.Error(w, "Performed Jump not found", http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "not_found", "Performed Jump not found.")
 			return
 		}
 		if errors.Is(err, ErrJudgingWindowClosed) {
-			http.Error(w, "Judging Window closed", http.StatusConflict)
+			writeAPIError(w, http.StatusConflict, "window_closed", "Judging Window closed.")
 			return
 		}
 		if errors.Is(err, ErrInvalidJudgmentScore) {
-			http.Error(w, "Judgment scores must be between 1 and 4", http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "invalid_score", "Judgment scores must be between 1 and 4.")
 			return
 		}
 		if errors.Is(err, ErrAuthorGracePeriodActive) {
-			http.Error(w, "Author Grace Period is still active", http.StatusForbidden)
+			writeAPIError(w, http.StatusForbidden, "grace_period", "Author Grace Period is still active.")
 			return
 		}
 		if errors.Is(err, ErrGuestCapReached) {
-			http.Error(w, "Guest Judgment cap reached", http.StatusForbidden)
+			writeAPIError(w, http.StatusForbidden, "guest_cap", "Guest Judgment cap reached.")
 			return
 		}
 		if errors.Is(err, ErrInvalidJudgeIdentity) {
-			http.Error(w, "Invalid judge identity", http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "invalid_judge_identity", "Invalid judge identity.")
+			return
+		}
+		if errors.Is(err, ErrAlreadyJudged) {
+			writeAPIError(w, http.StatusConflict, "already_judged", "Judge has already submitted a Judgment for this Jump.")
 			return
 		}
 		if err != nil {
-			http.Error(w, "submit Judgment", http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "internal_error", "Could not submit Judgment. Please try again.")
 			return
 		}
 		if !ok {
-			http.Error(w, "Judge required", http.StatusForbidden)
+			writeAPIError(w, http.StatusForbidden, "self_judging", "Judge must be a different Player than the performer.")
 			return
 		}
 
-		status := http.StatusOK
-		if created {
-			status = http.StatusCreated
-		}
-		writeJSON(w, status, judgment)
+		writeJSON(w, http.StatusCreated, judgment)
 	})
 	mux.HandleFunc("POST /v1/opens/{year}/{month}/compute", func(w http.ResponseWriter, r *http.Request) {
 		_, ok := signedInProfile(w, r, config)

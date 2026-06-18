@@ -20,6 +20,8 @@ var ErrGuestCapReached = errors.New("Guest Judgment cap reached")
 
 var ErrInvalidJudgeIdentity = errors.New("Judgment must have exactly one judge identity: player or guest session")
 
+var ErrAlreadyJudged = errors.New("Judge has already submitted a Judgment for this Jump")
+
 var ErrOpenMonthNotClosed = errors.New("Open month has not soft-closed yet")
 
 var ErrInvalidCaption = errors.New("Caption is required")
@@ -46,6 +48,9 @@ func mapGameErr(err error) error {
 	}
 	if errors.Is(err, game.ErrInvalidJudgeIdentity) {
 		return ErrInvalidJudgeIdentity
+	}
+	if errors.Is(err, game.ErrAlreadyJudged) {
+		return ErrAlreadyJudged
 	}
 	if errors.Is(err, game.ErrOpenMonthNotClosed) {
 		return ErrOpenMonthNotClosed
@@ -125,8 +130,8 @@ func createPerformedJump(ctx context.Context, db JumpPlanningFlow, player Player
 	return jumpFromGame(result.Jump), nil
 }
 
-func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int, now time.Time) (Judgment, bool, bool, error) {
-	result := game.SubmitJudgment(ctx, db, game.JudgmentInput{
+func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int, now time.Time) (Judgment, bool, error) {
+	judgment, err := game.SubmitJudgment(ctx, db, game.JudgmentInput{
 		JumpID:         jumpID,
 		JudgePlayerID:  playerID,
 		GuestSessionID: guestSessionID,
@@ -136,23 +141,20 @@ func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSession
 		Creativity:     creativity,
 		Presentation:   presentation,
 	}, now)
-	if result.Err != nil {
-		return Judgment{}, false, false, mapGameErr(result.Err)
-	}
-	if !result.Allowed {
-		return Judgment{}, false, false, nil
+	if err != nil {
+		return Judgment{}, false, mapGameErr(err)
 	}
 	return Judgment{
-		ID:             result.Judgment.ID,
-		JumpID:         result.Judgment.JumpID,
-		PlayerID:       result.Judgment.PlayerID,
-		GuestSessionID: result.Judgment.GuestSessionID,
-		Provenance:     result.Judgment.Provenance,
-		Commitment:     result.Judgment.Commitment,
-		Transgression:  result.Judgment.Transgression,
-		Creativity:     result.Judgment.Creativity,
-		Presentation:   result.Judgment.Presentation,
-	}, true, result.Created, nil
+		ID:             judgment.ID,
+		JumpID:         judgment.JumpID,
+		PlayerID:       judgment.PlayerID,
+		GuestSessionID: judgment.GuestSessionID,
+		Provenance:     judgment.Provenance,
+		Commitment:     judgment.Commitment,
+		Transgression:  judgment.Transgression,
+		Creativity:     judgment.Creativity,
+		Presentation:   judgment.Presentation,
+	}, true, nil
 }
 
 func editCaption(ctx context.Context, db CaptionEditFlow, jumpID string, playerID string, caption string, now time.Time) (bool, error) {

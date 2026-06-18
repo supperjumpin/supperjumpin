@@ -48,42 +48,41 @@ func (s *PostgresStore) Season(_ context.Context, _ string) (game.SeasonSnapshot
 	return game.SeasonSnapshot{}, nil
 }
 
-func (s *PostgresStore) SubmitAcceptedJudgment(ctx context.Context, input game.JudgmentInput) (game.Judgment, bool, error) {
+func (s *PostgresStore) SubmitAcceptedJudgment(ctx context.Context, input game.JudgmentInput) (game.Judgment, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return game.Judgment{}, false, err
+		return game.Judgment{}, err
 	}
 	defer tx.Rollback()
 
 	qtx := s.queries.WithTx(tx)
-	judgment, created, err := s.upsertJudgmentWithTx(ctx, qtx, input)
-	if err != nil {
-		return game.Judgment{}, false, err
-	}
 
-	if created && input.GuestSessionID != "" {
+	if input.GuestSessionID != "" {
 		if err := s.incrementGuestJudgmentCountIfAllowed(ctx, tx, input.GuestSessionID); err != nil {
-			return game.Judgment{}, false, err
+			return game.Judgment{}, err
 		}
 	}
 
-	if created {
-		if err := qtx.AdvanceJumpToJudged(ctx, input.JumpID); err != nil {
-			return game.Judgment{}, false, err
-		}
+	judgment, err := s.insertJudgmentWithTx(ctx, qtx, input)
+	if err != nil {
+		return game.Judgment{}, err
+	}
+
+	if err := qtx.AdvanceJumpToJudged(ctx, input.JumpID); err != nil {
+		return game.Judgment{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return game.Judgment{}, false, err
+		return game.Judgment{}, err
 	}
 
-	return judgment, created, nil
+	return judgment, nil
 }
 
-func (s *PostgresStore) upsertJudgmentWithTx(ctx context.Context, qtx *db.Queries, input game.JudgmentInput) (game.Judgment, bool, error) {
+func (s *PostgresStore) insertJudgmentWithTx(ctx context.Context, qtx *db.Queries, input game.JudgmentInput) (game.Judgment, error) {
 	if input.JudgePlayerID != "" {
 		judgmentID := stableID("judgment", input.JumpID+":"+input.JudgePlayerID)
-		created, err := qtx.UpsertPlayerJudgment(ctx, db.UpsertPlayerJudgmentParams{
+		err := qtx.InsertPlayerJudgment(ctx, db.InsertPlayerJudgmentParams{
 			ID:            judgmentID,
 			JumpID:        input.JumpID,
 			PlayerID:      sql.NullString{String: input.JudgePlayerID, Valid: true},
@@ -93,8 +92,11 @@ func (s *PostgresStore) upsertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 			Creativity:    int32(input.Creativity),
 			Presentation:  int32(input.Presentation),
 		})
+		if isUniqueViolation(err) {
+			return game.Judgment{}, game.ErrAlreadyJudged
+		}
 		if err != nil {
-			return game.Judgment{}, false, err
+			return game.Judgment{}, err
 		}
 		return game.Judgment{
 			ID:            judgmentID,
@@ -105,11 +107,11 @@ func (s *PostgresStore) upsertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 			Transgression: input.Transgression,
 			Creativity:    input.Creativity,
 			Presentation:  input.Presentation,
-		}, created, nil
+		}, nil
 	}
 
 	judgmentID := stableID("judgment", input.JumpID+":guest:"+input.GuestSessionID)
-	created, err := qtx.UpsertGuestJudgment(ctx, db.UpsertGuestJudgmentParams{
+	err := qtx.InsertGuestJudgment(ctx, db.InsertGuestJudgmentParams{
 		ID:             judgmentID,
 		JumpID:         input.JumpID,
 		GuestSessionID: sql.NullString{String: input.GuestSessionID, Valid: true},
@@ -119,8 +121,11 @@ func (s *PostgresStore) upsertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 		Creativity:     int32(input.Creativity),
 		Presentation:   int32(input.Presentation),
 	})
+	if isUniqueViolation(err) {
+		return game.Judgment{}, game.ErrAlreadyJudged
+	}
 	if err != nil {
-		return game.Judgment{}, false, err
+		return game.Judgment{}, err
 	}
 	return game.Judgment{
 		ID:             judgmentID,
@@ -131,7 +136,7 @@ func (s *PostgresStore) upsertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 		Transgression:  input.Transgression,
 		Creativity:     input.Creativity,
 		Presentation:   input.Presentation,
-	}, created, nil
+	}, nil
 }
 
 func (s *PostgresStore) incrementGuestJudgmentCountIfAllowed(ctx context.Context, tx *sql.Tx, guestSessionID string) error {
@@ -149,63 +154,6 @@ func (s *PostgresStore) incrementGuestJudgmentCountIfAllowed(ctx context.Context
 		return err
 	}
 	return nil
-}
-
-func (s *PostgresStore) UpsertJudgment(ctx context.Context, jumpID, playerID, guestSessionID, provenance string, commitment, transgression, creativity, presentation int) (game.Judgment, bool, error) {
-	var judgmentID, identityKey string
-	if playerID != "" {
-		judgmentID = stableID("judgment", jumpID+":"+playerID)
-		identityKey = playerID
-		created, err := s.queries.UpsertPlayerJudgment(ctx, db.UpsertPlayerJudgmentParams{
-			ID:            judgmentID,
-			JumpID:        jumpID,
-			PlayerID:      sql.NullString{String: playerID, Valid: true},
-			Provenance:    provenance,
-			Commitment:    int32(commitment),
-			Transgression: int32(transgression),
-			Creativity:    int32(creativity),
-			Presentation:  int32(presentation),
-		})
-		if err != nil {
-			return game.Judgment{}, false, err
-		}
-		return game.Judgment{
-			ID:            judgmentID,
-			JumpID:        jumpID,
-			PlayerID:      identityKey,
-			Provenance:    provenance,
-			Commitment:    commitment,
-			Transgression: transgression,
-			Creativity:    creativity,
-			Presentation:  presentation,
-		}, created, nil
-	}
-
-	judgmentID = stableID("judgment", jumpID+":guest:"+guestSessionID)
-	identityKey = guestSessionID
-	created, err := s.queries.UpsertGuestJudgment(ctx, db.UpsertGuestJudgmentParams{
-		ID:             judgmentID,
-		JumpID:         jumpID,
-		GuestSessionID: sql.NullString{String: guestSessionID, Valid: true},
-		Provenance:     provenance,
-		Commitment:     int32(commitment),
-		Transgression:  int32(transgression),
-		Creativity:     int32(creativity),
-		Presentation:   int32(presentation),
-	})
-	if err != nil {
-		return game.Judgment{}, false, err
-	}
-	return game.Judgment{
-		ID:             judgmentID,
-		JumpID:         jumpID,
-		GuestSessionID: identityKey,
-		Provenance:     provenance,
-		Commitment:     commitment,
-		Transgression:  transgression,
-		Creativity:     creativity,
-		Presentation:   presentation,
-	}, created, nil
 }
 
 func (s *PostgresStore) AdvanceJumpToJudged(ctx context.Context, jumpID string) error {
@@ -236,6 +184,16 @@ func (s *PostgresStore) CreateGuestSession(ctx context.Context, id string) error
 func (s *PostgresStore) HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error) {
 	var exists bool
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM judgments WHERE jump_id = $1 AND player_id = $2)`, jumpID, playerID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// HasGuestJudgedJump returns true if the guest session has already submitted a Judgment for this Jump.
+func (s *PostgresStore) HasGuestJudgedJump(ctx context.Context, jumpID, guestSessionID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM judgments WHERE jump_id = $1 AND guest_session_id = $2)`, jumpID, guestSessionID).Scan(&exists)
 	if err != nil {
 		return false, err
 	}

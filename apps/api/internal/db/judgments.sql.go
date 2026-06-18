@@ -23,6 +23,46 @@ func (q *Queries) CreateGuestSession(ctx context.Context, id string) (GuestSessi
 	return i, err
 }
 
+const getGuestJudgment = `-- name: GetGuestJudgment :one
+SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
+FROM judgments
+WHERE jump_id = $1 AND guest_session_id = $2
+`
+
+type GetGuestJudgmentParams struct {
+	JumpID         string
+	GuestSessionID sql.NullString
+}
+
+type GetGuestJudgmentRow struct {
+	ID             string
+	JumpID         string
+	PlayerID       sql.NullString
+	GuestSessionID sql.NullString
+	Provenance     string
+	Commitment     int32
+	Transgression  int32
+	Creativity     int32
+	Presentation   int32
+}
+
+func (q *Queries) GetGuestJudgment(ctx context.Context, arg GetGuestJudgmentParams) (GetGuestJudgmentRow, error) {
+	row := q.db.QueryRowContext(ctx, getGuestJudgment, arg.JumpID, arg.GuestSessionID)
+	var i GetGuestJudgmentRow
+	err := row.Scan(
+		&i.ID,
+		&i.JumpID,
+		&i.PlayerID,
+		&i.GuestSessionID,
+		&i.Provenance,
+		&i.Commitment,
+		&i.Transgression,
+		&i.Creativity,
+		&i.Presentation,
+	)
+	return i, err
+}
+
 const getGuestSession = `-- name: GetGuestSession :one
 SELECT id, judgment_count, created_at
 FROM guest_sessions
@@ -100,6 +140,66 @@ func (q *Queries) IncrementGuestSessionJudgmentCount(ctx context.Context, id str
 	return err
 }
 
+const insertGuestJudgment = `-- name: InsertGuestJudgment :exec
+INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
+VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8)
+`
+
+type InsertGuestJudgmentParams struct {
+	ID             string
+	JumpID         string
+	GuestSessionID sql.NullString
+	Provenance     string
+	Commitment     int32
+	Transgression  int32
+	Creativity     int32
+	Presentation   int32
+}
+
+func (q *Queries) InsertGuestJudgment(ctx context.Context, arg InsertGuestJudgmentParams) error {
+	_, err := q.db.ExecContext(ctx, insertGuestJudgment,
+		arg.ID,
+		arg.JumpID,
+		arg.GuestSessionID,
+		arg.Provenance,
+		arg.Commitment,
+		arg.Transgression,
+		arg.Creativity,
+		arg.Presentation,
+	)
+	return err
+}
+
+const insertPlayerJudgment = `-- name: InsertPlayerJudgment :exec
+INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
+VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8)
+`
+
+type InsertPlayerJudgmentParams struct {
+	ID            string
+	JumpID        string
+	PlayerID      sql.NullString
+	Provenance    string
+	Commitment    int32
+	Transgression int32
+	Creativity    int32
+	Presentation  int32
+}
+
+func (q *Queries) InsertPlayerJudgment(ctx context.Context, arg InsertPlayerJudgmentParams) error {
+	_, err := q.db.ExecContext(ctx, insertPlayerJudgment,
+		arg.ID,
+		arg.JumpID,
+		arg.PlayerID,
+		arg.Provenance,
+		arg.Commitment,
+		arg.Transgression,
+		arg.Creativity,
+		arg.Presentation,
+	)
+	return err
+}
+
 const listJudgmentsForJump = `-- name: ListJudgmentsForJump :many
 SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
 FROM judgments
@@ -149,86 +249,4 @@ func (q *Queries) ListJudgmentsForJump(ctx context.Context, jumpID string) ([]Li
 		return nil, err
 	}
 	return items, nil
-}
-
-const upsertGuestJudgment = `-- name: UpsertGuestJudgment :one
-WITH upsert AS (
-  INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
-  VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8)
-  ON CONFLICT (jump_id, guest_session_id) WHERE guest_session_id IS NOT NULL DO UPDATE SET
-    commitment = EXCLUDED.commitment,
-    transgression = EXCLUDED.transgression,
-    creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation
-  RETURNING (xmax = 0) AS created
-)
-SELECT created FROM upsert
-`
-
-type UpsertGuestJudgmentParams struct {
-	ID             string
-	JumpID         string
-	GuestSessionID sql.NullString
-	Provenance     string
-	Commitment     int32
-	Transgression  int32
-	Creativity     int32
-	Presentation   int32
-}
-
-func (q *Queries) UpsertGuestJudgment(ctx context.Context, arg UpsertGuestJudgmentParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, upsertGuestJudgment,
-		arg.ID,
-		arg.JumpID,
-		arg.GuestSessionID,
-		arg.Provenance,
-		arg.Commitment,
-		arg.Transgression,
-		arg.Creativity,
-		arg.Presentation,
-	)
-	var created bool
-	err := row.Scan(&created)
-	return created, err
-}
-
-const upsertPlayerJudgment = `-- name: UpsertPlayerJudgment :one
-WITH upsert AS (
-  INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
-  VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8)
-  ON CONFLICT (jump_id, player_id) WHERE player_id IS NOT NULL DO UPDATE SET
-    commitment = EXCLUDED.commitment,
-    transgression = EXCLUDED.transgression,
-    creativity = EXCLUDED.creativity,
-    presentation = EXCLUDED.presentation
-  RETURNING (xmax = 0) AS created
-)
-SELECT created FROM upsert
-`
-
-type UpsertPlayerJudgmentParams struct {
-	ID            string
-	JumpID        string
-	PlayerID      sql.NullString
-	Provenance    string
-	Commitment    int32
-	Transgression int32
-	Creativity    int32
-	Presentation  int32
-}
-
-func (q *Queries) UpsertPlayerJudgment(ctx context.Context, arg UpsertPlayerJudgmentParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, upsertPlayerJudgment,
-		arg.ID,
-		arg.JumpID,
-		arg.PlayerID,
-		arg.Provenance,
-		arg.Commitment,
-		arg.Transgression,
-		arg.Creativity,
-		arg.Presentation,
-	)
-	var created bool
-	err := row.Scan(&created)
-	return created, err
 }

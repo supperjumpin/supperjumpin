@@ -13,6 +13,7 @@ var (
 	ErrForbidden               = errors.New("Judge must be a different Player than the performer")
 	ErrAuthorGracePeriodActive = errors.New("Author Grace Period is still active")
 	ErrGuestCapReached         = errors.New("Guest Judgment cap reached")
+	ErrAlreadyJudged           = errors.New("Judge has already submitted a Judgment for this Jump")
 	ErrInvalidJudgeIdentity    = errors.New("Judgment must have exactly one judge identity: player or guest session")
 )
 
@@ -60,11 +61,19 @@ type JudgmentRepository interface {
 	// Season returns the Season for the given ID.
 	Season(ctx context.Context, seasonID string) (SeasonSnapshot, error)
 	// SubmitAcceptedJudgment atomically persists an accepted judgment.
-	SubmitAcceptedJudgment(ctx context.Context, input JudgmentInput) (Judgment, bool, error)
+	SubmitAcceptedJudgment(ctx context.Context, input JudgmentInput) (Judgment, error)
 	// HasJudgedJump returns true if the player has already submitted a Judgment for this Jump.
 	HasJudgedJump(ctx context.Context, jumpID, playerID string) (bool, error)
 	// HasJudgedJumps returns a map of jumpID → true only for jumps the player has judged.
 	HasJudgedJumps(ctx context.Context, playerID string, jumpIDs []string) (map[string]bool, error)
+	// HasGuestJudgedJump returns true if the guest session has already submitted a Judgment for this Jump.
+	HasGuestJudgedJump(ctx context.Context, jumpID, guestSessionID string) (bool, error)
+	// GuestSessionJudgmentCount returns the number of Judgments already filed by a guest session.
+	GuestSessionJudgmentCount(ctx context.Context, guestSessionID string) (int, error)
+	// IncrementGuestSessionJudgmentCount increments a guest session's judgment cap count.
+	IncrementGuestSessionJudgmentCount(ctx context.Context, guestSessionID string) error
+	// CreateGuestSession creates a new guest session with the given ID.
+	CreateGuestSession(ctx context.Context, id string) error
 }
 
 // JudgmentInput bundles the parameters for a judgment submission.
@@ -87,82 +96,107 @@ type JudgmentResult struct {
 	Err      error
 }
 
-// SubmitJudgment evaluates judgment rules.
+// SubmitJudgment evaluates judgment rules and, if allowed, persists an immutable
+// first-time Judgment for the given Jump.
 //
-// Submitting a Judgment requires:
-//   - Valid scores (1–4 forced-choice)
-//   - The Jump exists and is in "Performed Jump" status
-//   - The Author Grace Period has expired
-//   - The Judge is not the performer
-//   - The judging window is open (for season-linked Jumps)
+// The function evaluates guards in deterministic PRD order:
+//   1. Exactly one judge identity
+//   2. Jump exists
+//   3. Jump is in an open performed/judged status
+//   4. Self-judging (player is the performer)
+//   5. Author Grace Period expired
+//   6. Judge has not already submitted a Judgment for this Jump
+//   7. Guest cap not reached
+//   8. Scores are valid (1–4)
+//   9. Season judging window is open (for season-linked Jumps)
 //
-// On the first valid Judgment, the Jump transitions to "Judged Jump".
-//
-// It returns a result with:
-//   - Allowed = true and Created = true on first-time valid judgment with transition
-//   - Allowed = true and Created = false on edit of an existing judgment
-//   - Allowed = false on self-judging (returns nil judgment, caller maps to 403)
-//   - Err set for invalid input, jump not found, grace period active, or closed judging window
-func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input JudgmentInput, now time.Time) JudgmentResult {
+// On success the Jump is advanced to "Judged Jump" as part of the same atomic
+// persistence operation. Judgments are immutable; a duplicate submission returns
+// ErrAlreadyJudged.
+func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input JudgmentInput, now time.Time) (Judgment, error) {
 	// 1. Exactly one judge identity must be provided.
 	playerSet := input.JudgePlayerID != ""
 	if playerSet == (input.GuestSessionID != "") { // both or neither
-		return JudgmentResult{Err: ErrInvalidJudgeIdentity}
+		return Judgment{}, ErrInvalidJudgeIdentity
 	}
 
-	// 2. Validate scores
-	if !validScore(input.Commitment) || !validScore(input.Transgression) || !validScore(input.Creativity) || !validScore(input.Presentation) {
-		return JudgmentResult{Err: ErrInvalidJudgmentScore}
-	}
-
-	// 3. Look up the jump
+	// 2. Look up the jump.
 	jump, ok, err := repo.Jump(ctx, input.JumpID)
 	if err != nil {
-		return JudgmentResult{Err: err}
+		return Judgment{}, err
 	}
 	if !ok {
-		return JudgmentResult{Err: ErrJumpNotFound}
+		return Judgment{}, ErrJumpNotFound
 	}
 
-	// 4. Jump must be in "Performed Jump" or "Judged Jump" status to accept judgments.
-	//    "Performed Jump" is the initial state; after the first judgment it becomes "Judged Jump".
-	//    "Unjudged Jump" and "Disqualified Jump" are terminal states — window is closed.
+	// 3. Jump must be in "Performed Jump" or "Judged Jump" status to accept judgments.
 	if jump.Status != "Performed Jump" && jump.Status != "Judged Jump" {
-		return JudgmentResult{Err: ErrJudgingWindowClosed}
+		return Judgment{}, ErrJudgingWindowClosed
+	}
+
+	// 4. Judge must not be the performer. Group membership is NOT required.
+	if playerSet && jump.PlayerID == input.JudgePlayerID {
+		return Judgment{}, ErrForbidden
 	}
 
 	// 5. Author Grace Period must have expired.
 	if !now.After(jump.GracePeriodExpiresAt) {
-		return JudgmentResult{Err: ErrAuthorGracePeriodActive}
+		return Judgment{}, ErrAuthorGracePeriodActive
 	}
 
-	// 6. Judge must not be the performer. Group membership is NOT required.
-	if playerSet && jump.PlayerID == input.JudgePlayerID {
-		return JudgmentResult{Allowed: false}
+	// 6. Judge must not have already submitted a Judgment for this Jump.
+	if playerSet {
+		already, err := repo.HasJudgedJump(ctx, input.JumpID, input.JudgePlayerID)
+		if err != nil {
+			return Judgment{}, err
+		}
+		if already {
+			return Judgment{}, ErrAlreadyJudged
+		}
+	} else {
+		already, err := repo.HasGuestJudgedJump(ctx, input.JumpID, input.GuestSessionID)
+		if err != nil {
+			return Judgment{}, err
+		}
+		if already {
+			return Judgment{}, ErrAlreadyJudged
+		}
 	}
 
-	// 7. Check judging window for season-linked jumps
+	// 7. Guest cap must not be reached.
+	if input.GuestSessionID != "" {
+		count, err := repo.GuestSessionJudgmentCount(ctx, input.GuestSessionID)
+		if err != nil {
+			return Judgment{}, err
+		}
+		if count >= 5 {
+			return Judgment{}, ErrGuestCapReached
+		}
+	}
+
+	// 8. Validate scores.
+	if !validScore(input.Commitment) || !validScore(input.Transgression) || !validScore(input.Creativity) || !validScore(input.Presentation) {
+		return Judgment{}, ErrInvalidJudgmentScore
+	}
+
+	// 9. Check judging window for season-linked jumps.
 	if jump.SeasonID != nil {
 		season, err := repo.Season(ctx, *jump.SeasonID)
 		if err != nil {
-			return JudgmentResult{Err: err}
+			return Judgment{}, err
 		}
 		if !isOpenSeasonStatus(season.Status) {
-			return JudgmentResult{Err: ErrJudgingWindowClosed}
+			return Judgment{}, ErrJudgingWindowClosed
 		}
 	}
 
-	// 8. Persist the accepted judgment atomically.
-	judgment, created, err := repo.SubmitAcceptedJudgment(ctx, input)
+	// 10. Persist the accepted judgment atomically.
+	judgment, err := repo.SubmitAcceptedJudgment(ctx, input)
 	if err != nil {
-		return JudgmentResult{Err: err}
+		return Judgment{}, err
 	}
 
-	return JudgmentResult{
-		Judgment: judgment,
-		Allowed:  true,
-		Created:  created,
-	}
+	return judgment, nil
 }
 
 func validScore(score int) bool {

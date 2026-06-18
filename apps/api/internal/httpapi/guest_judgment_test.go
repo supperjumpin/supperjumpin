@@ -85,7 +85,7 @@ func testGuestCanJudgePerformedJump(t *testing.T) {
 	}
 }
 
-func testGuestEditDoesNotIncrementCap(t *testing.T) {
+func testGuestDuplicateJudgmentRejected(t *testing.T) {
 	server, store := newTestServerAndStore(t)
 
 	sessionRec := doJSON(server, http.MethodPost, "/v1/guest-sessions", "", nil)
@@ -118,23 +118,24 @@ func testGuestEditDoesNotIncrementCap(t *testing.T) {
 		t.Fatalf("expected guest cap count 1 after first submission, got %d", countAfterFirst)
 	}
 
-	edit := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
+	// Duplicate judgment must be rejected as immutable.
+	duplicate := doJSONUnauthenticated(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", map[string]any{
 		"guestSessionId": guestSessionID,
 		"commitment":     4,
 		"transgression":  4,
 		"creativity":     4,
 		"presentation":   4,
 	})
-	if edit.Code != http.StatusOK {
-		t.Fatalf("expected status 200 for edit, got %d: %s", edit.Code, edit.Body.String())
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("expected status 409 for duplicate guest judgment, got %d: %s", duplicate.Code, duplicate.Body.String())
 	}
 
-	countAfterEdit, err := store.GuestSessionJudgmentCount(context.Background(), guestSessionID)
+	countAfterDuplicate, err := store.GuestSessionJudgmentCount(context.Background(), guestSessionID)
 	if err != nil {
-		t.Fatalf("count guest judgments after edit: %v", err)
+		t.Fatalf("count guest judgments after duplicate: %v", err)
 	}
-	if countAfterEdit != 1 {
-		t.Fatalf("expected guest cap count to stay 1 after edit, got %d", countAfterEdit)
+	if countAfterDuplicate != 1 {
+		t.Fatalf("expected guest cap count to stay 1 after duplicate rejection, got %d", countAfterDuplicate)
 	}
 }
 
@@ -295,6 +296,28 @@ func testAuthenticatedPlayerJudgmentStillWorks(t *testing.T) {
 	}
 }
 
+func testAuthenticatedPlayerDuplicateJudgmentRejected(t *testing.T) {
+	server, store := newTestServerAndStore(t)
+
+	performed := performJump(t, server, "alice-token")
+	store.SetClock(func() time.Time { return time.Now().Add(11 * time.Minute) })
+
+	first := submitJudgment(t, server, "bob-token", performed.ID, 2, 3, 3, 4, http.StatusCreated)
+	if first.JumpID != performed.ID {
+		t.Fatalf("expected first judgment for jump %s, got %s", performed.ID, first.JumpID)
+	}
+
+	duplicate := doJSON(server, http.MethodPost, "/v1/jumps/"+performed.ID+"/judgment", "bob-token", map[string]any{
+		"commitment":    4,
+		"transgression": 4,
+		"creativity":    4,
+		"presentation":  4,
+	})
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("expected status 409 for duplicate player judgment, got %d: %s", duplicate.Code, duplicate.Body.String())
+	}
+}
+
 func testCannotProvideBothAuthAndGuestSession(t *testing.T) {
 	server := newTestServer(t)
 
@@ -335,13 +358,14 @@ func TestGuestJudgment(t *testing.T) {
 
 	t.Run("guest judgments", func(t *testing.T) {
 		t.Run("guest can judge performed jump", testGuestCanJudgePerformedJump)
-		t.Run("guest edit does not increment cap", testGuestEditDoesNotIncrementCap)
+		t.Run("guest duplicate judgment rejected", testGuestDuplicateJudgmentRejected)
 		t.Run("guest concurrent judgments at cap boundary", testGuestConcurrentJudgmentsAtCapBoundary)
 		t.Run("guest cap blocks additional judgments", testGuestCapBlocksAdditionalJudgments)
 	})
 
 	t.Run("authenticated judgment", func(t *testing.T) {
 		t.Run("authenticated player judgment still works", testAuthenticatedPlayerJudgmentStillWorks)
+		t.Run("authenticated player duplicate rejected", testAuthenticatedPlayerDuplicateJudgmentRejected)
 	})
 
 	t.Run("request validation", func(t *testing.T) {

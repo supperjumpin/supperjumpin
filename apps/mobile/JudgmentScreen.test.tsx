@@ -221,6 +221,6 @@ test('renders a clear error state when submission fails', async () => {
   });
 
   await waitFor(() => {
-    expect(getByText(/submitJudgment failed with status 403/)).toBeTruthy();
+    expect(getByText(/Guest Judgment cap reached/)).toBeTruthy();
   });
 });

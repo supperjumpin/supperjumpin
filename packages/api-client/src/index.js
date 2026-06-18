@@ -48,6 +48,7 @@ export async function createJump({
 export async function submitJudgment({
   baseUrl,
   accessToken,
+  guestSessionId,
   jumpId,
   commitment,
   transgression,
@@ -55,14 +56,25 @@ export async function submitJudgment({
   presentation,
   fetchImpl = fetch,
 }) {
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const response = await fetchImpl(`${baseUrl}/v1/jumps/${jumpId}/judgment`, {
     method: "POST",
-    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
-    body: JSON.stringify({ commitment, transgression, creativity, presentation }),
+    headers,
+    body: JSON.stringify({
+      guestSessionId,
+      commitment,
+      transgression,
+      creativity,
+      presentation,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`submitJudgment failed with status ${response.status}`);
+    throw new Error(await errorMessage(response, `submitJudgment failed with status ${response.status}`));
   }
 
   return response.json();
