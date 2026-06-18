@@ -79,6 +79,24 @@ Layout direction:
 - Jump title, player, source, destination, food, caption, score, and state live in high-contrast panels or chips.
 - The photo supplies the chaos; the UI supplies the order.
 
+### Chosen execution: Marquee
+
+A fidelity prototype (`apps/mobile/prototype-brand-185/calls.html`) explored three
+compositions of the food-as-hero ↔ readability tension. The decided execution is
+**Marquee**:
+
+- Full-bleed cinematic food photo across the top (food-as-centerpiece, the D energy).
+- An **opaque** `tray-white` order-board deck crops up into the lower portion with a
+  crisp `taco-purple` top lip and a "The Order" notch tab — the crop line is the
+  structural event, not a gradient fade.
+- All functional text (title, route, chips, score window, CTA) lives on the opaque
+  deck; nothing functional sits on the photo.
+- Call-status pill is stateful: open = `baja-teal` + pulsing dot; closed = muted, no dot.
+
+The **Make the Call** screen uses the same Marquee treatment (full-bleed hero of the
+bit + scoring deck) so detail and judging read as one direction. The Cabinet
+(photo-behind-bezel) and Combo (overhead-menu) compositions were explored and dropped.
+
 ## Make the Call Flow
 
 The judging interaction is the retention loop and should feel immaculate.
@@ -145,6 +163,30 @@ Suggested roles:
 - `nacho-yellow` and `hot-pink`: celebration accents, not large reading surfaces
 - `cup-blue` and `lettuce-green`: secondary accents or status support
 
+### Verified text-contrast pairings (non-negotiable)
+
+Measured WCAG AA ratios against the two text colors. **These are hard rules, not
+suggestions** — the prototype work proved several "obvious" pairings fail.
+
+| Surface | vs `deep-ink` | vs white | Use for text |
+|---|---|---|---|
+| `tray-white` #FFF7E8 | **15.8:1** ✓ | 1.1 ✗ | All body text → `deep-ink` |
+| `taco-purple` #5B2A86 | 1.7 ✗ | **9.9:1** ✓ | White labels only |
+| `pizza-red` #E13A2D | 3.9 (large only) | **4.3:1** | Primary CTA: white, **large + bold only** (≥18.66px/700) |
+| `baja-teal` #00A6A6 | **5.6:1** ✓ | 3.0 ✗ | `deep-ink` only — **never white on teal** |
+| `cup-blue` #2D9CDB | **5.5:1** ✓ | 3.1 ✗ | `deep-ink` only |
+| `lettuce-green` #7AC943 | **8.2:1** ✓ | 2.1 ✗ | `deep-ink` only |
+| `nacho-yellow` #FFC928 | **10.9:1** ✓ | 1.5 ✗ | `deep-ink` only |
+| `hot-pink` #F15BB5 | **5.5:1** ✓ | 3.0 ✗ | `deep-ink` only |
+
+Rule of thumb: **all functional text is `deep-ink` on `tray-white`, or white on
+`taco-purple`/`pizza-red`.** Teal / blue / green / yellow / pink are status and
+structure — they never carry small white reading text.
+
+The brief's "`pizza-red` or `baja-teal` = primary action" still holds, but the label
+color is fixed by contrast: a teal action carries `deep-ink` text; a white-text action
+must be `pizza-red` (and large + bold).
+
 ## Typography
 
 Use a two-tier type system:
@@ -159,6 +201,25 @@ Recommended starting point from #185:
 - Scores/meta: IBM Plex Mono
 
 Rule: if the user must act on it, use the UI font.
+
+### Type scale (390px mobile)
+
+Starting scale from the prototype. Sizes in px, line-height as px or unitless.
+
+| Role | Font | Size / line | Weight | Tracking | Use |
+|---|---|---|---|---|---|
+| Display XL | Bungee | 30 / 34 | 400 | +0.5 | Jump title in result panels, brand moments |
+| Display L | Bungee | 22 / 26 | 400 | +0.5 | Section / order-board headers |
+| Score | IBM Plex Mono | 40 / 40 | 700 | −1 | Number inside a score window |
+| Score label | IBM Plex Mono | 12 / 16 | 600 | +1.5 (caps) | "FINAL SCORE", "CALLS IN" |
+| Title UI | Nunito Sans | 20 / 26 | 800 | 0 | Jump title in dense rows |
+| Body | Nunito Sans | 16 / 24 | 400–600 | 0 | Caption, instructions |
+| **CTA label** | **Nunito Sans** | **17 / 20** | **800** | +0.5 | **Button text — UI font, never Bungee** |
+| Chip / meta | Nunito Sans | 13 / 16 | 700 | +0.3 | Metadata chips, source/destination |
+| Micro / caps | Nunito Sans | 11 / 14 | 700 | +1 (caps) | Status-light labels, eyebrows |
+
+Bungee frames the button and the score window; the **acted-on label is always Nunito
+Sans**. A CTA the user taps is UI font even when it sits inside a display-type moment.
 
 ## Motif Whitelist
 

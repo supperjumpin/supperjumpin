@@ -108,6 +108,98 @@ This web prototype can sell effects that are real work in the Expo RN screen. Bu
 Net: A is adoptable, but ~the perforation SVG + the reanimated judging sequence + the
 font bundling are the three line items that need real engineering, not a CSS port.
 
+---
+
+# Follow-up: `calls.html` — execution study (after the verdict)
+
+`index.html` answered "which direction?" — Food Court Arcade won and is now written
+into `docs/design/06-brand-design-language.md`. **`calls.html` asks the next question:**
+
+> Within Food Court Arcade, which **execution** of the two loudest surfaces —
+> **Jump Detail** + **Make the Call** — best resolves the food-as-hero ↔ readability
+> tension, and does the Make the Call move feel immaculate?
+
+**Run:** same server → http://localhost:8185/calls.html
+
+## ✅ Verdict: Marquee wins
+
+Ben picked **Marquee** (full-bleed hero + opaque order-board deck) as the Jump Detail
+execution. Cabinet was a close #2 (the purple frame + blinking status light were
+liked); Combo was last. **Cabinet and Combo have been removed from `calls.html`** —
+only Marquee remains, and the shared **Make the Call** screen now wears the Marquee
+treatment too (full-bleed hero of the bit + deck), so the prototype shows one coherent
+end-to-end direction.
+
+Refinements applied to Marquee before the verdict:
+- Call-status pill is now recognizably stateful: **open** = teal + pulsing dot,
+  **closed** = muted gray, no dot.
+- The floating "Jump #042" badge moved off the photo into the deck route line; only the
+  LIVE tag floats on the hero.
+
+The three-way comparison below is kept for the record; the variant table reflects what
+*was* explored, not what still ships.
+
+## What changed vs. `index.html` (and why)
+
+- **Not a re-pick.** Three variants now vary on ONE axis — *how the hero food photo
+  and the readable chrome compose* — per the doc's A↔D hybrid ("A's clarity with D's
+  food-as-centerpiece composition"). They are different compositions, not recolors.
+- **Make the Call is a first-class surface**, not a button state. The doc names it a
+  loudest surface and says the judging interaction "should feel immaculate." One shared
+  `renderMakeTheCall()` implements the move identically across variants, so the variants
+  only differ on the detail-card composition.
+- **Blacklisted motifs dropped.** `index.html`'s B (bowling), C (field report / case
+  file / "EVIDENCE PACK"), E (diner receipt) are all explicitly blacklisted now and are
+  gone. Old copy ("JUMP FILED", "JUDGE IT", "JUDGMENT FILED") is replaced with the
+  approved audience voice: **Make the Call / Lock It In / Call locked / Your call is on
+  the board / Nice. Next Jump?** — never referee/filing language.
+- **Contrast verified, baked in.** white-on-baja-teal FAILS AA (3.0:1) — teal/blue/
+  green/yellow never carry white text; all body text is deep-ink on tray-white (15.8:1)
+  or white on taco-purple (9.9:1)/pizza-red (4.33:1, large+bold only).
+
+## The three variants
+
+| Key | Name | Composition identity | Tests |
+|-----|------|----------------------|-------|
+| **cabinet** | Photo behind glass | Photo = the screen *inside* a chunky taco-purple bezel; chrome on bezel + control deck | Does framing cost too much hero scale? |
+| **marquee** | Full-bleed hero + deck | Cinematic full-bleed photo, opaque order-board deck crops into lower third | Does the crop-line read as intentional structure? |
+| **combo** | Overhead combo board | Hero photo block + structured menu rows (Food/From/To/Caller) | Does menu structure beat prose for at-a-glance scan? |
+
+Switch: bottom bar, `←`/`→`, or `?variant=cabinet|marquee|combo`.
+State bar adds a **Jump Detail / Make the Call** toggle plus the same viewer states
+(can-call / grace / called / own-jump) + disputes/final. Deep-link:
+`?variant=marquee&screen=call&state=open`
+
+## The Make the Call move (consultant-sourced; see brand doc §"Make the Call")
+
+- **Pip tap:** chunky 1–4 button, 130ms overshoot pop, fills left-to-right, lights by
+  factor color; a **4** pops a one-line hype caption ("no notes", "a true menace") — a
+  friend hyping, not a rubric.
+- **Lock It In:** real arcade-button throw (press translates down, hard offset shadow
+  collapses); CTA relabels Make the Call → Lock It In once all four are set.
+- **Completion:** prize-ticket slides up stamped "CALL LOCKED" + total, contained
+  confetti burst, score window count-up (≤240ms). "Nice. Next Jump?" is tappable
+  immediately — celebration never blocks the task. `prefers-reduced-motion` honored.
+
+## RN-honesty (Mobile App Builder consult)
+
+The mock deliberately stays inside what RN 0.81 / Expo 54 can ship:
+- **Hard offset shadows** (cabinet frame, button throw) → in RN, fake with a duplicate
+  offset `<View>`; do NOT rely on `elevation`/`shadowOffset` (no Android parity).
+- **Prize-ticket notches** are faked with solid tray-white circles **on solid bg only**
+  (never over the photo) — true edge cutouts need `react-native-svg`.
+- **No skew** anywhere (Android-unreliable) — rotation only, on decorative elements.
+- **Tap targets** ≥48dp; factor pips are 54px tall; CTA pinned low for one-thumb reach.
+
+## Cleanup (calls.html)
+
+Same disposition as `index.html` — when the execution verdict folds into RN theme
+tokens + the real `JumpDetailScreen.tsx`, delete the folder. The Make the Call move and
+the winning composition are the two things worth porting properly (reanimated + the
+fake-shadow wrapper + font bundling are the real engineering line items).
+
+---
+
 ## Cleanup
 
 When the verdict is captured into a brand doc / theme tokens, **delete this whole
