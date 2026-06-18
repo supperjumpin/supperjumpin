@@ -33,6 +33,7 @@ interface JumpDetailScreenProps {
   onBack: () => void;
   onBrowseFeed: () => void;
   session?: { access_token: string; user: { id: string } } | null;
+  onSignIn?: () => void;
 }
 
 export default function JumpDetailScreen({
@@ -40,6 +41,7 @@ export default function JumpDetailScreen({
   onBack,
   onBrowseFeed,
   session,
+  onSignIn,
 }: JumpDetailScreenProps) {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -265,6 +267,7 @@ export default function JumpDetailScreen({
               guestSessionId={guestSessionId ?? undefined}
               onSubmitted={handleJudgmentSubmitted}
               onCancel={() => setShowJudgment(false)}
+              onSignIn={onSignIn}
             />
           </View>
         )}

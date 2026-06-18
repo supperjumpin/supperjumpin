@@ -34,6 +34,7 @@ type ServerConfig struct {
 	CaptionEdit  CaptionEditFlow
 	JumpRetract  JumpRetractFlow
 	Logger       *slog.Logger
+	GuestCap     int
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -276,6 +277,7 @@ func NewServer(config ServerConfig) http.Handler {
 			*request.Creativity,
 			*request.Presentation,
 			config.Now(),
+			config.GuestCap,
 		)
 		if errors.Is(err, ErrJumpNotFound) {
 			recordHTTPError(r, http.StatusNotFound, "not_found", nil)

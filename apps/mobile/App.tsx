@@ -113,6 +113,7 @@ export default function App() {
             onBack={handleBack}
             onBrowseFeed={handleBack}
             session={session}
+            onSignIn={handleRequestAuth}
           />
         );
       })()}

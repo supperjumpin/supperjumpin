@@ -130,7 +130,11 @@ func createPerformedJump(ctx context.Context, db JumpPlanningFlow, player Player
 	return jumpFromGame(result.Jump), nil
 }
 
-func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int, now time.Time) (Judgment, bool, error) {
+func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSessionID, provenance, jumpID string, commitment int, transgression int, creativity int, presentation int, now time.Time, guestCap int) (Judgment, bool, error) {
+	var opts []game.SubmitJudgmentOption
+	if guestCap > 0 {
+		opts = append(opts, game.WithGuestCap(guestCap))
+	}
 	judgment, err := game.SubmitJudgment(ctx, db, game.JudgmentInput{
 		JumpID:         jumpID,
 		JudgePlayerID:  playerID,
@@ -140,7 +144,7 @@ func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSession
 		Transgression:  transgression,
 		Creativity:     creativity,
 		Presentation:   presentation,
-	}, now)
+	}, now, opts...)
 	if err != nil {
 		return Judgment{}, false, mapGameErr(err)
 	}
