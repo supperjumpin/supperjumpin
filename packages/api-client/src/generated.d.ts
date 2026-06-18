@@ -81,7 +81,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit or edit a Judge's Judgment for a Performed Jump (authenticated or Guest) */
+        /** Submit an immutable first-time Judgment for a Performed Jump (authenticated or Guest) */
         post: operations["submitJudgment"];
         delete?: never;
         options?: never;
@@ -445,15 +445,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The edited Judgment. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Judgment"];
-                };
-            };
             /** @description The created Judgment. */
             201: {
                 headers: {
@@ -463,7 +454,7 @@ export interface operations {
                     "application/json": components["schemas"]["Judgment"];
                 };
             };
-            /** @description Invalid Judgment request. */
+            /** @description Invalid Judgment request (malformed identity or out-of-range scores). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -477,7 +468,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The Judge is not eligible for this Performed Jump (self-judge, cap reached, or grace period active). */
+            /** @description The Judge is not eligible (self-judge, guest cap reached, or grace period active). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -491,7 +482,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The Judging Window is closed. */
+            /** @description The Judgment is immutable and already exists, or the Judging Window is closed. */
             409: {
                 headers: {
                     [name: string]: unknown;
