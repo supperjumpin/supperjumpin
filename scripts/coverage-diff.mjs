@@ -2,16 +2,16 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-function loadReport(dir, label) {
+export function loadReport(dir, label) {
   const path = join(dir, `${label}-report.json`);
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf-8")) : null;
 }
 
-function pct(v) {
+export function pct(v) {
   return v != null ? `${v.toFixed(1)}%` : "—";
 }
 
-function deltaIcon(d) {
+export function deltaIcon(d) {
   if (d == null) return "";
   if (d < -0.5) return " 🔻";
   if (d > 0.5) return " ✅";
@@ -25,8 +25,8 @@ function main() {
     process.exit(1);
   }
 
-  const scopes = ["go", "node"];
-  const labels = { go: "Go API", node: "api-client" };
+  const scopes = ["go", "node", "mobile"];
+  const labels = { go: "Go API", node: "api-client", mobile: "Mobile" };
   const md = ["### Coverage Report", "", "| Scope | Baseline | Current | Change |", "|---|---|---|---|"];
 
   for (const scope of scopes) {
