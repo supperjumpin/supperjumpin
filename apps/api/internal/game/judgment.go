@@ -113,7 +113,13 @@ type JudgmentResult struct {
 // On success the Jump is advanced to "Judged Jump" as part of the same atomic
 // persistence operation. Judgments are immutable; a duplicate submission returns
 // ErrAlreadyJudged.
-func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input JudgmentInput, now time.Time) (Judgment, error) {
+//
+// The default guest cap is 5. Use WithGuestCap(n) to override.
+func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input JudgmentInput, now time.Time, opts ...SubmitJudgmentOption) (Judgment, error) {
+	cfg := submitJudgmentConfig{guestCap: defaultGuestCap}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	// 1. Exactly one judge identity must be provided.
 	playerSet := input.JudgePlayerID != ""
 	if playerSet == (input.GuestSessionID != "") { // both or neither
@@ -169,7 +175,7 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 		if err != nil {
 			return Judgment{}, err
 		}
-		if count >= 5 {
+		if count >= cfg.guestCap {
 			return Judgment{}, ErrGuestCapReached
 		}
 	}
@@ -253,4 +259,24 @@ func JudgmentEligibility(jump JumpSnapshot, viewerID string, hasJudged bool, now
 
 func isOpenSeasonStatus(status string) bool {
 	return status == "Active" || status == "Judging Grace Period"
+}
+
+// defaultGuestCap is the maximum number of Judgments a Guest Judge can submit
+// before being asked to create an Account.
+const defaultGuestCap = 5
+
+// submitJudgmentConfig holds optional configuration for SubmitJudgment.
+type submitJudgmentConfig struct {
+	guestCap int
+}
+
+// SubmitJudgmentOption configures SubmitJudgment behavior.
+type SubmitJudgmentOption func(*submitJudgmentConfig)
+
+// WithGuestCap overrides the default guest judgment cap (5).
+// A value of 0 means no cap (unlimited guest judgments).
+func WithGuestCap(cap int) SubmitJudgmentOption {
+	return func(c *submitJudgmentConfig) {
+		c.guestCap = cap
+	}
 }
