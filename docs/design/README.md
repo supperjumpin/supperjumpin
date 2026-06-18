@@ -16,6 +16,7 @@ This directory holds the full design document set for the Supperjumpin redesign.
 | [Backend/Data Architecture](./03-backend-data-architecture.md) | Done | Data model changes from Group-first to public-first; API contract changes; what survives vs. gets reworked | UX flows, screen design | Product/UX Design |
 | [MVP Roadmap](./04-mvp-roadmap.md) | Done | Which features ship in MVP vs. later; ordering | Implementation details | Backend/Data Architecture |
 | [Technical Design](./05-technical-design.md) | Done | Jump lifecycle state machine; eligibility rules; scoring mechanics; test specifications; implementation sequencing | Feature scope, UX flows, data schema | MVP Roadmap, Product/UX Design, Backend/Data Architecture |
+| [Brand Design Language](./06-brand-design-language.md) | Draft | Visual language, motif guardrails, first UI-token direction | Domain-language rename, product-vision rewrite | Brand direction issue #185 |
 
 ADRs are written inline as decisions crystallize in each upstream document, not as a single terminal step.
 
