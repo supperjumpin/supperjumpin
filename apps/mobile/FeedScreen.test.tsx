@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import FeedScreen, { mediaUrl } from './FeedScreen';
+import FeedScreen from './FeedScreen';
 import { mockPublicFetch, feedResponse } from './test/mockApi';
 
 function publicJump(overrides: Record<string, unknown> = {}) {
@@ -99,7 +99,7 @@ test('renders Jump card anatomy from public Feed data', async () => {
     expect(getByText('Taco Bell → Olive Garden parking lot')).toBeTruthy();
     expect(getByText('Test caption')).toBeTruthy();
     expect(getByText('★ 3.5 (4)')).toBeTruthy();
-    expect(getByText('Judge')).toBeTruthy();
+    expect(getByText('Judge this Jump')).toBeTruthy();
   });
 });
 
@@ -176,10 +176,10 @@ test('signed-in Feed requests include bearer auth and render viewer states from 
         }),
       })
     );
-    expect(getByText('Your Jump')).toBeTruthy();
+    expect(getByText("You can't judge your own Jump")).toBeTruthy();
     expect(getByText(/Judging opens in/)).toBeTruthy();
-    expect(getByText('You judged this')).toBeTruthy();
-    expect(getByText('Judge')).toBeTruthy();
+    expect(getByText('You already judged this jump. Score submitted.')).toBeTruthy();
+    expect(getByText('Judge this Jump')).toBeTruthy();
     expect(getAllByLabelText('You performed this jump. You cannot judge your own entry.').length).toBeGreaterThan(0);
     expect(getAllByLabelText(/Judging opens in .* Not yet available\./).length).toBeGreaterThan(0);
     expect(getAllByLabelText('You already judged this jump. Score submitted.').length).toBeGreaterThan(0);
@@ -313,35 +313,6 @@ test('Feed key interactive targets meet minimum touch size', async () => {
       expect.arrayContaining([expect.objectContaining({ minHeight: 44 })])
     );
     expect(getByLabelText('alice profile coming soon').props.style).toEqual(expect.objectContaining({ minHeight: 44 }));
-  });
-});
-
-describe('mediaUrl', () => {
-  test('returns null when key is empty', () => {
-    expect(mediaUrl('', 'https://media.example.com')).toBeNull();
-  });
-
-  test('returns null when baseUrl is empty', () => {
-    expect(mediaUrl('photos/abc.jpg', '')).toBeNull();
-  });
-
-  test('returns null when both arguments are empty', () => {
-    expect(mediaUrl('', '')).toBeNull();
-  });
-
-  test('constructs URL from key and base URL', () => {
-    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-
-  test('strips trailing slash from base URL', () => {
-    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com/'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-
-  test('strips leading slash from key', () => {
-    expect(mediaUrl('/photos/abc.jpg', 'https://media.example.com'))
-      .toBe('https://media.example.com/photos/abc.jpg');
   });
 });
 

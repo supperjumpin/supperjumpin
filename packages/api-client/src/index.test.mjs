@@ -38,7 +38,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
     accessToken: "test-access-token",
     jumpId: "jump_123",
     commitment: 4,
-    transgression: 5,
+    transgression: 3,
     creativity: 3,
     presentation: 2,
     fetchImpl: async (url, init) => {
@@ -52,7 +52,7 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
           jumpId: "jump_123",
           playerId: "player_456",
           commitment: 4,
-          transgression: 5,
+          transgression: 3,
           creativity: 3,
           presentation: 2,
         },
@@ -64,14 +64,81 @@ test("submitJudgment posts the four Judgment scores for a Performed Jump", async
   assert.equal(seen.url, "http://api.example.test/v1/jumps/jump_123/judgment");
   assert.equal(seen.method, "POST");
   assert.equal(seen.authorization, "Bearer test-access-token");
+  assert.equal(seen.body.guestSessionId, undefined);
   assert.deepEqual(seen.body, {
     commitment: 4,
-    transgression: 5,
+    transgression: 3,
     creativity: 3,
     presentation: 2,
   });
   assert.equal(judgment.playerId, "player_456");
-  assert.equal(judgment.transgression, 5);
+  assert.equal(judgment.transgression, 3);
+});
+
+test("submitJudgment supports guest session judgments without an access token", async () => {
+  const seen = {};
+  const judgment = await submitJudgment({
+    baseUrl: "http://api.example.test",
+    guestSessionId: "guest_session_123",
+    jumpId: "jump_123",
+    commitment: 2,
+    transgression: 3,
+    creativity: 3,
+    presentation: 4,
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      seen.authorization = init.headers.Authorization;
+      seen.body = JSON.parse(init.body);
+      return Response.json(
+        {
+          id: "judgment_guest_123",
+          jumpId: "jump_123",
+          guestSessionId: "guest_session_123",
+          playerId: null,
+          commitment: 2,
+          transgression: 3,
+          creativity: 3,
+          presentation: 4,
+        },
+        { status: 201 },
+      );
+    },
+  });
+
+  assert.equal(seen.authorization, undefined);
+  assert.deepEqual(seen.body, {
+    guestSessionId: "guest_session_123",
+    commitment: 2,
+    transgression: 3,
+    creativity: 3,
+    presentation: 4,
+  });
+  assert.equal(judgment.guestSessionId, "guest_session_123");
+});
+
+test("submitJudgment surfaces backend error messages", async () => {
+  await assert.rejects(
+    () =>
+      submitJudgment({
+        baseUrl: "http://api.example.test",
+        accessToken: "test-access-token",
+        jumpId: "jump_123",
+        commitment: 2,
+        transgression: 3,
+        creativity: 3,
+        presentation: 4,
+        fetchImpl: async () =>
+          Response.json(
+            { error: "already_judged", message: "Judge has already submitted a Judgment for this Jump." },
+            { status: 409 },
+          ),
+      }),
+    (err) => {
+      assert.equal(err.message, "Judge has already submitted a Judgment for this Jump.");
+      return true;
+    },
+  );
 });
 
 test("createJump posts the required Jump fields with bearer auth", async () => {

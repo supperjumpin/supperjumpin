@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import JumpDetailScreen, { mediaUrl } from './JumpDetailScreen';
+import JumpDetailScreen from './JumpDetailScreen';
 import { mockPublicFetch, jumpDetailResponse } from './test/mockApi';
 
 test('Jump detail exposes loading, performer stub, and back actions accessibly', async () => {
@@ -233,35 +233,6 @@ test('grace-period countdown updates live on Jump detail', async () => {
   jest.useRealTimers();
 });
 
-describe('mediaUrl', () => {
-  test('returns null when key is empty', () => {
-    expect(mediaUrl('', 'https://media.example.com')).toBeNull();
-  });
-
-  test('returns null when baseUrl is empty', () => {
-    expect(mediaUrl('photos/abc.jpg', '')).toBeNull();
-  });
-
-  test('returns null when both arguments are empty', () => {
-    expect(mediaUrl('', '')).toBeNull();
-  });
-
-  test('constructs URL from key and base URL', () => {
-    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-
-  test('strips trailing slash from base URL', () => {
-    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com/'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-
-  test('strips leading slash from key', () => {
-    expect(mediaUrl('/photos/abc.jpg', 'https://media.example.com'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-});
-
 test('Jump detail shows media placeholder when mediaObjectKey is empty', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
@@ -305,5 +276,104 @@ test('Jump detail renders media Image when mediaObjectKey is provided', async ()
   await waitFor(() => {
     expect(queryByText('📸')).toBeNull();
     expect(getByText('Crunchwrap')).toBeTruthy();
+  });
+});
+
+test('tapping "Judge this Jump" opens the judgment overlay', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/jumps/jump_1')) {
+      return Response.json(jumpDetailResponse({
+        viewerContext: { canJudge: true, hasJudged: false },
+      }));
+    }
+    return Response.json({});
+  });
+
+  const { getByLabelText, getByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+      session={{ access_token: 'tok_detail', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByLabelText('Judge this Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Judge this Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('Cancel Judgment')).toBeTruthy();
+    expect(getByLabelText('Transgression factor, not selected')).toBeTruthy();
+  });
+});
+
+test('after filing judgment, detail refreshes and shows updated running average', async () => {
+  const fetchSpy = mockPublicFetch();
+  let detailCallCount = 0;
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = url.toString();
+    if (requestUrl.includes('/v1/jumps/jump_1') && init?.method !== 'POST') {
+      detailCallCount += 1;
+      return Response.json(jumpDetailResponse({
+        viewerContext: { canJudge: true, hasJudged: false },
+        runningAverage: detailCallCount === 1 ? 3.5 : 3.6,
+        judgmentCount: detailCallCount,
+      }));
+    }
+    if (requestUrl.includes('/v1/jumps/jump_1/judgment')) {
+      return Response.json({ id: 'judge_1' });
+    }
+    return Response.json({});
+  });
+
+  const { getByLabelText, getByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+      session={{ access_token: 'tok_detail', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByText('3.5')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Judge this Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('Creativity score 2')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Creativity score 2'));
+    fireEvent.press(getByLabelText('Transgression score 3'));
+    fireEvent.press(getByLabelText('Commitment score 4'));
+    fireEvent.press(getByLabelText('Presentation score 1'));
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('File Judgment')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('3.6')).toBeTruthy();
+    expect(getByText('from 2 judgments')).toBeTruthy();
   });
 });
