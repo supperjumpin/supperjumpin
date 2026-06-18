@@ -80,6 +80,19 @@ export async function submitJudgment({
   return response.json();
 }
 
+export async function createGuestSession({ baseUrl, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${baseUrl}/v1/guest-sessions`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, `createGuestSession failed with status ${response.status}`));
+  }
+
+  return response.json();
+}
+
 export async function getPublicFeed({ baseUrl, accessToken, cursor, limit = 20, fetchImpl = fetch }) {
   const params = new URLSearchParams();
   if (cursor) params.set("cursor", cursor);

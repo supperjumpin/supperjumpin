@@ -49,7 +49,8 @@ const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
 interface JudgmentScreenProps {
   jumpId: string;
   detail: JudgmentDetail;
-  session: { access_token: string; user: { id: string } };
+  session?: { access_token: string; user: { id: string } };
+  guestSessionId?: string;
   onSubmitted: () => void;
   onCancel: () => void;
 }
@@ -58,6 +59,7 @@ export default function JudgmentScreen({
   jumpId,
   detail,
   session,
+  guestSessionId,
   onSubmitted,
   onCancel,
 }: JudgmentScreenProps) {
@@ -89,7 +91,8 @@ export default function JudgmentScreen({
     try {
       await submitJudgment({
         baseUrl: API_BASE,
-        accessToken: session.access_token,
+        accessToken: session?.access_token,
+        guestSessionId,
         jumpId,
         commitment: scores.commitment!,
         transgression: scores.transgression!,

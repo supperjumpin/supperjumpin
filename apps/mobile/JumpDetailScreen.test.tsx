@@ -377,3 +377,113 @@ test('after filing judgment, detail refreshes and shows updated running average'
     expect(getByText('from 2 judgments')).toBeTruthy();
   });
 });
+
+test('guest user: tapping "Judge this Jump" creates a guest session and opens judgment overlay', async () => {
+  const fetchSpy = mockPublicFetch();
+  let guestSessionCreated = false;
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = url.toString();
+    if (requestUrl.includes('/v1/guest-sessions') && init?.method === 'POST') {
+      guestSessionCreated = true;
+      return Response.json({ id: 'guest_session_test456' }, { status: 201 });
+    }
+    if (requestUrl.includes('/v1/jumps/jump_1') && init?.method !== 'POST') {
+      return Response.json(jumpDetailResponse({
+        viewerContext: { canJudge: true, hasJudged: false },
+      }));
+    }
+    return Response.json({});
+  });
+
+  const { getByLabelText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByLabelText('Judge this Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Judge this Jump'));
+  });
+
+  await waitFor(() => {
+    expect(guestSessionCreated).toBe(true);
+    expect(getByLabelText('Cancel Judgment')).toBeTruthy();
+    expect(getByLabelText('Transgression factor, not selected')).toBeTruthy();
+  });
+});
+
+test('guest user: filing a judgment submits with guestSessionId and refreshes detail', async () => {
+  const fetchSpy = mockPublicFetch();
+  let detailCallCount = 0;
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = url.toString();
+    if (requestUrl.includes('/v1/guest-sessions') && init?.method === 'POST') {
+      return Response.json({ id: 'guest_session_guest1' }, { status: 201 });
+    }
+    if (requestUrl.includes('/v1/jumps/jump_1/judgment') && init?.method === 'POST') {
+      const body = JSON.parse(init?.body as string);
+      expect(body.guestSessionId).toBe('guest_session_guest1');
+      expect(init?.headers).not.toHaveProperty('Authorization');
+      return Response.json({ id: 'judge_guest_1' }, { status: 201 });
+    }
+    if (requestUrl.includes('/v1/jumps/jump_1') && init?.method !== 'POST') {
+      detailCallCount += 1;
+      return Response.json(jumpDetailResponse({
+        viewerContext: { canJudge: true, hasJudged: false },
+        runningAverage: detailCallCount === 1 ? 0 : 3.0,
+        judgmentCount: detailCallCount === 1 ? 0 : 1,
+      }));
+    }
+    return Response.json({});
+  });
+
+  const { getByLabelText, getByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByText('0.0')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Judge this Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('Transgression score 3')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Transgression score 3'));
+    fireEvent.press(getByLabelText('Creativity score 2'));
+    fireEvent.press(getByLabelText('Commitment score 4'));
+    fireEvent.press(getByLabelText('Presentation score 1'));
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('File Judgment')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('3.0')).toBeTruthy();
+    expect(getByText('from 1 judgment')).toBeTruthy();
+  });
+});
