@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,6 +32,7 @@ type ServerConfig struct {
 	Open         OpenFlow
 	CaptionEdit  CaptionEditFlow
 	JumpRetract  JumpRetractFlow
+	Logger       *slog.Logger
 }
 
 func NewServer(config ServerConfig) http.Handler {
@@ -367,7 +369,7 @@ func NewServer(config ServerConfig) http.Handler {
 		writeJSON(w, http.StatusOK, response.Detail)
 	})
 
-	return mux
+	return requestLoggingMiddleware(mux, config.Logger, config.Now)
 }
 
 func signedInProfile(w http.ResponseWriter, r *http.Request, config ServerConfig) (MeResponse, bool) {
