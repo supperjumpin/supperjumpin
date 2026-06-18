@@ -278,3 +278,102 @@ test('Jump detail renders media Image when mediaObjectKey is provided', async ()
     expect(getByText('Crunchwrap')).toBeTruthy();
   });
 });
+
+test('tapping "Judge this Jump" opens the judgment overlay', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+    if (url.toString().includes('/v1/jumps/jump_1')) {
+      return Response.json(jumpDetailResponse({
+        viewerContext: { canJudge: true, hasJudged: false },
+      }));
+    }
+    return Response.json({});
+  });
+
+  const { getByLabelText, getByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+      session={{ access_token: 'tok_detail', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByLabelText('Judge this Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Judge this Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('Cancel Judgment')).toBeTruthy();
+    expect(getByLabelText('Transgression factor, not selected')).toBeTruthy();
+  });
+});
+
+test('after filing judgment, detail refreshes and shows updated running average', async () => {
+  const fetchSpy = mockPublicFetch();
+  let detailCallCount = 0;
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = url.toString();
+    if (requestUrl.includes('/v1/jumps/jump_1') && init?.method !== 'POST') {
+      detailCallCount += 1;
+      return Response.json(jumpDetailResponse({
+        viewerContext: { canJudge: true, hasJudged: false },
+        runningAverage: detailCallCount === 1 ? 3.5 : 3.6,
+        judgmentCount: detailCallCount,
+      }));
+    }
+    if (requestUrl.includes('/v1/jumps/jump_1/judgment')) {
+      return Response.json({ id: 'judge_1' });
+    }
+    return Response.json({});
+  });
+
+  const { getByLabelText, getByText } = await render(
+    <JumpDetailScreen
+      jumpId="jump_1"
+      onBack={() => {}}
+      onBrowseFeed={() => {}}
+      session={{ access_token: 'tok_detail', user: { id: 'u1' } }}
+    />
+  );
+
+  await waitFor(() => {
+    expect(getByText('3.5')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Judge this Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('Creativity score 2')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Creativity score 2'));
+    fireEvent.press(getByLabelText('Transgression score 3'));
+    fireEvent.press(getByLabelText('Commitment score 4'));
+    fireEvent.press(getByLabelText('Presentation score 1'));
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('File Judgment')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('3.6')).toBeTruthy();
+    expect(getByText('from 2 judgments')).toBeTruthy();
+  });
+});
