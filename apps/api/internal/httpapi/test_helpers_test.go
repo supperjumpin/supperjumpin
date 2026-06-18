@@ -85,9 +85,9 @@ func newTestServerAndStore(t *testing.T) (http.Handler, *httpapi.PostgresStore) 
 func newTestServerWithStore(store *httpapi.PostgresStore) http.Handler {
 	return httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "local-dev", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "local-dev", Subject: "bob-auth", Email: "bob@example.com"},
-			"carol-token": {Provider: "local-dev", Subject: "carol-auth", Email: "carol@example.com"},
+			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"carol-token": {Provider: "test-provider", Subject: "carol-auth", Email: "carol@example.com"},
 		},
 		Store:        store,
 		Now:          store.Now,

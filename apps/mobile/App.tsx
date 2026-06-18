@@ -80,7 +80,7 @@ export default function App() {
   }, [session]);
 
   const handleSignIn = useCallback(async () => {
-    setSession({ access_token: DEV_AUTH_TOKEN, user: { id: "local-dev-player" } });
+    setSession({ access_token: DEV_AUTH_TOKEN, user: { id: "signed-in-player" } });
   }, []);
 
   const handleRequestAuth = useCallback(() => {

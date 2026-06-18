@@ -185,13 +185,15 @@ test('signed-in players open Jump detail with bearer auth and viewer context', a
   });
 });
 
-test('routes local dev sign-in without a display name through setup before creating a Jump', async () => {
+test('routes bearer-token sign-in without a display name through setup before creating a Jump', async () => {
   const fetchSpy = mockPublicFetch();
-  fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
+  const seen = { meAuthorization: undefined as string | undefined };
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
     if (url.toString().includes('/v1/feed')) {
       return Response.json(feedResponse([]));
     }
     if (url.toString().includes('/v1/me')) {
+      seen.meAuthorization = new Headers(init?.headers).get('Authorization') ?? undefined;
       return Response.json({ player: { id: 'player_1', displayName: '' } });
     }
     return Response.json({});
@@ -209,6 +211,8 @@ test('routes local dev sign-in without a display name through setup before creat
   await waitFor(() => {
     expect(getByText('Choose your display name')).toBeTruthy();
   });
+
+  expect(seen.meAuthorization).toBe('Bearer dev-token');
 });
 
 test('routes unauthenticated Post Jump taps through sign in and into Create Jump', async () => {

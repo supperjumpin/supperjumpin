@@ -182,11 +182,11 @@ The current docs mention only "claim your history" — this alone is unlikely to
 |--------|--------|
 | Product Vision | "One-tap social login; no email verification on first tap" |
 | MVP Roadmap | "One-tap social login (no email verification on first tap)" |
-| ADR-0006 | Hosted auth is deferred until the local MVP is playable end-to-end; local development uses a static bearer token while preserving internal Accounts. |
+| ADR-0006 | Supperjumpin uses local-first authentication for MVP. When hosted auth is introduced, it will be additive — external auth provider identities may attach to Accounts without redefining in-game Player identity. |
 
 ### What's Missing
 
-**No explicit provider list.** Hosted auth is deferred, so provider choice remains unresolved. When social login is introduced, iOS requirements still shape the provider set:
+**No explicit provider list.** Hosted auth is additive and not yet implemented, so provider choice remains unresolved. When social login is introduced, iOS requirements still shape the provider set:
 
 | Provider | Likely Included? | Rationale |
 |----------|------------------|-----------|

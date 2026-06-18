@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import FeedScreen from './FeedScreen';
+import FeedScreen, { mediaUrl } from './FeedScreen';
 import { mockPublicFetch, feedResponse } from './test/mockApi';
 
 function publicJump(overrides: Record<string, unknown> = {}) {
@@ -114,6 +114,17 @@ test('Feed exposes performer attribution as a disabled profile stub target', asy
     expect(performerTarget.props.accessibilityRole).toBe('button');
     expect(performerTarget.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
     expect(performerTarget.props.style).toEqual(expect.objectContaining({ minHeight: 44 }));
+  });
+});
+
+test('Feed card shows media placeholder when mediaObjectKey is empty', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => Response.json(feedResponse([publicJump()])));
+
+  const { getByText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
+
+  await waitFor(() => {
+    expect(getByText('📸')).toBeTruthy();
   });
 });
 
@@ -302,5 +313,49 @@ test('Feed key interactive targets meet minimum touch size', async () => {
       expect.arrayContaining([expect.objectContaining({ minHeight: 44 })])
     );
     expect(getByLabelText('alice profile coming soon').props.style).toEqual(expect.objectContaining({ minHeight: 44 }));
+  });
+});
+
+describe('mediaUrl', () => {
+  test('returns null when key is empty', () => {
+    expect(mediaUrl('', 'https://media.example.com')).toBeNull();
+  });
+
+  test('returns null when baseUrl is empty', () => {
+    expect(mediaUrl('photos/abc.jpg', '')).toBeNull();
+  });
+
+  test('returns null when both arguments are empty', () => {
+    expect(mediaUrl('', '')).toBeNull();
+  });
+
+  test('constructs URL from key and base URL', () => {
+    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com'))
+      .toBe('https://media.example.com/photos/abc.jpg');
+  });
+
+  test('strips trailing slash from base URL', () => {
+    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com/'))
+      .toBe('https://media.example.com/photos/abc.jpg');
+  });
+
+  test('strips leading slash from key', () => {
+    expect(mediaUrl('/photos/abc.jpg', 'https://media.example.com'))
+      .toBe('https://media.example.com/photos/abc.jpg');
+  });
+});
+
+test('Feed card renders media Image when mediaObjectKey is provided', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () =>
+    Response.json(feedResponse([publicJump({ mediaObjectKey: 'photos/has-key.jpg' })]))
+  );
+
+  const { getByText, queryByText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
+
+  await waitFor(() => {
+    expect(queryByText('📸')).toBeNull();
+    expect(getByText('Crunchwrap')).toBeTruthy();
+    expect(getByText('Test caption')).toBeTruthy();
   });
 });
