@@ -10,14 +10,19 @@ import {
   Image,
 } from "react-native";
 import { getPublicFeed } from "@supperjumpin/api-client";
+import {
+  mediaUrl,
+  evidenceAltText,
+  formatScore,
+  formatGracePeriodLabel,
+  judgeLabel,
+} from "./jumpPresentation";
+import { useLiveNow } from "./useLiveNow";
+
+export { mediaUrl } from "./jumpPresentation";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const MEDIA_BASE_URL = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? "";
-
-export function mediaUrl(key: string, baseUrl = MEDIA_BASE_URL): string | null {
-  if (!key || !baseUrl) return null;
-  return `${baseUrl.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
-}
 
 function formatTimeAgo(dateStr: string): string {
   const now = Date.now();
@@ -30,28 +35,6 @@ function formatTimeAgo(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
-}
-
-function formatScore(avg: number, count: number): string {
-  return `★ ${avg.toFixed(1)} (${count})`;
-}
-
-function formatCountdown(endsAt: string, nowMs = Date.now()): string {
-  const remaining = new Date(endsAt).getTime() - nowMs;
-  if (remaining <= 0) return "0m 0s";
-  const mins = Math.floor(remaining / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  return `${mins}m ${secs}s`;
-}
-
-function formatGraceCountdown(endsAt: string, nowMs = Date.now()): string {
-  const countdown = formatCountdown(endsAt, nowMs);
-  if (countdown === "0m 0s") return "Judging now available";
-  return `Judging opens in ${countdown}`;
-}
-
-function evidenceAltText(caption: string): string {
-  return caption || "Evidence photo";
 }
 
 interface JumpCardProps {
@@ -92,39 +75,20 @@ function JumpCard({
   viewerContext,
   onPress,
 }: JumpCardProps) {
-  const canJudge = viewerContext?.canJudge ?? true;
-  const judgeReason = viewerContext?.reason;
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const isGraceActive = viewerContext?.reason === "grace-period";
+  const nowMs = useLiveNow(isGraceActive);
 
-  useEffect(() => {
-    if (judgeReason !== "grace-period") return;
+  const judgeDisplay = judgeLabel(
+    viewerContext,
+    gracePeriodExpiresAt,
+    nowMs
+  );
 
-    setNowMs(Date.now());
-    const intervalID = setInterval(() => {
-      setNowMs(Date.now());
-    }, 1000);
+  const isGracePeriod = judgeDisplay.reason === "grace-period";
+  const isAlreadyJudged = judgeDisplay.reason === "already-judged";
+  const isSelfJudging = judgeDisplay.reason === "self-judging";
 
-    return () => clearInterval(intervalID);
-  }, [judgeReason, gracePeriodExpiresAt]);
-
-  let judgeLabel = "Judge";
-  let judgeAccessibility = "Judge this Jump";
-  if (judgeReason === "self-judging") {
-    judgeLabel = "Your Jump";
-    judgeAccessibility = "You performed this jump. You cannot judge your own entry.";
-  } else if (judgeReason === "grace-period") {
-    judgeLabel = formatGraceCountdown(gracePeriodExpiresAt, nowMs);
-    judgeAccessibility = `Judging opens in ${formatCountdown(gracePeriodExpiresAt, nowMs)}. Not yet available.`;
-  } else if (judgeReason === "already-judged") {
-    judgeLabel = "You judged this";
-    judgeAccessibility = "You already judged this jump. Score submitted.";
-  } else if (!canJudge) {
-    judgeLabel = "Not available";
-  }
-
-  const isGracePeriod = judgeReason === "grace-period";
-  const isAlreadyJudged = judgeReason === "already-judged";
-  const isSelfJudging = judgeReason === "self-judging";
+  const evAltText = evidenceAltText({ caption, food, source, destination });
 
   return (
     <TouchableOpacity
@@ -135,11 +99,11 @@ function JumpCard({
       accessibilityHint="Opens jump detail"
     >
       <View style={styles.cardHeader}>
-        {mediaUrl(mediaObjectKey) ? (
+        {mediaUrl(mediaObjectKey, MEDIA_BASE_URL) ? (
           <Image
-            source={{ uri: mediaUrl(mediaObjectKey) as string }}
+            source={{ uri: mediaUrl(mediaObjectKey, MEDIA_BASE_URL) as string }}
             style={styles.mediaImage}
-            accessibilityLabel={evidenceAltText(caption)}
+            accessibilityLabel={evAltText}
             resizeMode="cover"
           />
         ) : (
@@ -191,7 +155,7 @@ function JumpCard({
             (isAlreadyJudged || isSelfJudging) && styles.judgeButtonDone,
             isGracePeriod && styles.judgeButtonGrace,
           ]}
-          accessibilityLabel={judgeAccessibility}
+          accessibilityLabel={judgeDisplay.accessibilityLabel}
           accessibilityRole="button"
         >
           <Text
@@ -201,13 +165,9 @@ function JumpCard({
               isGracePeriod && styles.judgeButtonTextGrace,
             ]}
             numberOfLines={1}
-            accessibilityLabel={
-              isGracePeriod
-                ? `Judging opens in ${formatCountdown(gracePeriodExpiresAt, nowMs)}. Not yet available.`
-                : judgeAccessibility
-            }
+            accessibilityLabel={judgeDisplay.accessibilityLabel}
           >
-            {judgeLabel}
+            {judgeDisplay.label}
           </Text>
         </View>
       </View>

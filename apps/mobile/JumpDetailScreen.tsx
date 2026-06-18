@@ -9,14 +9,13 @@ import {
   Image,
 } from "react-native";
 import { getJumpDetail } from "@supperjumpin/api-client";
+import { mediaUrl, evidenceAltText, judgeLabel } from "./jumpPresentation";
+import { useLiveNow } from "./useLiveNow";
+
+export { mediaUrl } from "./jumpPresentation";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const MEDIA_BASE_URL = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? "";
-
-export function mediaUrl(key: string, baseUrl = MEDIA_BASE_URL): string | null {
-  if (!key || !baseUrl) return null;
-  return `${baseUrl.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
-}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, {
@@ -26,24 +25,6 @@ function formatDate(dateStr: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatGraceCountdown(endsAt: string, nowMs = Date.now()): string {
-  const remaining = new Date(endsAt).getTime() - nowMs;
-  if (remaining <= 0) return "Judging now available";
-  const mins = Math.floor(remaining / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  return `Judging opens in ${mins}m ${secs}s`;
-}
-
-function evidenceAltText(detail: {
-  caption: string;
-  food: string;
-  source: string;
-  destination: string;
-}): string {
-  if (detail.caption) return detail.caption;
-  return `Evidence photo for ${detail.food} from ${detail.source} to ${detail.destination}`;
 }
 
 interface JumpDetailScreenProps {
@@ -63,7 +44,9 @@ export default function JumpDetailScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTombstone, setIsTombstone] = useState(false);
-  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const isGraceActive = detail?.viewerContext?.reason === "grace-period";
+  const nowMs = useLiveNow(isGraceActive);
 
   useEffect(() => {
     (async () => {
@@ -87,17 +70,6 @@ export default function JumpDetailScreen({
       setLoading(false);
     })();
   }, [jumpId, session?.access_token]);
-
-  useEffect(() => {
-    if (!detail || detail.viewerContext?.reason !== "grace-period") return;
-
-    setNowMs(Date.now());
-    const intervalID = setInterval(() => {
-      setNowMs(Date.now());
-    }, 1000);
-
-    return () => clearInterval(intervalID);
-  }, [detail]);
 
   if (loading) {
     return (
@@ -152,21 +124,13 @@ export default function JumpDetailScreen({
     );
   }
 
-  const vc = detail.viewerContext;
-  let judgeState: string;
-  if (!vc || vc.canJudge) {
-    judgeState = "Judge this Jump";
-  } else if (vc.reason === "self-judging") {
-    judgeState = "You can't judge your own Jump";
-  } else if (vc.reason === "grace-period") {
-    judgeState = formatGraceCountdown(detail.gracePeriodExpiresAt, nowMs);
-  } else if (vc.reason === "already-judged") {
-    judgeState = "You already judged this jump. Score submitted.";
-  } else {
-    judgeState = "Not available";
-  }
+  const judgeDisplay = judgeLabel(
+    detail.viewerContext,
+    detail.gracePeriodExpiresAt,
+    nowMs
+  );
 
-  const canJudge = vc ? vc.canJudge : true;
+  const canJudge = judgeDisplay.reason === "can-judge";
 
   return (
     <View style={styles.screen}>
@@ -181,9 +145,9 @@ export default function JumpDetailScreen({
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Evidence photo */}
-        {mediaUrl(detail.mediaObjectKey) ? (
+        {mediaUrl(detail.mediaObjectKey, MEDIA_BASE_URL) ? (
           <Image
-            source={{ uri: mediaUrl(detail.mediaObjectKey) as string }}
+            source={{ uri: mediaUrl(detail.mediaObjectKey, MEDIA_BASE_URL) as string }}
             style={styles.heroImageReal}
             accessibilityLabel={evidenceAltText(detail)}
             resizeMode="cover"
@@ -243,7 +207,7 @@ export default function JumpDetailScreen({
             canJudge ? styles.judgeAreaActive : styles.judgeAreaInactive,
           ]}
           accessible
-          accessibilityLabel={judgeState}
+          accessibilityLabel={judgeDisplay.label}
         >
           <Text
             style={[
@@ -251,7 +215,7 @@ export default function JumpDetailScreen({
               canJudge ? styles.judgeStateActive : styles.judgeStateInactive,
             ]}
           >
-            {judgeState}
+            {judgeDisplay.label}
           </Text>
         </View>
 
