@@ -40,6 +40,12 @@ func AddRequestLogField(ctx context.Context, name string, value any) {
 	logCtx.attrs = append(logCtx.attrs, slog.Any(name, value))
 }
 
+func AddRequestLogFields(ctx context.Context, attrs ...slog.Attr) {
+	for _, attr := range attrs {
+		AddRequestLogField(ctx, attr.Key, attr.Value.Any())
+	}
+}
+
 func RaiseRequestLogLevel(ctx context.Context, level slog.Level) {
 	logCtx, ok := ctx.Value(requestLogContextKey{}).(*requestLogContext)
 	if !ok {
@@ -84,10 +90,22 @@ func requestLoggingMiddleware(next http.Handler, logger *slog.Logger, now func()
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				RaiseRequestLogLevel(r.Context(), slog.LevelError)
+				AddRequestLogField(r.Context(), "outcome", "server_error")
+				AddRequestLogField(r.Context(), "error_code", "panic")
 				AddRequestLogField(r.Context(), "stack", string(debug.Stack()))
 				if !rec.wroteHeader {
 					writeAPIError(rec, http.StatusInternalServerError, "internal_error", "Internal server error.")
 				}
+			}
+
+			if rec.status >= http.StatusInternalServerError {
+				RaiseRequestLogLevel(r.Context(), slog.LevelError)
+				if !hasRequestLogField(r.Context(), "stack") {
+					AddRequestLogField(r.Context(), "stack", string(debug.Stack()))
+				}
+			}
+			if !hasRequestLogField(r.Context(), "outcome") {
+				AddRequestLogField(r.Context(), "outcome", outcomeForStatus(rec.status))
 			}
 
 			duration := now().Sub(start)
@@ -111,6 +129,46 @@ func requestLoggingMiddleware(next http.Handler, logger *slog.Logger, now func()
 
 		next.ServeHTTP(rec, r)
 	})
+}
+
+func hasRequestLogField(ctx context.Context, name string) bool {
+	logCtx, ok := ctx.Value(requestLogContextKey{}).(*requestLogContext)
+	if !ok {
+		return false
+	}
+
+	logCtx.mu.Lock()
+	defer logCtx.mu.Unlock()
+	for _, attr := range logCtx.attrs {
+		if attr.Key == name {
+			return true
+		}
+	}
+	return false
+}
+
+func outcomeForStatus(status int) string {
+	switch {
+	case status >= http.StatusInternalServerError:
+		return "server_error"
+	case status == http.StatusConflict:
+		return "conflict"
+	case status == http.StatusNotFound:
+		return "not_found"
+	case status == http.StatusForbidden || status == http.StatusUnauthorized:
+		return "forbidden"
+	case status >= http.StatusBadRequest:
+		return "client_error"
+	default:
+		return "success"
+	}
+}
+
+func safeInternalError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "redacted internal error"
 }
 
 type responseCapture struct {
@@ -189,7 +247,7 @@ func newRequestID() (string, error) {
 
 func approvedRequestLogField(name string) bool {
 	switch strings.TrimSpace(name) {
-	case "jump_id", "player_id", "stack":
+	case "actor_type", "error_code", "internal_error", "judgment_id", "jump_id", "open_month", "open_year", "operation", "outcome", "player_id", "route", "stack":
 		return true
 	default:
 		return false

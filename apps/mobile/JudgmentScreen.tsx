@@ -49,17 +49,21 @@ const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
 interface JudgmentScreenProps {
   jumpId: string;
   detail: JudgmentDetail;
-  session: { access_token: string; user: { id: string } };
+  session?: { access_token: string; user: { id: string } };
+  guestSessionId?: string;
   onSubmitted: () => void;
   onCancel: () => void;
+  onSignIn?: () => void;
 }
 
 export default function JudgmentScreen({
   jumpId,
   detail,
   session,
+  guestSessionId,
   onSubmitted,
   onCancel,
+  onSignIn,
 }: JudgmentScreenProps) {
   const [scores, setScores] = useState<JudgmentScores>({
     transgression: null,
@@ -70,6 +74,7 @@ export default function JudgmentScreen({
   const [showReceipt, setShowReceipt] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guestCapped, setGuestCapped] = useState(false);
 
   const allSelected =
     scores.transgression !== null &&
@@ -86,10 +91,12 @@ export default function JudgmentScreen({
     if (!allSelected) return;
     setSubmitting(true);
     setError(null);
+    setGuestCapped(false);
     try {
       await submitJudgment({
         baseUrl: API_BASE,
-        accessToken: session.access_token,
+        accessToken: session?.access_token,
+        guestSessionId,
         jumpId,
         commitment: scores.commitment!,
         transgression: scores.transgression!,
@@ -98,7 +105,12 @@ export default function JudgmentScreen({
       });
       onSubmitted();
     } catch (e: any) {
-      setError(e.message ?? "Could not file Judgment");
+      const msg = e.message ?? "Could not file Judgment";
+      if (msg.toLowerCase().includes("guest judgment cap reached") || msg.toLowerCase().includes("guest_cap")) {
+        setGuestCapped(true);
+      } else {
+        setError(msg);
+      }
       setSubmitting(false);
     }
   }
@@ -198,26 +210,45 @@ export default function JudgmentScreen({
               </View>
             ))}
 
-            {error && (
+            {guestCapped && (
+              <View style={styles.capPrompt} accessible accessibilityLabel="Guest cap reached prompt">
+                <Text style={styles.capTitle}>You've reached the guest judging limit</Text>
+                <Text style={styles.capBody}>Create an account to keep judging and save your history.</Text>
+                {onSignIn && (
+                  <TouchableOpacity
+                    style={styles.signInButton}
+                    onPress={onSignIn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Sign In to Keep Judging"
+                  >
+                    <Text style={styles.signInButtonText}>Sign In to Keep Judging</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {!guestCapped && error && (
               <View style={styles.errorRow} accessibilityLabel="Judgment submission error">
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.fileButton, submitting && styles.fileButtonDisabled]}
-              disabled={submitting}
-              onPress={handleFileJudgment}
-              accessibilityRole="button"
-              accessibilityLabel="File Judgment"
-              accessibilityState={{ disabled: submitting }}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fffaf2" />
-              ) : (
-                <Text style={styles.fileButtonText}>File Judgment</Text>
-              )}
-            </TouchableOpacity>
+            {!guestCapped && (
+              <TouchableOpacity
+                style={[styles.fileButton, submitting && styles.fileButtonDisabled]}
+                disabled={submitting}
+                onPress={handleFileJudgment}
+                accessibilityRole="button"
+                accessibilityLabel="File Judgment"
+                accessibilityState={{ disabled: submitting }}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fffaf2" />
+                ) : (
+                  <Text style={styles.fileButtonText}>File Judgment</Text>
+                )}
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.editButton}
@@ -414,5 +445,33 @@ const styles = StyleSheet.create({
     color: "#4d3b31",
     fontSize: 16,
     fontWeight: "700",
+  },
+  capPrompt: {
+    backgroundColor: "#f9e3d4",
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  capTitle: {
+    color: "#2f241d",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  capBody: {
+    color: "#4d3b31",
+    fontSize: 14,
+  },
+  signInButton: {
+    backgroundColor: "#c1673a",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    minHeight: 48,
+    marginTop: 4,
+  },
+  signInButtonText: {
+    color: "#fffaf2",
+    fontSize: 16,
+    fontWeight: "800",
   },
 });

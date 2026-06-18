@@ -21,6 +21,7 @@ Expo React Native player-facing app. Pre-MVP prototype shell. Renders the public
 
 - **No routing library**: Conditional rendering in `App.tsx`. No React Navigation.
 - **No state management library**: Raw React state only. No Context, Zustand, Redux, or Jotai.
+- **Vanilla until the seam is proven**: Prefer plain React/TypeScript until a concrete seam shows a library would remove more app-specific complexity than it adds. Refactors should preserve behavior while creating testable seams for likely follow-on work; do not pre-build speculative routing, auth, or state infrastructure.
 - **Local-first auth**: `App.tsx` uses `EXPO_PUBLIC_DEV_AUTH_TOKEN` for signed-in flows. When hosted auth is added, it will be additive — the dev token remains the local development path.
 - **API calls via `@supperjumpin/api-client`**: Direct imports, no custom fetch wrapper in the mobile app.
 - **Standard RN primitives**: Prefer existing `SafeAreaView`, `ScrollView`, `StyleSheet`, `TextInput`, and button/touchable patterns unless the app adopts a UI library.

@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import { getJumpDetail } from "@supperjumpin/api-client";
+import { getJumpDetail, createGuestSession } from "@supperjumpin/api-client";
 import { mediaUrl, evidenceAltText, judgeLabel } from "./jumpPresentation";
 import { useLiveNow } from "./useLiveNow";
 import JudgmentScreen from "./JudgmentScreen";
@@ -33,6 +33,7 @@ interface JumpDetailScreenProps {
   onBack: () => void;
   onBrowseFeed: () => void;
   session?: { access_token: string; user: { id: string } } | null;
+  onSignIn?: () => void;
 }
 
 export default function JumpDetailScreen({
@@ -40,12 +41,14 @@ export default function JumpDetailScreen({
   onBack,
   onBrowseFeed,
   session,
+  onSignIn,
 }: JumpDetailScreenProps) {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTombstone, setIsTombstone] = useState(false);
   const [showJudgment, setShowJudgment] = useState(false);
+  const [guestSessionId, setGuestSessionId] = useState<string | null>(null);
 
   const isGraceActive = detail?.viewerContext?.reason === "grace-period";
   const nowMs = useLiveNow(isGraceActive);
@@ -78,6 +81,20 @@ export default function JumpDetailScreen({
   function handleJudgmentSubmitted() {
     setShowJudgment(false);
     loadDetail();
+  }
+
+  async function handleOpenJudgment() {
+    if (!canJudge) return;
+    if (!session && !guestSessionId) {
+      try {
+        const result = await createGuestSession({ baseUrl: API_BASE });
+        setGuestSessionId(result.id);
+      } catch {
+        setError("Could not start guest session. Please try again.");
+        return;
+      }
+    }
+    setShowJudgment(true);
   }
 
   if (loading) {
@@ -217,7 +234,7 @@ export default function JumpDetailScreen({
           ]}
           accessible
           disabled={!canJudge}
-          onPress={() => canJudge && setShowJudgment(true)}
+          onPress={() => handleOpenJudgment()}
           accessibilityRole="button"
           accessibilityLabel={judgeDisplay.label}
           accessibilityState={{ disabled: !canJudge }}
@@ -246,9 +263,11 @@ export default function JumpDetailScreen({
                 runningAverage: detail.runningAverage,
                 judgmentCount: detail.judgmentCount,
               }}
-              session={session!}
+              session={session ?? undefined}
+              guestSessionId={guestSessionId ?? undefined}
               onSubmitted={handleJudgmentSubmitted}
               onCancel={() => setShowJudgment(false)}
+              onSignIn={onSignIn}
             />
           </View>
         )}

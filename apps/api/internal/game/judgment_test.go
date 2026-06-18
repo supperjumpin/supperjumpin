@@ -507,6 +507,84 @@ func testGuestCapPreventsJudging(t *testing.T) {
 	}
 }
 
+func testConfigurableGuestCapPreventsJudgingAtCustomThreshold(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	repo := &mockJudgmentRepo{
+		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return performedJump(jumpID, -10*time.Minute), true, nil
+		},
+		hasGuestJudgedFn: func(_ context.Context, _, _ string) (bool, error) {
+			return false, nil
+		},
+		guestSessionJudgmentCountFn: func(_ context.Context, _ string) (int, error) {
+			return 3, nil // below default cap of 5, at custom cap of 3
+		},
+		submitAcceptedJudgmentFn: func(_ context.Context, _ JudgmentInput) (Judgment, error) {
+			t.Fatal("expected custom guest cap to block before persistence")
+			return Judgment{}, nil
+		},
+	}
+
+	_, err := SubmitJudgment(context.Background(), repo, JudgmentInput{
+		JumpID:         "jump_1",
+		GuestSessionID: "guest_session_abc",
+		Provenance:     "public",
+		Commitment:     2,
+		Transgression:  2,
+		Creativity:     3,
+		Presentation:   3,
+	}, now, WithGuestCap(3))
+
+	if !errors.Is(err, ErrGuestCapReached) {
+		t.Fatalf("expected ErrGuestCapReached with custom cap 3, got %v", err)
+	}
+}
+
+func testConfigurableGuestCapAllowsBelowCustomThreshold(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	repo := &mockJudgmentRepo{
+		jumpFn: func(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
+			return performedJump(jumpID, -10*time.Minute), true, nil
+		},
+		hasGuestJudgedFn: func(_ context.Context, _, _ string) (bool, error) {
+			return false, nil
+		},
+		guestSessionJudgmentCountFn: func(_ context.Context, _ string) (int, error) {
+			return 2, nil // below custom cap of 3
+		},
+		submitAcceptedJudgmentFn: func(_ context.Context, input JudgmentInput) (Judgment, error) {
+			return Judgment{
+				ID:             "judgment_1",
+				JumpID:         input.JumpID,
+				GuestSessionID: input.GuestSessionID,
+				Commitment:     input.Commitment,
+				Transgression:  input.Transgression,
+				Creativity:     input.Creativity,
+				Presentation:   input.Presentation,
+			}, nil
+		},
+	}
+
+	judgment, err := SubmitJudgment(context.Background(), repo, JudgmentInput{
+		JumpID:         "jump_1",
+		GuestSessionID: "guest_session_abc",
+		Provenance:     "public",
+		Commitment:     2,
+		Transgression:  2,
+		Creativity:     3,
+		Presentation:   3,
+	}, now, WithGuestCap(3))
+
+	if err != nil {
+		t.Fatalf("expected success below custom cap, got %v", err)
+	}
+	if judgment.ID != "judgment_1" {
+		t.Fatalf("expected judgment to be created, got %s", judgment.ID)
+	}
+}
+
 func testGuestCannotJudgeTheirOwnJump(t *testing.T) {
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 
@@ -883,6 +961,8 @@ func TestJudgment(t *testing.T) {
 	t.Run("guest identity", func(t *testing.T) {
 		t.Run("requires exactly one judge identity", testGuestJudgmentRequiresExactlyOneJudgeIdentity)
 		t.Run("guest cap prevents judging", testGuestCapPreventsJudging)
+		t.Run("configurable guest cap prevents at custom threshold", testConfigurableGuestCapPreventsJudgingAtCustomThreshold)
+		t.Run("configurable guest cap allows below custom threshold", testConfigurableGuestCapAllowsBelowCustomThreshold)
 		t.Run("guest cannot judge their own jump", testGuestCannotJudgeTheirOwnJump)
 	})
 

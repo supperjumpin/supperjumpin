@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -66,6 +67,7 @@ func optionalProfile(r *http.Request, config ServerConfig) *MeResponse {
 	if err != nil {
 		return nil
 	}
+	AddRequestLogFields(r.Context(), slog.String("actor_type", "player"), slog.String("player_id", profile.Player.ID))
 	return &profile
 }
 

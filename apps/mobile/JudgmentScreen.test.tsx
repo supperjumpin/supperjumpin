@@ -191,7 +191,7 @@ test('renders a clear error state when submission fails', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async () => {
     return new Response(
-      JSON.stringify({ error: 'forbidden', message: 'Guest Judgment cap reached' }),
+      JSON.stringify({ error: 'forbidden', message: 'Author Grace Period is still active.' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }
     );
   });
@@ -221,6 +221,128 @@ test('renders a clear error state when submission fails', async () => {
   });
 
   await waitFor(() => {
-    expect(getByText(/Guest Judgment cap reached/)).toBeTruthy();
+    expect(getByText(/Author Grace Period is still active/)).toBeTruthy();
   });
+});
+
+test('guest judgment: filing calls submitJudgment with guestSessionId and no Authorization header', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = url.toString();
+    if (requestUrl.includes('/v1/jumps/jump_1/judgment')) {
+      expect(init?.method).toBe('POST');
+      const body = JSON.parse(init?.body as string);
+      expect(body).toMatchObject({
+        guestSessionId: 'guest_session_test123',
+        commitment: 4,
+        transgression: 3,
+        creativity: 2,
+        presentation: 1,
+      });
+      expect(init?.headers).not.toHaveProperty('Authorization');
+      return Response.json({ id: 'judge_guest_1', jumpId: 'jump_1', guestSessionId: 'guest_session_test123', commitment: 4, transgression: 3, creativity: 2, presentation: 1 });
+    }
+    return Response.json({});
+  });
+
+  const onSubmitted = jest.fn();
+
+  const { getByLabelText, getByText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      guestSessionId="guest_session_test123"
+      onSubmitted={onSubmitted}
+      onCancel={() => {}}
+    />
+  );
+
+  await selectAllFactors(getByLabelText);
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Judgment Receipt')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(onSubmitted).toHaveBeenCalledTimes(1);
+  });
+});
+
+test('guest cap error shows account-conversion prompt with Sign In button', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => {
+    return new Response(
+      JSON.stringify({ error: 'guest_cap', message: 'Guest Judgment cap reached.' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    );
+  });
+
+  const onSignIn = jest.fn();
+
+  const { getByLabelText, getByText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      guestSessionId="guest_session_capped"
+      onSubmitted={() => {}}
+      onCancel={() => {}}
+      onSignIn={onSignIn}
+    />
+  );
+
+  await selectAllFactors(getByLabelText);
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Judgment Receipt')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(getByText(/You've reached the guest judging limit/)).toBeTruthy();
+    expect(getByText(/Create an account to keep judging/)).toBeTruthy();
+    expect(getByLabelText('Sign In to Keep Judging')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Sign In to Keep Judging'));
+  });
+
+  expect(onSignIn).toHaveBeenCalledTimes(1);
 });

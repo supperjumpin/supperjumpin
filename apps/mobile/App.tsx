@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { StyleSheet, StatusBar } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { getMe, updateDisplayName } from "@supperjumpin/api-client";
+import { createAppFlow, type FlowSnapshot, type JumpDraft } from "./flow";
 import FeedScreen from "./FeedScreen";
 import JumpDetailScreen from "./JumpDetailScreen";
 import CreateJumpScreen from "./CreateJumpScreen";
@@ -10,119 +11,81 @@ import DisplayNameSetupScreen from "./DisplayNameSetupScreen";
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const DEV_AUTH_TOKEN = process.env.EXPO_PUBLIC_DEV_AUTH_TOKEN ?? "dev-token";
 
-interface Session {
-  access_token: string;
-  user: { id: string };
-}
-
-interface Player {
-  id: string;
-  displayName: string;
-}
-
-interface JumpDraft {
-  source: string;
-  destination: string;
-  food: string;
-  caption: string;
-  mediaObjectKey: string;
-}
-
-const emptyJumpDraft = (): JumpDraft => ({
-  source: '',
-  destination: '',
-  food: '',
-  caption: '',
-  mediaObjectKey: '',
-});
-
-type Screen =
-  | { name: "feed" }
-  | { name: "detail"; jumpId: string }
-  | { name: "create" };
-
 export default function App() {
-  const [screen, setScreen] = useState<Screen>({ name: "feed" });
-  const [session, setSession] = useState<Session | null>(null);
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [showDisplayNameSetup, setShowDisplayNameSetup] = useState(false);
-  const [jumpDraft, setJumpDraft] = useState<JumpDraft>(emptyJumpDraft);
+  const flowRef = useRef(createAppFlow());
+  const [flowState, setFlowState] = useState<FlowSnapshot>(() => flowRef.current.getSnapshot());
 
-  const pendingCreateRef = useRef(false);
+  const syncFlow = useCallback(() => {
+    setFlowState(flowRef.current.getSnapshot());
+  }, []);
 
-  // When session changes, fetch player profile
+  const { screen, session, player, showDisplayNameSetup, draft } = flowState;
+
   useEffect(() => {
-    if (!session) {
-      setPlayer(null);
-      return;
-    }
+    if (!session) return;
     let cancelled = false;
     (async () => {
       try {
         const me = await getMe({ baseUrl: API_BASE, accessToken: session.access_token });
         if (cancelled) return;
-        setPlayer({ id: me.player.id, displayName: me.player.displayName ?? "" });
-
-        // If user tapped "+ Jump" before auth, complete the flow
-        if (pendingCreateRef.current) {
-          if (me.player.displayName) {
-            pendingCreateRef.current = false;
-            setScreen({ name: "create" });
-          } else {
-            setShowDisplayNameSetup(true);
-          }
-        }
+        flowRef.current.resolvePlayer({ id: me.player.id, displayName: me.player.displayName ?? "" });
+        syncFlow();
       } catch {
-        if (!cancelled) setSession(null);
+        if (!cancelled) {
+          flowRef.current.rejectPlayer();
+          syncFlow();
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [session]);
+  }, [session, syncFlow]);
 
-  const handleSignIn = useCallback(async () => {
-    setSession({ access_token: DEV_AUTH_TOKEN, user: { id: "signed-in-player" } });
-  }, []);
+  const handleSignIn = useCallback(() => {
+    flowRef.current.signIn({ access_token: DEV_AUTH_TOKEN, user: { id: "signed-in-player" } });
+    syncFlow();
+  }, [syncFlow]);
 
   const handleRequestAuth = useCallback(() => {
-    pendingCreateRef.current = true;
-    void handleSignIn();
-  }, [handleSignIn]);
+    flowRef.current.navigateToCreate();
+    syncFlow();
+    flowRef.current.signIn({ access_token: DEV_AUTH_TOKEN, user: { id: "signed-in-player" } });
+    syncFlow();
+  }, [syncFlow]);
 
   const handleDisplayNameSet = useCallback(async (displayName: string) => {
-    if (!session) return;
-    const result = await updateDisplayName({ baseUrl: API_BASE, accessToken: session.access_token, displayName });
-    setPlayer({ id: result.player.id, displayName: result.player.displayName });
-    setShowDisplayNameSetup(false);
-    pendingCreateRef.current = false;
-    setScreen({ name: "create" });
-  }, [session]);
+    const s = flowRef.current.getSnapshot().session;
+    if (!s) return;
+    const result = await updateDisplayName({ baseUrl: API_BASE, accessToken: s.access_token, displayName });
+    flowRef.current.setDisplayName(result.player.displayName);
+    syncFlow();
+  }, [syncFlow]);
 
   const handleNavigateDetail = useCallback((jumpId: string) => {
-    setScreen({ name: "detail", jumpId });
-  }, []);
+    flowRef.current.navigateToDetail(jumpId);
+    syncFlow();
+  }, [syncFlow]);
 
   const handleNavigateCreate = useCallback(() => {
-    if (session) {
-      if (!player) {
-        pendingCreateRef.current = true;
-        return;
-      }
-      if (!player.displayName) {
-        pendingCreateRef.current = true;
-        setShowDisplayNameSetup(true);
-        return;
-      }
-    }
-    setScreen({ name: "create" });
-  }, [player, session]);
+    flowRef.current.navigateToCreate();
+    syncFlow();
+  }, [syncFlow]);
 
   const handleBack = useCallback(() => {
-    setScreen({ name: "feed" });
-  }, []);
+    flowRef.current.navigateBack();
+    syncFlow();
+  }, [syncFlow]);
 
   const handleJumpDraftSubmitSuccess = useCallback(() => {
-    setJumpDraft(emptyJumpDraft());
-  }, []);
+    flowRef.current.submitDraft();
+    syncFlow();
+  }, [syncFlow]);
+
+  const handleDraftChange: Dispatch<SetStateAction<JumpDraft>> = useCallback((action) => {
+    const current = flowRef.current.getSnapshot().draft;
+    const next = typeof action === 'function' ? action(current) : action;
+    flowRef.current.changeDraft(next);
+    syncFlow();
+  }, [syncFlow]);
 
   const content = (
     <SafeAreaView style={styles.screen}>
@@ -138,8 +101,8 @@ export default function App() {
         <CreateJumpScreen
           session={session}
           onBack={handleBack}
-          draft={jumpDraft}
-          onDraftChange={setJumpDraft}
+          draft={draft}
+          onDraftChange={handleDraftChange}
           onSubmitSuccess={handleJumpDraftSubmitSuccess}
         />
       ) : (() => {
@@ -150,6 +113,7 @@ export default function App() {
             onBack={handleBack}
             onBrowseFeed={handleBack}
             session={session}
+            onSignIn={handleRequestAuth}
           />
         );
       })()}

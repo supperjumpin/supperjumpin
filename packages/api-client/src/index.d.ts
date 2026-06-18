@@ -37,7 +37,8 @@ export function createJump(args: {
 
 export function submitJudgment(args: {
   baseUrl: string;
-  accessToken: string;
+  accessToken?: string;
+  guestSessionId?: string;
   jumpId: string;
   commitment: number;
   transgression: number;
@@ -45,6 +46,11 @@ export function submitJudgment(args: {
   presentation: number;
   fetchImpl?: typeof fetch;
 }): Promise<Judgment>;
+
+export function createGuestSession(args: {
+  baseUrl: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ id: string }>;
 
 export function getPublicFeed(args: {
   baseUrl: string;
