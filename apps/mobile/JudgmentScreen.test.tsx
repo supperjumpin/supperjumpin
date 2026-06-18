@@ -224,3 +224,65 @@ test('renders a clear error state when submission fails', async () => {
     expect(getByText(/Guest Judgment cap reached/)).toBeTruthy();
   });
 });
+
+test('guest judgment: filing calls submitJudgment with guestSessionId and no Authorization header', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = url.toString();
+    if (requestUrl.includes('/v1/jumps/jump_1/judgment')) {
+      expect(init?.method).toBe('POST');
+      const body = JSON.parse(init?.body as string);
+      expect(body).toMatchObject({
+        guestSessionId: 'guest_session_test123',
+        commitment: 4,
+        transgression: 3,
+        creativity: 2,
+        presentation: 1,
+      });
+      expect(init?.headers).not.toHaveProperty('Authorization');
+      return Response.json({ id: 'judge_guest_1', jumpId: 'jump_1', guestSessionId: 'guest_session_test123', commitment: 4, transgression: 3, creativity: 2, presentation: 1 });
+    }
+    return Response.json({});
+  });
+
+  const onSubmitted = jest.fn();
+
+  const { getByLabelText, getByText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      guestSessionId="guest_session_test123"
+      onSubmitted={onSubmitted}
+      onCancel={() => {}}
+    />
+  );
+
+  await selectAllFactors(getByLabelText);
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Judgment Receipt')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(onSubmitted).toHaveBeenCalledTimes(1);
+  });
+});

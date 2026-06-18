@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createGuestSession,
   createJump,
   getJumpDetail,
   getMe,
@@ -314,6 +315,40 @@ test("public read helpers surface backend message fields in thrown errors", asyn
       }),
     (err) => {
       assert.equal(err.message, "Jump not found. It may have been removed.");
+      return true;
+    },
+  );
+});
+
+test("createGuestSession posts to the guest-sessions endpoint and returns the session id", async () => {
+  const seen = {};
+  const result = await createGuestSession({
+    baseUrl: "http://api.example.test",
+    fetchImpl: async (url, init) => {
+      seen.url = url;
+      seen.method = init.method;
+      return Response.json({ id: "guest_session_abc123" }, { status: 201 });
+    },
+  });
+
+  assert.equal(seen.url, "http://api.example.test/v1/guest-sessions");
+  assert.equal(seen.method, "POST");
+  assert.equal(result.id, "guest_session_abc123");
+});
+
+test("createGuestSession surfaces backend error messages", async () => {
+  await assert.rejects(
+    () =>
+      createGuestSession({
+        baseUrl: "http://api.example.test",
+        fetchImpl: async () =>
+          Response.json(
+            { error: "internal_error", message: "Could not create guest session." },
+            { status: 500 },
+          ),
+      }),
+    (err) => {
+      assert.equal(err.message, "Could not create guest session.");
       return true;
     },
   );
