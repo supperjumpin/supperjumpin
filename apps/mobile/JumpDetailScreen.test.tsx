@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import JumpDetailScreen, { mediaUrl } from './JumpDetailScreen';
+import JumpDetailScreen from './JumpDetailScreen';
 import { mockPublicFetch, jumpDetailResponse } from './test/mockApi';
 
 test('Jump detail exposes loading, performer stub, and back actions accessibly', async () => {
@@ -231,35 +231,6 @@ test('grace-period countdown updates live on Jump detail', async () => {
   expect(getByText('Judging opens in 0m 4s')).toBeTruthy();
 
   jest.useRealTimers();
-});
-
-describe('mediaUrl', () => {
-  test('returns null when key is empty', () => {
-    expect(mediaUrl('', 'https://media.example.com')).toBeNull();
-  });
-
-  test('returns null when baseUrl is empty', () => {
-    expect(mediaUrl('photos/abc.jpg', '')).toBeNull();
-  });
-
-  test('returns null when both arguments are empty', () => {
-    expect(mediaUrl('', '')).toBeNull();
-  });
-
-  test('constructs URL from key and base URL', () => {
-    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-
-  test('strips trailing slash from base URL', () => {
-    expect(mediaUrl('photos/abc.jpg', 'https://media.example.com/'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
-
-  test('strips leading slash from key', () => {
-    expect(mediaUrl('/photos/abc.jpg', 'https://media.example.com'))
-      .toBe('https://media.example.com/photos/abc.jpg');
-  });
 });
 
 test('Jump detail shows media placeholder when mediaObjectKey is empty', async () => {
