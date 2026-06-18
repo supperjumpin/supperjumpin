@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { getJumpDetail } from "@supperjumpin/api-client";
 import { mediaUrl, evidenceAltText, judgeLabel } from "./jumpPresentation";
 import { useLiveNow } from "./useLiveNow";
+import JudgmentScreen from "./JudgmentScreen";
 
 export { mediaUrl } from "./jumpPresentation";
 
@@ -44,32 +45,40 @@ export default function JumpDetailScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTombstone, setIsTombstone] = useState(false);
+  const [showJudgment, setShowJudgment] = useState(false);
 
   const isGraceActive = detail?.viewerContext?.reason === "grace-period";
   const nowMs = useLiveNow(isGraceActive);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await getJumpDetail({
-          baseUrl: API_BASE,
-          accessToken: session?.access_token,
-          jumpId,
-        });
-        if (data && data.status === "Removed Jump") {
-          setIsTombstone(true);
-          setDetail(data);
-        } else {
-          setDetail(data);
-        }
-        setError(null);
-      } catch (e: any) {
-        setError(e.message ?? "Could not load jump detail");
+  const loadDetail = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getJumpDetail({
+        baseUrl: API_BASE,
+        accessToken: session?.access_token,
+        jumpId,
+      });
+      if (data && data.status === "Removed Jump") {
+        setIsTombstone(true);
+        setDetail(data);
+      } else {
+        setDetail(data);
       }
-      setLoading(false);
-    })();
+      setError(null);
+    } catch (e: any) {
+      setError(e.message ?? "Could not load jump detail");
+    }
+    setLoading(false);
   }, [jumpId, session?.access_token]);
+
+  useEffect(() => {
+    loadDetail();
+  }, [loadDetail]);
+
+  function handleJudgmentSubmitted() {
+    setShowJudgment(false);
+    loadDetail();
+  }
 
   if (loading) {
     return (
@@ -201,13 +210,17 @@ export default function JumpDetailScreen({
         </View>
 
         {/* Judge action area */}
-        <View
+        <TouchableOpacity
           style={[
             styles.judgeArea,
             canJudge ? styles.judgeAreaActive : styles.judgeAreaInactive,
           ]}
           accessible
+          disabled={!canJudge}
+          onPress={() => canJudge && setShowJudgment(true)}
+          accessibilityRole="button"
           accessibilityLabel={judgeDisplay.label}
+          accessibilityState={{ disabled: !canJudge }}
         >
           <Text
             style={[
@@ -217,7 +230,28 @@ export default function JumpDetailScreen({
           >
             {judgeDisplay.label}
           </Text>
-        </View>
+        </TouchableOpacity>
+
+        {showJudgment && detail && (
+          <View style={styles.judgmentOverlay}>
+            <JudgmentScreen
+              jumpId={jumpId}
+              detail={{
+                id: detail.id,
+                performerName: detail.performerName,
+                source: detail.source,
+                destination: detail.destination,
+                food: detail.food,
+                caption: detail.caption,
+                runningAverage: detail.runningAverage,
+                judgmentCount: detail.judgmentCount,
+              }}
+              session={session!}
+              onSubmitted={handleJudgmentSubmitted}
+              onCancel={() => setShowJudgment(false)}
+            />
+          </View>
+        )}
 
         {/* Disputes */}
         {detail.disputes && detail.disputes.length > 0 && (
@@ -396,5 +430,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
+  },
+  judgmentOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#f7efe2",
   },
 });
