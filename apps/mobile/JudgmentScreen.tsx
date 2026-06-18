@@ -44,6 +44,13 @@ const FACTOR_LABELS: Record<keyof JudgmentScores, string> = {
   presentation: "Presentation",
 };
 
+const TIER_LABELS: Record<number, string> = {
+  1: "Weak",
+  2: "Fair",
+  3: "Good",
+  4: "Bold",
+};
+
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 interface JudgmentScreenProps {
@@ -75,6 +82,7 @@ export default function JudgmentScreen({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guestCapped, setGuestCapped] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
 
   const allSelected =
     scores.transgression !== null &&
@@ -92,6 +100,7 @@ export default function JudgmentScreen({
     setSubmitting(true);
     setError(null);
     setGuestCapped(false);
+    setNetworkError(false);
     try {
       await submitJudgment({
         baseUrl: API_BASE,
@@ -106,8 +115,13 @@ export default function JudgmentScreen({
       onSubmitted();
     } catch (e: any) {
       const msg = e.message ?? "Could not file Judgment";
-      if (msg.toLowerCase().includes("guest judgment cap reached") || msg.toLowerCase().includes("guest_cap")) {
+      const lower = msg.toLowerCase();
+      if (lower.includes("guest judgment cap reached") || lower.includes("guest_cap")) {
         setGuestCapped(true);
+      } else if (lower.includes("network request failed") || lower.includes("failed to fetch") || lower.includes("network error")) {
+        setNetworkError(true);
+      } else if (lower.includes("already") && (lower.includes("judged") || lower.includes("judgment") || lower.includes("submitted"))) {
+        setError("You already judged this Jump. Your verdict was filed.");
       } else {
         setError(msg);
       }
@@ -135,13 +149,10 @@ export default function JudgmentScreen({
         </View>
 
         {FACTOR_ORDER.map((factor) => {
-          const factorSelected = scores[factor] !== null;
           return (
             <View
               key={factor}
               style={styles.factorSection}
-              accessible
-              accessibilityLabel={`${FACTOR_LABELS[factor]} factor, ${factorSelected ? 'selected' : 'not selected'}`}
             >
               <Text style={styles.factorLabel}>{FACTOR_LABELS[factor]}</Text>
               <View style={styles.factorButtons}>
@@ -156,7 +167,7 @@ export default function JudgmentScreen({
                       ]}
                       onPress={() => setFactor(factor, value as FactorScore)}
                       accessibilityRole="button"
-                      accessibilityLabel={`${FACTOR_LABELS[factor]} score ${value}${selected ? ', selected' : ''}`}
+                      accessibilityLabel={`${FACTOR_LABELS[factor]} score ${value}, ${TIER_LABELS[value]}${selected ? ', selected' : ', not selected'}`}
                       accessibilityState={{ selected }}
                     >
                       <Text
@@ -211,7 +222,7 @@ export default function JudgmentScreen({
             ))}
 
             {guestCapped && (
-              <View style={styles.capPrompt} accessible accessibilityLabel="Guest cap reached prompt">
+              <View style={styles.capPrompt} accessible accessibilityLabel="Guest cap reached prompt" accessibilityLiveRegion="polite">
                 <Text style={styles.capTitle}>You've reached the guest judging limit</Text>
                 <Text style={styles.capBody}>Create an account to keep judging and save your history.</Text>
                 {onSignIn && (
@@ -227,13 +238,27 @@ export default function JudgmentScreen({
               </View>
             )}
 
-            {!guestCapped && error && (
-              <View style={styles.errorRow} accessibilityLabel="Judgment submission error">
+            {networkError && (
+              <View style={styles.errorRow} accessibilityLabel="Network error" accessibilityLiveRegion="polite">
+                <Text style={styles.errorText}>Network error. Check your connection and try again.</Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={handleFileJudgment}
+                  accessibilityRole="button"
+                  accessibilityLabel="Try Again"
+                >
+                  <Text style={styles.retryButtonText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!guestCapped && !networkError && error && (
+              <View style={styles.errorRow} accessibilityLabel="Judgment submission error" accessibilityLiveRegion="polite">
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
-            {!guestCapped && (
+            {!guestCapped && !networkError && (
               <TouchableOpacity
                 style={[styles.fileButton, submitting && styles.fileButtonDisabled]}
                 disabled={submitting}
@@ -470,6 +495,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   signInButtonText: {
+    color: "#fffaf2",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  retryButton: {
+    backgroundColor: "#c1673a",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    minHeight: 48,
+    marginTop: 8,
+  },
+  retryButtonText: {
     color: "#fffaf2",
     fontSize: 16,
     fontWeight: "800",
