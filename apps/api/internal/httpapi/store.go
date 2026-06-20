@@ -154,6 +154,7 @@ func submitJudgment(ctx context.Context, db JudgmentFlow, playerID, guestSession
 		PlayerID:       judgment.PlayerID,
 		GuestSessionID: judgment.GuestSessionID,
 		Provenance:     judgment.Provenance,
+		OpenMonthID:    judgment.OpenMonthID,
 		Commitment:     judgment.Commitment,
 		Transgression:  judgment.Transgression,
 		Creativity:     judgment.Creativity,

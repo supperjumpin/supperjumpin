@@ -24,6 +24,7 @@ type Judgment struct {
 	PlayerID       string
 	GuestSessionID string
 	Provenance     string
+	OpenMonthID    *string
 	Commitment     int
 	Transgression  int
 	Creativity     int
@@ -55,11 +56,13 @@ type SeasonSnapshot struct {
 
 // JudgmentRepository defines persistence operations for the judgment flow.
 type JudgmentRepository interface {
-	// Jump returns the Jump for the given ID. The ok bool is true only when
-	// the jump exists and is in a visible performed status.
+	// Jump returns the Jump for the given ID. The ok bool is true if the
+	// jump exists and is in a visible performed status.
 	Jump(ctx context.Context, jumpID string) (JumpSnapshot, bool, error)
 	// Season returns the Season for the given ID.
 	Season(ctx context.Context, seasonID string) (SeasonSnapshot, error)
+	// ActiveOpen returns the current active competition window based on the provided clock.
+	ActiveOpen(ctx context.Context, now time.Time) (*OpenMonth, error)
 	// SubmitAcceptedJudgment atomically persists an accepted judgment.
 	SubmitAcceptedJudgment(ctx context.Context, input JudgmentInput) (Judgment, error)
 	// HasJudgedJump returns true if the player has already submitted a Judgment for this Jump.
@@ -82,6 +85,7 @@ type JudgmentInput struct {
 	JudgePlayerID  string
 	GuestSessionID string
 	Provenance     string
+	OpenMonthID    *string
 	Commitment     int
 	Transgression  int
 	Creativity     int
@@ -196,7 +200,13 @@ func SubmitJudgment(ctx context.Context, repo JudgmentRepository, input Judgment
 		}
 	}
 
-	// 10. Persist the accepted judgment atomically.
+	// 10. Capture Open Month provenance at insertion time.
+	open, err := repo.ActiveOpen(ctx, now)
+	if err == nil && open != nil {
+		input.OpenMonthID = &open.ID
+	}
+
+	// 11. Persist the accepted judgment atomically.
 	judgment, err := repo.SubmitAcceptedJudgment(ctx, input)
 	if err != nil {
 		return Judgment{}, err

@@ -82,6 +82,10 @@ func (f loggingJudgmentFlow) CreateGuestSession(context.Context, string) error {
 	return f.createGuestSessionErr
 }
 
+func (f loggingJudgmentFlow) ActiveOpen(context.Context, time.Time) (*game.OpenMonth, error) {
+	return nil, nil
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},

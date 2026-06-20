@@ -54,6 +54,7 @@ type Judgment struct {
 	PlayerID       sql.NullString
 	GuestSessionID sql.NullString
 	Provenance     string
+	OpenMonthID    sql.NullString
 	Commitment     int32
 	Transgression  int32
 	Creativity     int32

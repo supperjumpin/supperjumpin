@@ -24,7 +24,7 @@ func (q *Queries) CreateGuestSession(ctx context.Context, id string) (GuestSessi
 }
 
 const getGuestJudgment = `-- name: GetGuestJudgment :one
-SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
+SELECT id, jump_id, player_id, guest_session_id, provenance, open_month_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1 AND guest_session_id = $2
 `
@@ -40,6 +40,7 @@ type GetGuestJudgmentRow struct {
 	PlayerID       sql.NullString
 	GuestSessionID sql.NullString
 	Provenance     string
+	OpenMonthID    sql.NullString
 	Commitment     int32
 	Transgression  int32
 	Creativity     int32
@@ -55,6 +56,7 @@ func (q *Queries) GetGuestJudgment(ctx context.Context, arg GetGuestJudgmentPara
 		&i.PlayerID,
 		&i.GuestSessionID,
 		&i.Provenance,
+		&i.OpenMonthID,
 		&i.Commitment,
 		&i.Transgression,
 		&i.Creativity,
@@ -90,7 +92,7 @@ func (q *Queries) GetGuestSessionJudgmentCount(ctx context.Context, id string) (
 }
 
 const getPlayerJudgment = `-- name: GetPlayerJudgment :one
-SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
+SELECT id, jump_id, player_id, guest_session_id, provenance, open_month_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1 AND player_id = $2
 `
@@ -106,6 +108,7 @@ type GetPlayerJudgmentRow struct {
 	PlayerID       sql.NullString
 	GuestSessionID sql.NullString
 	Provenance     string
+	OpenMonthID    sql.NullString
 	Commitment     int32
 	Transgression  int32
 	Creativity     int32
@@ -121,6 +124,7 @@ func (q *Queries) GetPlayerJudgment(ctx context.Context, arg GetPlayerJudgmentPa
 		&i.PlayerID,
 		&i.GuestSessionID,
 		&i.Provenance,
+		&i.OpenMonthID,
 		&i.Commitment,
 		&i.Transgression,
 		&i.Creativity,
@@ -141,8 +145,8 @@ func (q *Queries) IncrementGuestSessionJudgmentCount(ctx context.Context, id str
 }
 
 const insertGuestJudgment = `-- name: InsertGuestJudgment :exec
-INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
-VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8)
+INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, open_month_id, commitment, transgression, creativity, presentation)
+VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type InsertGuestJudgmentParams struct {
@@ -150,6 +154,7 @@ type InsertGuestJudgmentParams struct {
 	JumpID         string
 	GuestSessionID sql.NullString
 	Provenance     string
+	OpenMonthID    sql.NullString
 	Commitment     int32
 	Transgression  int32
 	Creativity     int32
@@ -162,6 +167,7 @@ func (q *Queries) InsertGuestJudgment(ctx context.Context, arg InsertGuestJudgme
 		arg.JumpID,
 		arg.GuestSessionID,
 		arg.Provenance,
+		arg.OpenMonthID,
 		arg.Commitment,
 		arg.Transgression,
 		arg.Creativity,
@@ -171,8 +177,8 @@ func (q *Queries) InsertGuestJudgment(ctx context.Context, arg InsertGuestJudgme
 }
 
 const insertPlayerJudgment = `-- name: InsertPlayerJudgment :exec
-INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation)
-VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8)
+INSERT INTO judgments (id, jump_id, player_id, guest_session_id, provenance, open_month_id, commitment, transgression, creativity, presentation)
+VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9)
 `
 
 type InsertPlayerJudgmentParams struct {
@@ -180,6 +186,7 @@ type InsertPlayerJudgmentParams struct {
 	JumpID        string
 	PlayerID      sql.NullString
 	Provenance    string
+	OpenMonthID   sql.NullString
 	Commitment    int32
 	Transgression int32
 	Creativity    int32
@@ -192,6 +199,7 @@ func (q *Queries) InsertPlayerJudgment(ctx context.Context, arg InsertPlayerJudg
 		arg.JumpID,
 		arg.PlayerID,
 		arg.Provenance,
+		arg.OpenMonthID,
 		arg.Commitment,
 		arg.Transgression,
 		arg.Creativity,
@@ -201,7 +209,7 @@ func (q *Queries) InsertPlayerJudgment(ctx context.Context, arg InsertPlayerJudg
 }
 
 const listJudgmentsForJump = `-- name: ListJudgmentsForJump :many
-SELECT id, jump_id, player_id, guest_session_id, provenance, commitment, transgression, creativity, presentation
+SELECT id, jump_id, player_id, guest_session_id, provenance, open_month_id, commitment, transgression, creativity, presentation
 FROM judgments
 WHERE jump_id = $1
 `
@@ -212,6 +220,7 @@ type ListJudgmentsForJumpRow struct {
 	PlayerID       sql.NullString
 	GuestSessionID sql.NullString
 	Provenance     string
+	OpenMonthID    sql.NullString
 	Commitment     int32
 	Transgression  int32
 	Creativity     int32
@@ -233,6 +242,7 @@ func (q *Queries) ListJudgmentsForJump(ctx context.Context, jumpID string) ([]Li
 			&i.PlayerID,
 			&i.GuestSessionID,
 			&i.Provenance,
+			&i.OpenMonthID,
 			&i.Commitment,
 			&i.Transgression,
 			&i.Creativity,

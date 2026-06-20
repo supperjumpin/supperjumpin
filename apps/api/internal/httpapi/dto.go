@@ -32,15 +32,16 @@ type Jump struct {
 }
 
 type Judgment struct {
-	ID             string `json:"id"`
-	JumpID         string `json:"jumpId"`
-	PlayerID       string `json:"playerId"`
-	GuestSessionID string `json:"guestSessionId,omitempty"`
-	Provenance     string `json:"provenance,omitempty"`
-	Commitment     int    `json:"commitment"`
-	Transgression  int    `json:"transgression"`
-	Creativity     int    `json:"creativity"`
-	Presentation   int    `json:"presentation"`
+	ID             string  `json:"id"`
+	JumpID         string  `json:"jumpId"`
+	PlayerID       string  `json:"playerId"`
+	GuestSessionID string  `json:"guestSessionId,omitempty"`
+	Provenance     string  `json:"provenance,omitempty"`
+	OpenMonthID    *string `json:"openMonthId,omitempty"`
+	Commitment     int     `json:"commitment"`
+	Transgression  int     `json:"transgression"`
+	Creativity     int     `json:"creativity"`
+	Presentation   int     `json:"presentation"`
 }
 
 type GuestSession struct {

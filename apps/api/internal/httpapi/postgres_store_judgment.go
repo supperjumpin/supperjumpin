@@ -80,6 +80,11 @@ func (s *PostgresStore) SubmitAcceptedJudgment(ctx context.Context, input game.J
 }
 
 func (s *PostgresStore) insertJudgmentWithTx(ctx context.Context, qtx *db.Queries, input game.JudgmentInput) (game.Judgment, error) {
+	openMonthID := sql.NullString{}
+	if input.OpenMonthID != nil {
+		openMonthID = sql.NullString{String: *input.OpenMonthID, Valid: true}
+	}
+
 	if input.JudgePlayerID != "" {
 		judgmentID := stableID("judgment", input.JumpID+":"+input.JudgePlayerID)
 		err := qtx.InsertPlayerJudgment(ctx, db.InsertPlayerJudgmentParams{
@@ -87,6 +92,7 @@ func (s *PostgresStore) insertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 			JumpID:        input.JumpID,
 			PlayerID:      sql.NullString{String: input.JudgePlayerID, Valid: true},
 			Provenance:    input.Provenance,
+			OpenMonthID:   openMonthID,
 			Commitment:    int32(input.Commitment),
 			Transgression: int32(input.Transgression),
 			Creativity:    int32(input.Creativity),
@@ -103,6 +109,7 @@ func (s *PostgresStore) insertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 			JumpID:        input.JumpID,
 			PlayerID:      input.JudgePlayerID,
 			Provenance:    input.Provenance,
+			OpenMonthID:   input.OpenMonthID,
 			Commitment:    input.Commitment,
 			Transgression: input.Transgression,
 			Creativity:    input.Creativity,
@@ -116,6 +123,7 @@ func (s *PostgresStore) insertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 		JumpID:         input.JumpID,
 		GuestSessionID: sql.NullString{String: input.GuestSessionID, Valid: true},
 		Provenance:     input.Provenance,
+		OpenMonthID:    openMonthID,
 		Commitment:     int32(input.Commitment),
 		Transgression:  int32(input.Transgression),
 		Creativity:     int32(input.Creativity),
@@ -132,6 +140,7 @@ func (s *PostgresStore) insertJudgmentWithTx(ctx context.Context, qtx *db.Querie
 		JumpID:         input.JumpID,
 		GuestSessionID: input.GuestSessionID,
 		Provenance:     input.Provenance,
+		OpenMonthID:    input.OpenMonthID,
 		Commitment:     input.Commitment,
 		Transgression:  input.Transgression,
 		Creativity:     input.Creativity,

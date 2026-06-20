@@ -16,6 +16,7 @@ type mockJudgmentRepo struct {
 	guestSessionJudgmentCountFn func(ctx context.Context, guestSessionID string) (int, error)
 	advanceJudgedFn             func(ctx context.Context, jumpID string) error
 	incrementGuestSessionFn     func(ctx context.Context, guestSessionID string) error
+	activeOpenFn                func(ctx context.Context, now time.Time) (*OpenMonth, error)
 }
 
 func (m *mockJudgmentRepo) Jump(_ context.Context, jumpID string) (JumpSnapshot, bool, error) {
@@ -104,6 +105,13 @@ func (m *mockJudgmentRepo) IncrementGuestSessionJudgmentCount(_ context.Context,
 
 func (m *mockJudgmentRepo) CreateGuestSession(_ context.Context, id string) error {
 	return nil
+}
+
+func (m *mockJudgmentRepo) ActiveOpen(_ context.Context, now time.Time) (*OpenMonth, error) {
+	if m.activeOpenFn != nil {
+		return m.activeOpenFn(nil, now)
+	}
+	return nil, nil
 }
 
 func performedJump(jumpID string, graceOffset time.Duration) JumpSnapshot {
