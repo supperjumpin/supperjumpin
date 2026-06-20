@@ -309,7 +309,7 @@ test('tapping "Judge this Jump" opens the judgment overlay', async () => {
 
   await waitFor(() => {
     expect(getByLabelText('Cancel Judgment')).toBeTruthy();
-    expect(getByLabelText('Transgression factor, not selected')).toBeTruthy();
+    expect(getByLabelText('Transgression score 3, Good, not selected')).toBeTruthy();
   });
 });
 
@@ -350,14 +350,14 @@ test('after filing judgment, detail refreshes and shows updated running average'
   });
 
   await waitFor(() => {
-    expect(getByLabelText('Creativity score 2')).toBeTruthy();
+    expect(getByLabelText('Creativity score 2, Fair, not selected')).toBeTruthy();
   });
 
   await act(async () => {
-    fireEvent.press(getByLabelText('Creativity score 2'));
-    fireEvent.press(getByLabelText('Transgression score 3'));
-    fireEvent.press(getByLabelText('Commitment score 4'));
-    fireEvent.press(getByLabelText('Presentation score 1'));
+    fireEvent.press(getByLabelText('Creativity score 2, Fair, not selected'));
+    fireEvent.press(getByLabelText('Transgression score 3, Good, not selected'));
+    fireEvent.press(getByLabelText('Commitment score 4, Bold, not selected'));
+    fireEvent.press(getByLabelText('Presentation score 1, Weak, not selected'));
   });
 
   await act(async () => {
@@ -414,7 +414,7 @@ test('guest user: tapping "Judge this Jump" creates a guest session and opens ju
   await waitFor(() => {
     expect(guestSessionCreated).toBe(true);
     expect(getByLabelText('Cancel Judgment')).toBeTruthy();
-    expect(getByLabelText('Transgression factor, not selected')).toBeTruthy();
+    expect(getByLabelText('Transgression score 3, Good, not selected')).toBeTruthy();
   });
 });
 
@@ -460,14 +460,14 @@ test('guest user: filing a judgment submits with guestSessionId and refreshes de
   });
 
   await waitFor(() => {
-    expect(getByLabelText('Transgression score 3')).toBeTruthy();
+    expect(getByLabelText('Transgression score 3, Good, not selected')).toBeTruthy();
   });
 
   await act(async () => {
-    fireEvent.press(getByLabelText('Transgression score 3'));
-    fireEvent.press(getByLabelText('Creativity score 2'));
-    fireEvent.press(getByLabelText('Commitment score 4'));
-    fireEvent.press(getByLabelText('Presentation score 1'));
+    fireEvent.press(getByLabelText('Creativity score 2, Fair, not selected'));
+    fireEvent.press(getByLabelText('Transgression score 3, Good, not selected'));
+    fireEvent.press(getByLabelText('Commitment score 4, Bold, not selected'));
+    fireEvent.press(getByLabelText('Presentation score 1, Weak, not selected'));
   });
 
   await act(async () => {

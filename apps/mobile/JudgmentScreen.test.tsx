@@ -5,10 +5,10 @@ import { mockPublicFetch } from './test/mockApi';
 
 function selectAllFactors(getByLabelText: (label: string) => any) {
   return act(async () => {
-    fireEvent.press(getByLabelText('Transgression score 3'));
-    fireEvent.press(getByLabelText('Creativity score 2'));
-    fireEvent.press(getByLabelText('Commitment score 4'));
-    fireEvent.press(getByLabelText('Presentation score 1'));
+    fireEvent.press(getByLabelText('Transgression score 3, Good, not selected'));
+    fireEvent.press(getByLabelText('Creativity score 2, Fair, not selected'));
+    fireEvent.press(getByLabelText('Commitment score 4, Bold, not selected'));
+    fireEvent.press(getByLabelText('Presentation score 1, Weak, not selected'));
   });
 }
 
@@ -34,10 +34,10 @@ test('JudgmentScreen renders four factor selectors and a disabled review button'
     />
   );
 
-  expect(getByLabelText('Transgression factor, not selected')).toBeTruthy();
-  expect(getByLabelText('Creativity factor, not selected')).toBeTruthy();
-  expect(getByLabelText('Commitment factor, not selected')).toBeTruthy();
-  expect(getByLabelText('Presentation factor, not selected')).toBeTruthy();
+  expect(getByText('Transgression')).toBeTruthy();
+  expect(getByText('Creativity')).toBeTruthy();
+  expect(getByText('Commitment')).toBeTruthy();
+  expect(getByText('Presentation')).toBeTruthy();
 
   const reviewButton = getByLabelText('Review Judgment, disabled');
   expect(reviewButton).toBeTruthy();
@@ -345,4 +345,179 @@ test('guest cap error shows account-conversion prompt with Sign In button', asyn
   });
 
   expect(onSignIn).toHaveBeenCalledTimes(1);
+});
+
+test('factor buttons include named tier labels in accessibility for screen readers', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  const { getByLabelText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      session={{ access_token: 'tok_abc', user: { id: 'u1' } }}
+      onSubmitted={() => {}}
+      onCancel={() => {}}
+    />
+  );
+
+  // Each score button should include a tier name, not just a number
+  expect(getByLabelText('Transgression score 1, Weak, not selected')).toBeTruthy();
+  expect(getByLabelText('Transgression score 2, Fair, not selected')).toBeTruthy();
+  expect(getByLabelText('Transgression score 3, Good, not selected')).toBeTruthy();
+  expect(getByLabelText('Transgression score 4, Bold, not selected')).toBeTruthy();
+});
+
+test('error and cap prompt containers announce changes via accessibilityLiveRegion', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => {
+    return new Response(
+      JSON.stringify({ error: 'forbidden', message: 'Author Grace Period is still active.' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    );
+  });
+
+  const { getByLabelText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      session={{ access_token: 'tok_abc', user: { id: 'u1' } }}
+      onSubmitted={() => {}}
+      onCancel={() => {}}
+    />
+  );
+
+  await selectAllFactors(getByLabelText);
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    const errorContainer = getByLabelText('Judgment submission error');
+    expect(errorContainer.props.accessibilityLiveRegion).toBe('polite');
+  });
+});
+
+test('network failure shows friendly message with Try Again button', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  let callCount = 0;
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => {
+    callCount++;
+    if (callCount === 1) throw new TypeError('Network request failed');
+    return Response.json({ id: 'judge_1' }, { status: 201 });
+  });
+
+  const onSubmitted = jest.fn();
+  const { getByLabelText, getByText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      session={{ access_token: 'tok_abc', user: { id: 'u1' } }}
+      onSubmitted={onSubmitted}
+      onCancel={() => {}}
+    />
+  );
+
+  await selectAllFactors(getByLabelText);
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(getByText(/Network error/)).toBeTruthy();
+    expect(getByLabelText('Try Again')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Try Again'));
+  });
+
+  await waitFor(() => {
+    expect(onSubmitted).toHaveBeenCalledTimes(1);
+  });
+});
+
+test('409 already-judged shows clear message that Judgment was already filed', async () => {
+  const detail = {
+    id: 'jump_1',
+    performerName: 'alice',
+    source: 'Taco Bell',
+    destination: 'Olive Garden parking lot',
+    food: 'Crunchwrap',
+    caption: 'Carried it cleanly',
+    runningAverage: 0,
+    judgmentCount: 0,
+  };
+
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async () => {
+    return new Response(
+      JSON.stringify({ error: 'already_judged', message: 'Judge has already submitted a Judgment for this Jump.' }),
+      { status: 409, headers: { 'Content-Type': 'application/json' } }
+    );
+  });
+
+  const { getByLabelText, getByText } = await render(
+    <JudgmentScreen
+      jumpId="jump_1"
+      detail={detail}
+      session={{ access_token: 'tok_abc', user: { id: 'u1' } }}
+      onSubmitted={() => {}}
+      onCancel={() => {}}
+    />
+  );
+
+  await selectAllFactors(getByLabelText);
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('Review Judgment, enabled'));
+  });
+
+  await act(async () => {
+    fireEvent.press(getByLabelText('File Judgment'));
+  });
+
+  await waitFor(() => {
+    expect(getByText(/You already judged this Jump/)).toBeTruthy();
+  });
 });
