@@ -11,6 +11,7 @@ CREATE TABLE judgments (
     player_id TEXT REFERENCES players(id),
     guest_session_id TEXT REFERENCES guest_sessions(id),
     provenance TEXT NOT NULL DEFAULT 'public',
+    open_month_id TEXT,
     commitment INT NOT NULL CHECK (commitment >= 0 AND commitment <= 10),
     transgression INT NOT NULL CHECK (transgression >= 0 AND transgression <= 10),
     creativity INT NOT NULL CHECK (creativity >= 0 AND creativity <= 10),

@@ -71,12 +71,17 @@ func (s *PostgresStore) JudgmentsForJump(ctx context.Context, jumpID string) ([]
 	}
 	var result []game.Judgment
 	for _, row := range rows {
+		var openMonthID *string
+		if row.OpenMonthID.Valid {
+			openMonthID = &row.OpenMonthID.String
+		}
 		result = append(result, game.Judgment{
 			ID:             row.ID,
 			JumpID:         row.JumpID,
 			PlayerID:       row.PlayerID.String,
 			GuestSessionID: row.GuestSessionID.String,
 			Provenance:     row.Provenance,
+			OpenMonthID:    openMonthID,
 			Commitment:     int(row.Commitment),
 			Transgression:  int(row.Transgression),
 			Creativity:     int(row.Creativity),
