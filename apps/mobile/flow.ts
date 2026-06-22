@@ -95,20 +95,15 @@ export function createAppFlow() {
     },
 
     navigateToCreate(): void {
-      if (!session) {
-        pendingCreate = true;
-        return;
-      }
-      if (!player) {
+      screen = { name: 'create' };
+      if (!session || !player) {
         pendingCreate = true;
         return;
       }
       if (!player.displayName) {
         pendingCreate = true;
         showDisplayNameSetup = true;
-        return;
       }
-      screen = { name: 'create' };
     },
 
     changeDraft(d: JumpDraft): void {

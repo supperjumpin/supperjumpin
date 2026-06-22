@@ -20,12 +20,12 @@ describe('AppFlow', () => {
     });
   });
 
-  test('navigateToCreate when unauthenticated sets pendingCreate without navigating', () => {
+  test('navigateToCreate when unauthenticated sets pendingCreate and navigates to create screen', () => {
     const flow = createAppFlow();
     flow.navigateToCreate();
 
     const snapshot = flow.getSnapshot();
-    expect(snapshot.screen).toEqual({ name: 'feed' });
+    expect(snapshot.screen).toEqual({ name: 'create' });
     expect(snapshot.pendingCreate).toBe(true);
     expect(snapshot.showDisplayNameSetup).toBe(false);
   });
@@ -52,7 +52,7 @@ describe('AppFlow', () => {
     flow.resolvePlayer({ id: 'p1', displayName: '' });
 
     const snapshot = flow.getSnapshot();
-    expect(snapshot.screen).toEqual({ name: 'feed' });
+    expect(snapshot.screen).toEqual({ name: 'create' });
     expect(snapshot.pendingCreate).toBe(true);
     expect(snapshot.showDisplayNameSetup).toBe(true);
     expect(snapshot.player).toEqual({ id: 'p1', displayName: '' });
@@ -165,25 +165,25 @@ describe('AppFlow', () => {
     expect(snapshot.pendingCreate).toBe(false);
   });
 
-  test('navigateToCreate when signed in but no player sets pendingCreate', () => {
+  test('navigateToCreate when signed in but no player sets pendingCreate and navigates to create screen', () => {
     const flow = createAppFlow();
     flow.signIn({ access_token: 'tok', user: { id: 'p1' } });
     // player not yet resolved
     flow.navigateToCreate();
 
     const snapshot = flow.getSnapshot();
-    expect(snapshot.screen).toEqual({ name: 'feed' });
+    expect(snapshot.screen).toEqual({ name: 'create' });
     expect(snapshot.pendingCreate).toBe(true);
   });
 
-  test('navigateToCreate when signed in but no display name shows setup', () => {
+  test('navigateToCreate when signed in but no display name shows setup and navigates to create screen', () => {
     const flow = createAppFlow();
     flow.signIn({ access_token: 'tok', user: { id: 'p1' } });
     flow.resolvePlayer({ id: 'p1', displayName: '' });
     flow.navigateToCreate();
 
     const snapshot = flow.getSnapshot();
-    expect(snapshot.screen).toEqual({ name: 'feed' });
+    expect(snapshot.screen).toEqual({ name: 'create' });
     expect(snapshot.pendingCreate).toBe(true);
     expect(snapshot.showDisplayNameSetup).toBe(true);
   });

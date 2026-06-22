@@ -165,6 +165,14 @@ test('signed-in players open Jump detail with bearer auth and viewer context', a
   });
 
   await waitFor(() => {
+    expect(getByText('Sign In')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Sign In'));
+  });
+
+  await waitFor(() => {
     expect(getByText('Post a Jump')).toBeTruthy();
   });
 
@@ -198,7 +206,7 @@ test('routes bearer-token sign-in without a display name through setup before cr
     }
     return Response.json({});
   });
-  const { getByText } = await render(<App />);
+  const { getByText, getByLabelText } = await render(<App />);
 
   await waitFor(() => {
     expect(getByText('+ Jump')).toBeTruthy();
@@ -209,13 +217,21 @@ test('routes bearer-token sign-in without a display name through setup before cr
   });
 
   await waitFor(() => {
+    expect(getByText('Sign In')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Sign In'));
+  });
+
+  await waitFor(() => {
     expect(getByText('Choose your display name')).toBeTruthy();
   });
 
   expect(seen.meAuthorization).toBe('Bearer dev-token');
 });
 
-test('routes unauthenticated Post Jump taps through sign in and into Create Jump', async () => {
+test('routes unauthenticated Post Jump taps through AuthGate to LoginScreen, then to Create Jump after sign in', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async (url: RequestInfo | URL) => {
     if (url.toString().includes('/v1/feed')) {
@@ -235,6 +251,68 @@ test('routes unauthenticated Post Jump taps through sign in and into Create Jump
 
   await act(async () => {
     fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Sign In')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Sign In'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Post a Jump')).toBeTruthy();
+  });
+});
+
+test('routes unauthenticated Post Jump through AuthGate to DisplayNameSetup when player has no display name, then to Create Jump after saving', async () => {
+  const fetchSpy = mockPublicFetch();
+  fetchSpy.mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+    if (url.toString().includes('/v1/feed')) {
+      return Response.json(feedResponse([]));
+    }
+    if (url.toString().includes('/v1/me/display-name')) {
+      return Response.json({ player: { id: 'player_1', displayName: 'alice' } });
+    }
+    if (url.toString().includes('/v1/me')) {
+      return Response.json({ player: { id: 'player_1', displayName: '' } });
+    }
+    return Response.json({});
+  });
+
+  const { getByText, getByLabelText } = await render(<App />);
+
+  await waitFor(() => {
+    expect(getByText('+ Jump')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Sign In')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Sign In'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Choose your display name')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.changeText(getByLabelText('Display name input'), 'alice');
+  });
+
+  await waitFor(() => {
+    expect(getByLabelText('Display name input').props.value).toBe('alice');
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Save'));
   });
 
   await waitFor(() => {
@@ -261,6 +339,14 @@ test('preserves a composed Jump draft when leaving and returning to Create Jump'
 
   await act(async () => {
     fireEvent.press(getByText('+ Jump'));
+  });
+
+  await waitFor(() => {
+    expect(getByText('Sign In')).toBeTruthy();
+  });
+
+  await act(async () => {
+    fireEvent.press(getByText('Sign In'));
   });
 
   await waitFor(() => {

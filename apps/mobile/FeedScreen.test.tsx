@@ -253,7 +253,6 @@ test('shows Post Jump button when session is provided', async () => {
   const { getByText } = await render(
     <FeedScreen
       onNavigateDetail={() => {}}
-      onRequestAuth={() => {}}
       session={{ access_token: 'tok', user: { id: 'u1' } }}
     />
   );
@@ -275,7 +274,7 @@ test('shows Post Jump button when no session', async () => {
     return Response.json({});
   });
 
-  const { getByText } = await render(<FeedScreen onNavigateDetail={() => {}} onRequestAuth={() => {}} />);
+  const { getByText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
 
   await waitFor(
     () => {
@@ -305,7 +304,7 @@ test('Feed key interactive targets meet minimum touch size', async () => {
   const fetchSpy = mockPublicFetch();
   fetchSpy.mockImplementation(async () => Response.json(feedResponse([publicJump()])));
 
-  const { getAllByLabelText, getByLabelText } = await render(<FeedScreen onNavigateDetail={() => {}} onRequestAuth={() => {}} />);
+  const { getAllByLabelText, getByLabelText } = await render(<FeedScreen onNavigateDetail={() => {}} />);
 
   await waitFor(() => {
     expect(getByLabelText('Post a new Jump').props.style).toEqual(expect.objectContaining({ minHeight: 44 }));

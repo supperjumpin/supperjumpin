@@ -16,17 +16,23 @@ interface AuthGateProps {
   session: Session | null;
   player: Player | null;
   onSignIn?: () => Promise<void>;
-  onDisplayNameSet?: (displayName: string) => Promise<void>;
+  onSetDisplayName?: (displayName: string) => Promise<void>;
   children: React.ReactNode;
 }
 
-export default function AuthGate({ session, player, onSignIn, onDisplayNameSet, children }: AuthGateProps) {
+export default function AuthGate({
+  session,
+  player,
+  onSignIn,
+  onSetDisplayName,
+  children,
+}: AuthGateProps) {
   if (!session) {
-    return <LoginScreen onSignIn={onSignIn || (async () => {})} />;
+    return <LoginScreen onSignIn={onSignIn ?? (async () => {})} loading={false} />;
   }
 
   if (!player || !player.displayName) {
-    return <DisplayNameSetupScreen onSubmit={onDisplayNameSet || (async () => {})} />;
+    return <DisplayNameSetupScreen onSubmit={onSetDisplayName ?? (async () => {})} />;
   }
 
   return <>{children}</>;

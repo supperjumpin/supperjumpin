@@ -6,7 +6,7 @@ import { createAppFlow, type FlowSnapshot, type JumpDraft } from "./flow";
 import FeedScreen from "./FeedScreen";
 import JumpDetailScreen from "./JumpDetailScreen";
 import CreateJumpScreen from "./CreateJumpScreen";
-import DisplayNameSetupScreen from "./DisplayNameSetupScreen";
+import AuthGate from "./AuthGate";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const DEV_AUTH_TOKEN = process.env.EXPO_PUBLIC_DEV_AUTH_TOKEN ?? "dev-token";
@@ -19,7 +19,7 @@ export default function App() {
     setFlowState(flowRef.current.getSnapshot());
   }, []);
 
-  const { screen, session, player, showDisplayNameSetup, draft } = flowState;
+  const { screen, session, player, draft } = flowState;
 
   useEffect(() => {
     if (!session) return;
@@ -40,14 +40,7 @@ export default function App() {
     return () => { cancelled = true; };
   }, [session, syncFlow]);
 
-  const handleSignIn = useCallback(() => {
-    flowRef.current.signIn({ access_token: DEV_AUTH_TOKEN, user: { id: "signed-in-player" } });
-    syncFlow();
-  }, [syncFlow]);
-
-  const handleRequestAuth = useCallback(() => {
-    flowRef.current.navigateToCreate();
-    syncFlow();
+  const handleSignIn = useCallback(async () => {
     flowRef.current.signIn({ access_token: DEV_AUTH_TOKEN, user: { id: "signed-in-player" } });
     syncFlow();
   }, [syncFlow]);
@@ -82,49 +75,61 @@ export default function App() {
 
   const handleDraftChange: Dispatch<SetStateAction<JumpDraft>> = useCallback((action) => {
     const current = flowRef.current.getSnapshot().draft;
-    const next = typeof action === 'function' ? action(current) : action;
+    const next = typeof action === "function" ? action(current) : action;
     flowRef.current.changeDraft(next);
     syncFlow();
   }, [syncFlow]);
 
+  const feedScreen = (
+    <FeedScreen
+      onNavigateDetail={handleNavigateDetail}
+      onNavigateCreate={handleNavigateCreate}
+      session={session}
+    />
+  );
+
+  const createScreen = (
+    <AuthGate
+      session={session}
+      player={player}
+      onSignIn={handleSignIn}
+      onSetDisplayName={handleDisplayNameSet}
+    >
+      <CreateJumpScreen
+        session={session}
+        onBack={handleBack}
+        draft={draft}
+        onDraftChange={handleDraftChange}
+        onSubmitSuccess={handleJumpDraftSubmitSuccess}
+      />
+    </AuthGate>
+  );
+
+  const detailScreen = (() => {
+    const s = screen as { name: "detail"; jumpId: string };
+    return (
+      <JumpDetailScreen
+        jumpId={s.jumpId}
+        onBack={handleBack}
+        onBrowseFeed={handleBack}
+        session={session}
+        onSignIn={handleSignIn}
+      />
+    );
+  })();
+
   const content = (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7efe2" />
-      {screen.name === "feed" ? (
-        <FeedScreen
-          onNavigateDetail={handleNavigateDetail}
-          onNavigateCreate={handleNavigateCreate}
-          onRequestAuth={handleRequestAuth}
-          session={session}
-        />
-      ) : screen.name === "create" ? (
-        <CreateJumpScreen
-          session={session}
-          onBack={handleBack}
-          draft={draft}
-          onDraftChange={handleDraftChange}
-          onSubmitSuccess={handleJumpDraftSubmitSuccess}
-        />
-      ) : (() => {
-        const s = screen as { name: "detail"; jumpId: string };
-        return (
-          <JumpDetailScreen
-            jumpId={s.jumpId}
-            onBack={handleBack}
-            onBrowseFeed={handleBack}
-            session={session}
-            onSignIn={handleRequestAuth}
-          />
-        );
-      })()}
+      {screen.name === "feed"
+        ? feedScreen
+        : screen.name === "create"
+        ? createScreen
+        : detailScreen}
     </SafeAreaView>
   );
 
-  const appContent = showDisplayNameSetup ? (
-    <DisplayNameSetupScreen onSubmit={handleDisplayNameSet} />
-  ) : content;
-
-  return <SafeAreaProvider>{appContent}</SafeAreaProvider>;
+  return <SafeAreaProvider>{content}</SafeAreaProvider>;
 }
 
 const styles = StyleSheet.create({
