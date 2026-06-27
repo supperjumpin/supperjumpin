@@ -79,11 +79,13 @@ prompt=$(cat <<PROMPT
 GitHub PRD: $repo#$prd_number
 
 1. Read AGENTS.md, CONTEXT.md, docs/agents/issue-tracker.md, docs/project-board.md, the PRD issue, and its comments.
-2. Decide the next unfinished piece of work for this PRD. Prefer existing ready sub-issues; create sub-issues only if the PRD clearly needs decomposition before implementation.
-3. Use PRD issue comments as the progress log. Read prior Ralph progress comments before deciding what remains.
-4. If there is no remaining work, or the next work needs a human decision, add a short PRD comment and stop.
-5. Otherwise, execute the chosen work by using /tdd when test-first is appropriate, or /implement otherwise. Pass the chosen issue/PRD context into that skill.
-6. After the skill finishes, comment on the PRD or relevant sub-issue with concise progress, result, verification, and commit hash; then make one commit for the completed slice.
+2. Explicitly fetch the PRD's GitHub sub-issues/parent relationships; do not infer them from the issue body or comments alone.
+3. If sub-issues already exist, choose the next unfinished ready sub-issue from that list. Do not decompose the PRD again.
+4. If no sub-issues exist, decide the next unfinished piece of work; create sub-issues only if the PRD clearly needs decomposition before implementation.
+5. Use PRD issue comments as the progress log. Read prior Ralph progress comments before deciding what remains.
+6. If there is no remaining work, or the next work needs a human decision, add a short PRD comment and stop.
+7. Otherwise, execute the chosen work by using /tdd when test-first is appropriate, or /implement otherwise. Pass the chosen issue/PRD context into that skill.
+8. After the skill finishes, comment on the PRD or relevant sub-issue with concise progress, result, verification, and commit hash; then make one commit for the completed slice.
 
 Nonnegotiables: follow repo AGENTS.md files, do not push, do not rebase, do not touch unrelated user changes, do not close issues directly unless the issue explicitly says to.
 PROMPT
