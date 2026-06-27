@@ -47,16 +47,10 @@ func main() {
 	defer store.Close()
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
-		Auth:         auth,
-		Store:        store,
-		Now:          time.Now,
-		JumpPlanning: store,
-		Judgment:     store,
-		PublicRead:   store,
-		Open:         store,
-		CaptionEdit:  store,
-		JumpRetract:  store,
-		Logger:       logger,
+		Auth:   auth,
+		Store:  store,
+		Now:    time.Now,
+		Logger: logger,
 	})
 	logger.Info("Supperjumpin API listening", "port", port)
 	if err := http.ListenAndServe(":"+port, server); err != nil {

@@ -8,15 +8,12 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Add/modify route | `server.go` | `mux.HandleFunc` closures; ~15 routes in one file |
+| Add/modify route | `server.go` | `mux.HandleFunc` closures |
 | Change JSON request/response shape | `dto.go` | camelCase JSON tags |
-| Fix game error → HTTP status mapping | `store.go` (mapGameErr) | e.g., `ErrInvalidJudgmentScore` → 400 |
-| Add transport helper | `store.go` | Wraps game function + assembles DTO response |
-| Shared transport helpers | `helpers.go` | ID generation, DTO/snapshot mapping, small package helpers |
-| Request logging | `logging.go` | Request ID context, response capture, panic recovery, completion logs, request log accumulator |
-| Public read assembly | `public_read.go` | Feed/detail orchestration: cursor parsing, viewer context, tombstones |
-| Production persistence | `postgres_store.go` (PostgresStore) | Raw SQL implementing narrow per-flow interfaces |
-| Integration tests | `me_test.go`, `public_read_test.go`, `guest_judgment_test.go` | `httptest` + Postgres-backed fixtures |
+| Shared transport helpers | `helpers.go` | ID generation, DTO/snapshot mapping |
+| Request logging | `logging.go` | Request ID context, response capture, panic recovery, completion logs |
+| Production persistence | `postgres_store.go` (PostgresStore) | sqlc-generated queries implementing per-flow interfaces |
+| Integration tests | `*_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS
 
@@ -29,9 +26,3 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 
 - Adding game rules to transport helpers. Transport helpers should only marshal/unmarshal and call `game.*` functions.
 - Adding HTTP-specific logic (status codes, headers) to `PostgresStore`.
-
-## NOTES
-
-- `server.go` contains all routing in one function with inline closures. As the API grows, consider extracting route registration into a separate function or file.
-- `guest_judgment_test.go` covers the Guest Judge session and unauthenticated Judgment flow.
-- Groups, Seasons, Invites, Disputes, and the separate Evidence upload-authorization flow were removed per ADR-0019. Evidence is now created inline during `InsertPerformedJump`. `SeasonSnapshot` and `Season()` are retained only for judgment-window checks on season-linked jumps (legacy data).

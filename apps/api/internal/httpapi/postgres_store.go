@@ -10,7 +10,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
-	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type PostgresStore struct {
@@ -50,10 +49,6 @@ func (s *PostgresStore) Close() error {
 
 func (s *PostgresStore) SetClock(now func() time.Time) {
 	s.now = now
-}
-
-func (s *PostgresStore) ActiveOpen(_ context.Context, _ time.Time) (*game.OpenMonth, error) {
-	return nil, nil
 }
 
 func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error) {
