@@ -15,12 +15,8 @@ func testGetMeBootstrapsAccountAndPlayerFromLocalIdentity(t *testing.T) {
 		Auth: httpapi.StaticAuthVerifier{
 			"valid-token": {Provider: "test-provider", Subject: "auth-user-123", Email: "player@example.com"},
 		},
-		Store:        store,
-		Now:          store.Now,
-		JumpPlanning: store,
-		Judgment:     store,
-		PublicRead:   store,
-		Open:         store,
+		Store: store,
+		Now:   store.Now,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
@@ -81,13 +77,9 @@ func testGetMeBootstrapsAccountAndPlayerFromLocalIdentity(t *testing.T) {
 func testGetMeRejectsMissingBearerToken(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
-		Auth:         httpapi.StaticAuthVerifier{},
-		Store:        store,
-		Now:          store.Now,
-		JumpPlanning: store,
-		Judgment:     store,
-		PublicRead:   store,
-		Open:         store,
+		Auth:  httpapi.StaticAuthVerifier{},
+		Store: store,
+		Now:   store.Now,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
@@ -106,12 +98,8 @@ func testGetMeRejectsInvalidBearerToken(t *testing.T) {
 		Auth: httpapi.StaticAuthVerifier{
 			"valid-token": {Provider: "test-provider", Subject: "auth-user-123", Email: "player@example.com"},
 		},
-		Store:        store,
-		Now:          store.Now,
-		JumpPlanning: store,
-		Judgment:     store,
-		PublicRead:   store,
-		Open:         store,
+		Store: store,
+		Now:   store.Now,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)

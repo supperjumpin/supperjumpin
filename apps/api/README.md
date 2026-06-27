@@ -2,7 +2,7 @@
 
 Go backend API for Supperjumpin.
 
-The API owns game rules, durable domain state, and the REST/OpenAPI contract consumed by the mobile app. It stores core domain data in Postgres. Evidence uploads to object storage are specified but deferred until hosted infrastructure is introduced; the local MVP does not require image hosting.
+The API owns domain logic, durable state, and the REST/OpenAPI contract. It stores core domain data in Postgres.
 
 ## Runtime configuration
 

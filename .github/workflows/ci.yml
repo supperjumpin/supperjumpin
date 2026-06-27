@@ -60,9 +60,6 @@ jobs:
       - name: Run Node workspace coverage
         run: npm run test:coverage
 
-      - name: Run mobile typecheck
-        run: npm --workspace @supperjumpin/mobile run typecheck
-
       - name: Run API tests (Postgres-backed)
         run: npm run api:test:coverage
         env:

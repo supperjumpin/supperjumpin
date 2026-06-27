@@ -37,9 +37,7 @@ func openPostgresTestDB(t *testing.T, databaseURL string) *sql.DB {
 func cleanTestDatabase(t *testing.T, db *sql.DB) {
 	t.Helper()
 	if _, err := db.ExecContext(context.Background(), `
-		TRUNCATE TABLE open_standings, judgments, guest_sessions,
-		evidence_upload_authorizations, evidences, jumps,
-		auth_identities, players, accounts CASCADE
+		TRUNCATE TABLE auth_identities, players, accounts CASCADE
 	`); err != nil {
 		t.Fatalf("clean test database: %v", err)
 	}

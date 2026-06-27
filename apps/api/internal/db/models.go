@@ -5,7 +5,6 @@
 package db
 
 import (
-	"database/sql"
 	"time"
 )
 
@@ -20,72 +19,6 @@ type AuthIdentity struct {
 	Subject   string
 	AccountID string
 	CreatedAt time.Time
-}
-
-type Evidence struct {
-	ID                    string
-	JumpID                string
-	PlayerID              string
-	UploadAuthorizationID sql.NullString
-	Caption               string
-	MediaObjectKey        string
-	CreatedAt             time.Time
-}
-
-type EvidenceUploadAuthorization struct {
-	ID             string
-	JumpID         string
-	PlayerID       string
-	ContentType    string
-	MediaObjectKey string
-	ExpiresAt      time.Time
-	CreatedAt      time.Time
-}
-
-type GuestSession struct {
-	ID            string
-	JudgmentCount int32
-	CreatedAt     time.Time
-}
-
-type Judgment struct {
-	ID             string
-	JumpID         string
-	PlayerID       sql.NullString
-	GuestSessionID sql.NullString
-	Provenance     string
-	OpenMonthID    sql.NullString
-	Commitment     int32
-	Transgression  int32
-	Creativity     int32
-	Presentation   int32
-	CreatedAt      time.Time
-}
-
-type Jump struct {
-	ID                   string
-	PlayerID             string
-	SeasonID             sql.NullString
-	Status               string
-	Source               string
-	Destination          string
-	Food                 string
-	FinalScore           sql.NullInt32
-	OpenFinalScore       sql.NullInt32
-	RemovedAt            sql.NullTime
-	GracePeriodExpiresAt sql.NullTime
-	CreatedAt            time.Time
-}
-
-type OpenStanding struct {
-	ID          string
-	Year        int32
-	Month       int32
-	PlayerID    string
-	Score       int32
-	JudgedJumps int32
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
 }
 
 type Player struct {

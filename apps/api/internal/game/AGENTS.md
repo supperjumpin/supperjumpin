@@ -4,33 +4,17 @@
 
 Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON tags. Repository interfaces are injected; game rules are expressed as standalone functions.
 
-## WHERE TO LOOK
-
-| Task | Location | Notes |
-|------|----------|-------|
-| Jump lifecycle | `jump_planning.go` | `CreatePerformedJump` (direct creation, evidence inline) |
-| Judgment scoring | `judgment.go` | `SubmitJudgment` (upsert, self-judge guard, score validation) |
-| Open scoring | `open.go` | Monthly Open soft-close scoring and Standings update rules |
-| Domain unit tests | `*_test.go` | Hand-rolled `mock*Repo` structs, co-located |
-
 ## CONVENTIONS
 
-- **Repository-per-flow**: Each file defines its own focused repository interface (e.g., `JudgmentRepository`). Interfaces are small and cohesive.
+- **Repository-per-flow**: Each file defines its own focused repository interface. Interfaces are small and cohesive.
 - **Input/Result structs**: Every operation has explicit `XxxInput` and `XxxResult{Allowed, Created, Err}` structs.
 - **Allowed bool**: Authorization failures return `Allowed=false`. HTTP layer maps this to 403.
 - **Snapshot pattern**: Read-only views use `XxxSnapshot` structs. Persistence layers assemble these from DB rows.
 - **Clock injection**: Time-dependent logic accepts explicit `time.Time` values from callers; adapters own their clocks.
-- **Error naming**: Sentinel errors use `ErrXxx` (e.g., `ErrInvalidJudgmentScore`, `ErrJumpNotFound`).
+- **Error naming**: Sentinel errors use `ErrXxx`.
 
 ## ANTI-PATTERNS
 
 - Importing `net/http`, `database/sql`, or any transport/persistence package. `game/` must remain pure.
 - Returning HTTP status codes or JSON shapes from domain functions.
 - Using UUIDs or auto-incrementing IDs. `stableID(kind, value)` is the project's ID generation rule.
-
-## NOTES
-
-- **Jump status machine**: `Performed Jump` → `Judged Jump` / `Unjudged Jump` / `Disqualified Jump`.
-- **Evidence**: Created inline with `InsertPerformedJump`. No separate upload-authorization flow exists.
-- **Grace periods**: Performed jumps have a 10-minute `GracePeriodExpiresAt` window where the performer can edit/retract.
-- **SeasonSnapshot and Season()** are retained only for judgment-window checks on season-linked jumps (legacy data). No active seasons or groups exist.
