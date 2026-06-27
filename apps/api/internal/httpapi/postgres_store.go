@@ -10,6 +10,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/db"
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type PostgresStore struct {
@@ -109,4 +110,40 @@ func (s *PostgresStore) Now() time.Time {
 		return time.Now()
 	}
 	return s.now()
+}
+
+func (s *PostgresStore) ListPromptPacks(ctx context.Context) ([]game.PromptPackSnapshot, error) {
+	rows, err := s.queries.ListPromptPacks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.PromptPackSnapshot, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, game.PromptPackSnapshot{
+			ID:          r.ID,
+			DisplayName: r.DisplayName,
+			Description: r.Description,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) ListPrompts(ctx context.Context) ([]game.PromptSnapshot, error) {
+	rows, err := s.queries.ListPrompts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.PromptSnapshot, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, game.PromptSnapshot{
+			ID:        r.ID,
+			PackID:    r.PackID,
+			Copy:      r.Copy,
+			Theme:     r.Theme,
+			CostTier:  r.CostTier,
+			CreatedAt: r.CreatedAt,
+		})
+	}
+	return result, nil
 }
