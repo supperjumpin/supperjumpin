@@ -1,5 +1,7 @@
 # Jumps Are Public By Default — Groups, Seasons, and Invites Removed
 
+⚠️ **Partially superseded.** The *public-by-default* decision is reversed by ADR-0036 (trusted-group MVP — there is no public feed). The *Groups/Seasons/Invites removal* still stands, but the container is now replaced by the **Community** model (ADR-0037), not left absent. Preserved as historical record.
+
 Supersedes: ADR-0008 (Stunts Belong to One Group)
 
 For MVP, Jumps exist independently of Groups. A Player performs a Jump and it is visible on a public feed without requiring any Group, Season, Invite, or Dispute infrastructure. The Group, Season, Invite, and Dispute code was removed entirely per issue #225 — these features will be rebuilt from scratch when scoped for v2.

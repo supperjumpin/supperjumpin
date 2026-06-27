@@ -1,5 +1,7 @@
 # Open Monthly Competition Data Model
 
+⚠️ **Superseded by ADR-0035 (competition apparatus deleted).** Preserved as historical record.
+
 ## Context
 
 The Open (ADR-0023) is a platform-run monthly competition that provides competitive payoff for Players who have not joined a Group. It requires data model support for tracking months, computing Final Scores, and ranking Players.

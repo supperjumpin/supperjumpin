@@ -1,5 +1,7 @@
 # Guest Judge Session Model
 
+⚠️ **Moot per ADR-0035 (judging deleted) and ADR-0036 (no guest/non-Account visitors).** Preserved as historical record.
+
 ## Context
 
 Jumps are public by default (ADR-0019). Any visitor may Judge without creating an Account. This requires a way to track Guest Judge state, including Judgment count and session identity, plus a migration path when a Guest creates an Account.

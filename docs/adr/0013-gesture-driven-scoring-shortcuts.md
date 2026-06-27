@@ -1,5 +1,7 @@
 # Gesture-Driven Scoring Shortcuts
 
+⚠️ **Moot per ADR-0035 (scoring deleted).** Already superseded by ADR-0017; scoring itself no longer exists. Preserved as historical record.
+
 ## Context
 The core gameplay of Supperjumpin requires Players to judge Performed Stunts across four distinct factors: Difficulty, Transgression, Creativity, and Documentation. While precision is important, the social and "absurd" nature of the game benefits from a fast-paced, tactile judging experience. The app must support both touch-screen devices (via Expo) and mouse-based interaction.
 
