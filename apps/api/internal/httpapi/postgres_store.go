@@ -86,7 +86,7 @@ func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIden
 		return MeResponse{}, err
 	}
 	if err := qtx.InsertPlayer(ctx, db.InsertPlayerParams{
-		ID: player.ID, AccountID: account.ID, DisplayName: player.DisplayName,
+		ID: player.ID, AccountID: sql.NullString{String: account.ID, Valid: true}, DisplayName: player.DisplayName,
 	}); err != nil {
 		return MeResponse{}, err
 	}
