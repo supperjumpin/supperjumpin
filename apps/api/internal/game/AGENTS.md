@@ -4,6 +4,12 @@
 
 Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON tags. Repository interfaces are injected; game rules are expressed as standalone functions.
 
+## MODULES
+
+| File | Responsibility |
+|------|---------------|
+| `identity.go` | Idempotent ensure-Player operation: given opaque (playerID, communityID), ensures both entities exist. Adapter resolves platform actors → internal IDs before calling. |
+
 ## CONVENTIONS
 
 - **Repository-per-flow**: Each file defines its own focused repository interface. Interfaces are small and cohesive.

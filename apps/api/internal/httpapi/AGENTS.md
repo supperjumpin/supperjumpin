@@ -13,6 +13,7 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Shared transport helpers | `helpers.go` | ID generation, DTO/snapshot mapping |
 | Request logging | `logging.go` | Request ID context, response capture, panic recovery, completion logs |
 | Production persistence | `postgres_store.go` (PostgresStore) | sqlc-generated queries implementing per-flow interfaces |
+| External identity resolution | `external_identity.go` | Adapter-owned mapping from platform actors → (player_id, community_id) via game.EnsurePlayer |
 | Integration tests | `*_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS

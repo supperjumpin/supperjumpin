@@ -13,8 +13,9 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
 | Postgres-backed tests | `npm run api:test` | Canonical test path against Postgres |
 | Persistence adapter | `internal/httpapi/postgres_store.go` | sqlc-generated queries via `db.Queries` |
+| External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
-| DB schema | `db/migrations/*.sql` | Pre-stable: fold schema changes into existing migration files |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 

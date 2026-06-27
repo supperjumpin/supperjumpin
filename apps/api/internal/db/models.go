@@ -5,6 +5,7 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 )
 
@@ -21,9 +22,24 @@ type AuthIdentity struct {
 	CreatedAt time.Time
 }
 
+type Community struct {
+	ID          string
+	DisplayName string
+	CreatedAt   time.Time
+}
+
+type ExternalIdentity struct {
+	Platform         string
+	PlatformServerID string
+	PlatformUserID   string
+	PlayerID         string
+	CommunityID      string
+	CreatedAt        time.Time
+}
+
 type Player struct {
 	ID          string
-	AccountID   string
+	AccountID   sql.NullString
 	DisplayName string
 	CreatedAt   time.Time
 }

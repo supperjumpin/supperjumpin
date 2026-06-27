@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getAccountByAuthIdentity = `-- name: GetAccountByAuthIdentity :one
@@ -41,11 +42,11 @@ WHERE account_id = $1
 
 type GetPlayerByAccountIDRow struct {
 	ID          string
-	AccountID   string
+	AccountID   sql.NullString
 	DisplayName string
 }
 
-func (q *Queries) GetPlayerByAccountID(ctx context.Context, accountID string) (GetPlayerByAccountIDRow, error) {
+func (q *Queries) GetPlayerByAccountID(ctx context.Context, accountID sql.NullString) (GetPlayerByAccountIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getPlayerByAccountID, accountID)
 	var i GetPlayerByAccountIDRow
 	err := row.Scan(&i.ID, &i.AccountID, &i.DisplayName)
@@ -109,7 +110,7 @@ ON CONFLICT (id) DO NOTHING
 
 type InsertPlayerParams struct {
 	ID          string
-	AccountID   string
+	AccountID   sql.NullString
 	DisplayName string
 }
 
