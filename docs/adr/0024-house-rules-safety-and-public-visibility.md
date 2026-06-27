@@ -1,5 +1,7 @@
 # House Rules, Safety, and Public Visibility Boundaries
 
+⚠️ **Superseded by ADR-0036 (trusted-group MVP).** House Rules and public-visibility moderation are cut from the MVP. Preserved as historical record and the most likely item to reintroduce if play opens beyond known groups.
+
 ## Context
 
 Jumps are public by default (ADR-0019). Any authenticated Player or Guest Judge may view and Judge a Jump without Group membership. Share links with preview cards distribute Jumps externally. This creates a public user-generated content product with no pre-moderation and no access gates.

@@ -1,5 +1,7 @@
 # Judgment Interaction Model (supersedes ADR-0017)
 
+⚠️ **Moot per ADR-0035 (Judgment deleted).** Reactions/Stamps (ADR-0034) replace the Judging interaction. Preserved as historical record.
+
 ADR-0017 confirmed gesture-driven scoring (PanResponder swipes pre-populating all four factors) as the Judging UX. That decision is superseded. The gesture model was designed around an earlier scoring rubric (Difficulty, Transgression, Creativity, Documentation) before the factors were finalized and before the public-feed-first audience was locked.
 
 The confirmed decision: Judging is a single screen showing all four scoring factors simultaneously, with tap-to-select inputs and a 1–4 forced-choice scale per factor. No gestures, no sliders, no sequential per-factor screens. After selecting all four verdicts the Judge proceeds to a confirmation screen ("Enter Judgment into Record") that displays the full ruling before submission. No celebration on confirm — the confirmation reads as a filing receipt.

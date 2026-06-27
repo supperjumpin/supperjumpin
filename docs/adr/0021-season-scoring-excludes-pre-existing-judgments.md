@@ -1,5 +1,7 @@
 # Season Scoring Excludes Pre-Existing Public Judgments
 
+⚠️ **Moot per ADR-0035 (scoring/Judgments deleted).** Preserved as historical record.
+
 ## Context
 
 Jumps are public by default (ADR-0019) and accumulate Judgments on the public feed over an open-ended Judging Window. A Player may submit any existing Performed Jump to a Season during its Submission Window (no age restriction). This creates a question: when a pre-existing Jump enters a Season, do the Judgments it already received on the public feed count toward its Season Final Score?

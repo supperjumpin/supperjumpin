@@ -1,5 +1,7 @@
 # The Open: Platform-Run Monthly Competition
 
+⚠️ **Superseded by ADR-0035 (competition apparatus deleted).** The Open no longer exists. Preserved as historical record.
+
 ## Context
 
 Jumps are public by default (ADR-0019). Players on the public feed accumulate Judgments and a running average score, but there is no bounded competition period — no Finals Scores, no Standings, no Awards — unless a Player joins a Group and participates in a Season. This creates a gap: Players who have not formed or joined a Group have no competitive payoff moment.
