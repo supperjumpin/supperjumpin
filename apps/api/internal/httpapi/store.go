@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+
+	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type UpdateDisplayNameResponse struct {
@@ -11,4 +13,5 @@ type UpdateDisplayNameResponse struct {
 type Store interface {
 	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
 	UpdateDisplayName(ctx context.Context, playerID string, displayName string) (Player, error)
+	game.ListCatalogRepo
 }
