@@ -17,9 +17,10 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | Prompt/Pack catalog | `internal/game/prompts.go` + `db/queries/prompts.sql` | `ListCatalog` (full catalog), `SelectPrompt` (by id), `SelectRandomPrompt` (random pick). Seeded via `0001_accounts_players.up.sql` — platform-authored, global. |
 | Round start | `internal/game/round.go` + `db/queries/rounds.sql` + `db/queries/timeframes.sql` | `ListRevealTimeframes` (data-driven menu, seeded), `StartRound` (one-active invariant, explicit or random prompt pick, reveal_by computed from timeframe duration). `POST /v1/rounds` + `GET /v1/reveal-timeframes`. |
-| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts, reveal_timeframes, rounds. Pre-stable: fold schema changes into existing migration files |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
+| Stamp catalog & reactions | `internal/game/reaction.go` + `db/queries/stamps.sql` + `db/queries/reactions.sql` | `ListStampCatalog` (data-driven, public), `ApplyReaction` (one Stamp to a revealed Jump, repeatable). `GET /v1/stamp-catalog` (public) + `POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions` (bearerAuth). |
 
 ## CONVENTIONS
 

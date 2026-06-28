@@ -107,3 +107,31 @@ type RevealRoundResponse struct {
 	Round    RoundDTO `json:"round"`
 	Revealed bool     `json:"revealed"`
 }
+
+type StampDTO struct {
+	ID     string `json:"id"`
+	Stance string `json:"stance"`
+	Label  string `json:"label"`
+	Glyph  string `json:"glyph,omitempty"`
+	Copy   string `json:"copy,omitempty"`
+}
+
+type StampCatalogResponse struct {
+	Stamps []StampDTO `json:"stamps"`
+}
+
+type ApplyReactionRequest struct {
+	StampID string `json:"stampId"`
+}
+
+type ReactionDTO struct {
+	ID        string `json:"id"`
+	StampID   string `json:"stampId"`
+	JumpID    string `json:"jumpId"`
+	PlayerID  string `json:"playerId"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type ApplyReactionResponse struct {
+	Reaction ReactionDTO `json:"reaction"`
+}

@@ -71,6 +71,19 @@ paths:
                 $ref: "#/components/schemas/RevealTimeframesResponse"
         "500":
           description: Internal server error.
+  /v1/stamp-catalog:
+    get:
+      operationId: listStampCatalog
+      summary: Fetch the data-driven stamp catalog (labels/glyphs/copy are tunable data)
+      responses:
+        "200":
+          description: The full stamp catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StampCatalogResponse"
+        "500":
+          description: Internal server error.
   /v1/rounds:
     post:
       operationId: startRound
@@ -200,6 +213,42 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: Forbidden — jump not found.
+  /v1/rounds/{roundId}/jumps/{jumpId}/reactions:
+    post:
+      operationId: applyReaction
+      summary: Apply a Stamp to a revealed Jump — one-tap, repeatable, no rubric
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyReactionRequest"
+      responses:
+        "201":
+          description: Reaction applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyReactionResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — jump not found, round not revealed, or stamp not found.
   /v1/rounds/{roundId}/reveal:
     post:
       operationId: evaluateReveal
@@ -434,3 +483,52 @@ components:
           $ref: "#/components/schemas/Round"
         revealed:
           type: boolean
+    Stamp:
+      type: object
+      required: [id, stance, label]
+      properties:
+        id:
+          type: string
+        stance:
+          type: string
+        label:
+          type: string
+        glyph:
+          type: string
+        copy:
+          type: string
+    StampCatalogResponse:
+      type: object
+      required: [stamps]
+      properties:
+        stamps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stamp"
+    ApplyReactionRequest:
+      type: object
+      required: [stampId]
+      properties:
+        stampId:
+          type: string
+    ApplyReactionResponse:
+      type: object
+      required: [reaction]
+      properties:
+        reaction:
+          $ref: "#/components/schemas/Reaction"
+    Reaction:
+      type: object
+      required: [id, stampId, jumpId, playerId, createdAt]
+      properties:
+        id:
+          type: string
+        stampId:
+          type: string
+        jumpId:
+          type: string
+        playerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

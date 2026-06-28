@@ -82,6 +82,14 @@ type PromptPack struct {
 	CreatedAt   time.Time
 }
 
+type Reaction struct {
+	ID        string
+	StampID   string
+	JumpID    string
+	PlayerID  string
+	CreatedAt time.Time
+}
+
 type RevealTimeframe struct {
 	ID            string
 	Label         string
@@ -98,4 +106,13 @@ type Round struct {
 	RevealBy    time.Time
 	CreatedBy   string
 	CreatedAt   time.Time
+}
+
+type Stamp struct {
+	ID        string
+	Stance    string
+	Label     string
+	Glyph     string
+	Copy      string
+	CreatedAt time.Time
 }

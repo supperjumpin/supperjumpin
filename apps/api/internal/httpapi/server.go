@@ -395,6 +395,84 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, GetJumpResponse{Jump: dto})
 	})
+	mux.HandleFunc("GET /v1/stamp-catalog", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/stamp-catalog", "list_stamp_catalog")
+		AddRequestLogField(r.Context(), "actor_type", "public")
+
+		result, err := game.ListStampCatalog(r.Context(), config.Store)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "list_stamp_catalog_failed", err)
+			http.Error(w, "list stamp catalog", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusInternalServerError, "list_stamp_catalog_failed", result.Err)
+			http.Error(w, "list stamp catalog", http.StatusInternalServerError)
+			return
+		}
+
+		stamps := make([]StampDTO, 0, len(result.Stamps))
+		for _, s := range result.Stamps {
+			stamps = append(stamps, StampDTO{
+				ID:     s.ID,
+				Stance: s.Stance,
+				Label:  s.Label,
+				Glyph:  s.Glyph,
+				Copy:   s.Copy,
+			})
+		}
+
+		writeJSON(w, http.StatusOK, StampCatalogResponse{Stamps: stamps})
+	})
+	mux.HandleFunc("POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions", "apply_reaction")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request ApplyReactionRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			recordHTTPError(r, http.StatusBadRequest, "invalid_json", nil)
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+
+		if request.StampID == "" {
+			recordHTTPError(r, http.StatusBadRequest, "missing_stamp_id", nil)
+			http.Error(w, "stampId is required", http.StatusBadRequest)
+			return
+		}
+
+		jumpID := r.PathValue("jumpId")
+		now := config.Now()
+
+		result, err := game.ApplyReaction(r.Context(), config.Store, game.ApplyReactionInput{
+			JumpID:   jumpID,
+			StampID:  request.StampID,
+			PlayerID: profile.Player.ID,
+		}, now)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "apply_reaction_failed", err)
+			http.Error(w, "apply reaction", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "apply_reaction_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		reaction := ReactionDTO{
+			ID:        result.Reaction.ID,
+			StampID:   result.Reaction.StampID,
+			JumpID:    result.Reaction.JumpID,
+			PlayerID:  result.Reaction.PlayerID,
+			CreatedAt: result.Reaction.CreatedAt.Format(time.RFC3339),
+		}
+
+		writeJSON(w, http.StatusCreated, ApplyReactionResponse{Reaction: reaction})
+	})
 
 	return requestLoggingMiddleware(mux, config.Logger, config.Now)
 }

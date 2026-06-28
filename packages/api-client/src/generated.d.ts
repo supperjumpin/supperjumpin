@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stamp-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the data-driven stamp catalog (labels/glyphs/copy are tunable data) */
+        get: operations["listStampCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/rounds": {
         parameters: {
             query?: never;
@@ -135,6 +152,23 @@ export interface paths {
         get: operations["getJump"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps/{jumpId}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply a Stamp to a revealed Jump — one-tap, repeatable, no rubric */
+        post: operations["applyReaction"];
         delete?: never;
         options?: never;
         head?: never;
@@ -262,6 +296,30 @@ export interface components {
             round: components["schemas"]["Round"];
             revealed: boolean;
         };
+        Stamp: {
+            id: string;
+            stance: string;
+            label: string;
+            glyph?: string;
+            copy?: string;
+        };
+        StampCatalogResponse: {
+            stamps: components["schemas"]["Stamp"][];
+        };
+        ApplyReactionRequest: {
+            stampId: string;
+        };
+        ApplyReactionResponse: {
+            reaction: components["schemas"]["Reaction"];
+        };
+        Reaction: {
+            id: string;
+            stampId: string;
+            jumpId: string;
+            playerId: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -381,6 +439,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevealTimeframesResponse"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listStampCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The full stamp catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampCatalogResponse"];
                 };
             };
             /** @description Internal server error. */
@@ -585,6 +670,54 @@ export interface operations {
                 content?: never;
             };
             /** @description Forbidden — jump not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    applyReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyReactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Reaction applied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyReactionResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — jump not found, round not revealed, or stamp not found. */
             403: {
                 headers: {
                     [name: string]: unknown;

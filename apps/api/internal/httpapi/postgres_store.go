@@ -426,3 +426,58 @@ func (s *PostgresStore) ListEvidenceForJump(ctx context.Context, jumpID string) 
 	}
 	return result, nil
 }
+
+// --- ListStampCatalogRepo ---
+
+func (s *PostgresStore) ListStamps(ctx context.Context) ([]game.StampSnapshot, error) {
+	rows, err := s.queries.ListStamps(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.StampSnapshot, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.StampSnapshot{
+			ID:        row.ID,
+			Stance:    row.Stance,
+			Label:     row.Label,
+			Glyph:     row.Glyph,
+			Copy:      row.Copy,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return result, nil
+}
+
+// --- ApplyReactionRepo ---
+
+func (s *PostgresStore) GetStamp(ctx context.Context, stampID string) (game.StampSnapshot, error) {
+	row, err := s.queries.GetStamp(ctx, stampID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return game.StampSnapshot{}, game.ErrStampNotFound
+		}
+		return game.StampSnapshot{}, err
+	}
+	return game.StampSnapshot{
+		ID:        row.ID,
+		Stance:    row.Stance,
+		Label:     row.Label,
+		Glyph:     row.Glyph,
+		Copy:      row.Copy,
+		CreatedAt: row.CreatedAt,
+	}, nil
+}
+
+func (s *PostgresStore) GetJump(ctx context.Context, jumpID string) (game.JumpSnapshot, error) {
+	return s.GetJumpByID(ctx, jumpID)
+}
+
+func (s *PostgresStore) CreateReaction(ctx context.Context, reaction game.ReactionSnapshot) error {
+	return s.queries.CreateReaction(ctx, db.CreateReactionParams{
+		ID:        reaction.ID,
+		StampID:   reaction.StampID,
+		JumpID:    reaction.JumpID,
+		PlayerID:  reaction.PlayerID,
+		CreatedAt: reaction.CreatedAt,
+	})
+}

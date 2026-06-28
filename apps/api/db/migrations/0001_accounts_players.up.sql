@@ -106,6 +106,26 @@ CREATE TABLE jump_evidence (
 );
 ALTER TABLE jump_evidence ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE stamps (
+    id TEXT PRIMARY KEY,
+    stance TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    glyph TEXT NOT NULL DEFAULT '',
+    copy TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE stamps ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE reactions (
+    id TEXT PRIMARY KEY,
+    stamp_id TEXT NOT NULL REFERENCES stamps(id),
+    jump_id TEXT NOT NULL REFERENCES jumps(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (stamp_id, jump_id, player_id)
+);
+ALTER TABLE reactions ENABLE ROW LEVEL SECURITY;
+
 -- Seed reveal timeframes
 INSERT INTO reveal_timeframes (id, label, duration_hours, sort_order) VALUES
     ('reveal_tf_800ba5b17c98', '24 hours', 24, 1),
@@ -130,4 +150,14 @@ INSERT INTO prompts (id, pack_id, copy, theme, cost_tier) VALUES
     ('prompt_bc6ede2f6a49', 'prompt_pack_f7f1ecd68377', 'Two foods that should never touch. Plate them together. Make a case for why it works.', 'Forbidden Pairing', 'tier_2'),
     ('prompt_10f6348588e2', 'prompt_pack_0c066c1877fa', 'Food from one chain, consumed or presented at a direct competitor. The Costco-dog-goes-fancy energy.', 'Across Enemy Lines', 'tier_3'),
     ('prompt_8ec40aa96ad7', 'prompt_pack_0c066c1877fa', 'Commit to a full multi-course meal in a location that serves zero food. Tablecloth, courses, the works.', 'Pop-Up Restaurant', 'tier_3')
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed stamp catalog (stance = stable identity; label/glyph/copy = tunable data)
+INSERT INTO stamps (id, stance, label, glyph, copy) VALUES
+    ('stamp_5ca49a5c9cb3', 'approval', 'Approve', '✅', 'Yes. This is the one.'),
+    ('stamp_c4597ab59a37', 'appetite', 'Appetite', '🍽️', 'Would.'),
+    ('stamp_8b7b5c74d6ed', 'chaos', 'Chaos', '🌀', 'This person should not be left unsupervised.'),
+    ('stamp_eba3c8a70ce8', 'lore', 'Lore', '📜', 'This will be remembered.'),
+    ('stamp_f2e80bf2f62c', 'certification', 'Certified', '🏅', 'Textbook. Frame it.'),
+    ('stamp_08bd90c58697', 'affectionate_failure', 'Noble Effort', '💀', 'The spirit was willing.')
 ON CONFLICT (id) DO NOTHING;

@@ -17,6 +17,8 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Prompt catalog HTTP surface | `server.go` (`GET /v1/prompt-catalog`) + `dto.go` (`PromptCatalogResponse`, `PromptPackDTO`, `PromptDTO`) | Public, unauthenticated. Handler must set `actor_type=public` per root AGENTS logging conventions. |
 | Round start HTTP surface | `server.go` (`POST /v1/rounds`, `GET /v1/reveal-timeframes`) + `dto.go` (`StartRoundRequest`, `StartRoundResponse`, `RoundDTO`, `RevealTimeframeDTO`, `RevealTimeframesResponse`) | `POST /v1/rounds` is authenticated (bearerAuth) and maps domain errors to 403; `GET /v1/reveal-timeframes` is public. |
 | Reveal HTTP surface | `server.go` (`POST /v1/rounds/{roundId}/reveal`) + `dto.go` (`RevealRoundResponse`) | Authenticated (bearerAuth). Calls `game.EvaluateReveal` with injected clock for condition evaluation. Returns round state and `revealed` flag. |
+| Stamp catalog HTTP surface | `server.go` (`GET /v1/stamp-catalog`) + `dto.go` (`StampCatalogResponse`, `StampDTO`) | Public, unauthenticated. Returns data-driven stamp catalog (stance = stable identity; label/glyph/copy = tunable data). |
+| Reaction HTTP surface | `server.go` (`POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions`) + `dto.go` (`ApplyReactionRequest`, `ApplyReactionResponse`, `ReactionDTO`) | Authenticated (bearerAuth). Calls `game.ApplyReaction` — applies a Stamp to a revealed Jump, one-tap, repeatable. |
 | Integration tests | `*_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS

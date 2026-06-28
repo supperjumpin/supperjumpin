@@ -131,6 +131,22 @@ func (s loggingStore) UpdateRoundStatus(context.Context, string, string) error {
 	return errors.New("not implemented")
 }
 
+func (s loggingStore) ListStamps(context.Context) ([]game.StampSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetStamp(context.Context, string) (game.StampSnapshot, error) {
+	return game.StampSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) GetJump(context.Context, string) (game.JumpSnapshot, error) {
+	return game.JumpSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateReaction(context.Context, game.ReactionSnapshot) error {
+	return errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},
