@@ -25,4 +25,5 @@ type Store interface {
 	game.ApplyReactionRepo
 	game.PostCommentRepo
 	game.ListCommentsRepo
+	game.LoreRepo
 }

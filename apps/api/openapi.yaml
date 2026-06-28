@@ -365,6 +365,27 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: Forbidden — round not found.
+  /v1/communities/{communityId}/lore:
+    get:
+      operationId: getCommunityLore
+      summary: Derive the Community's Lore from Stamp density on revealed Jumps
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lore entries derived from Stamp density, sorted by total stamps descending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityLoreResponse"
+        "401":
+          description: Missing or invalid bearer token.
   /v1/rounds/{roundId}/reveal:
     post:
       operationId: evaluateReveal
@@ -685,3 +706,29 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Comment"
+    LoreEntry:
+      type: object
+      required: [jumpId, roundId, jumpCaption, jumpPlayerId, stampCounts, totalStamps]
+      properties:
+        jumpId:
+          type: string
+        roundId:
+          type: string
+        jumpCaption:
+          type: string
+        jumpPlayerId:
+          type: string
+        stampCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        totalStamps:
+          type: integer
+    CommunityLoreResponse:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoreEntry"

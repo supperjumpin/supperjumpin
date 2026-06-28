@@ -649,6 +649,42 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, ListCommentsResponse{Comments: comments})
 	})
+	mux.HandleFunc("GET /v1/communities/{communityId}/lore", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/communities/{communityId}/lore", "get_community_lore")
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		communityID := r.PathValue("communityId")
+		AddRequestLogField(r.Context(), "community_id", communityID)
+
+		result, err := game.DeriveCommunityLore(r.Context(), config.Store, communityID)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "get_community_lore_failed", err)
+			http.Error(w, "get community lore", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "get_community_lore_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		entries := make([]LoreEntryDTO, 0, len(result.Entries))
+		for _, e := range result.Entries {
+			entries = append(entries, LoreEntryDTO{
+				JumpID:       e.JumpID,
+				RoundID:      e.RoundID,
+				JumpCaption:  e.JumpCaption,
+				JumpPlayerID: e.JumpPlayerID,
+				StampCounts:  e.StampCounts,
+				TotalStamps:  e.TotalStamps,
+			})
+		}
+
+		writeJSON(w, http.StatusOK, CommunityLoreResponse{Entries: entries})
+	})
 
 	return requestLoggingMiddleware(mux, config.Logger, config.Now)
 }

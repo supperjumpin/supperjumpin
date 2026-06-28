@@ -501,6 +501,28 @@ func (s *PostgresStore) CreateComment(ctx context.Context, comment game.CommentS
 
 // --- ListCommentsRepo ---
 
+// --- LoreRepo ---
+
+func (s *PostgresStore) ListRevealedReactionsForCommunity(ctx context.Context, communityID string) ([]game.LoreReactionRow, error) {
+	rows, err := s.queries.ListRevealedReactionsForCommunity(ctx, communityID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.LoreReactionRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.LoreReactionRow{
+			JumpID:       row.JumpID,
+			StampStance:  row.StampStance,
+			RoundID:      row.RoundID,
+			JumpCaption:  row.JumpCaption,
+			JumpPlayerID: row.JumpPlayerID,
+		})
+	}
+	return result, nil
+}
+
+// --- ListCommentsRepo ---
+
 func (s *PostgresStore) ListComments(ctx context.Context, roundID, jumpID string) ([]game.CommentSnapshot, error) {
 	if jumpID != "" {
 		rows, err := s.queries.ListCommentsForJump(ctx, db.ListCommentsForJumpParams{

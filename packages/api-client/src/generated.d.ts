@@ -211,6 +211,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/communities/{communityId}/lore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Derive the Community's Lore from Stamp density on revealed Jumps */
+        get: operations["getCommunityLore"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/rounds/{roundId}/reveal": {
         parameters: {
             query?: never;
@@ -373,6 +390,19 @@ export interface components {
         };
         ListCommentsResponse: {
             comments: components["schemas"]["Comment"][];
+        };
+        LoreEntry: {
+            jumpId: string;
+            roundId: string;
+            jumpCaption: string;
+            jumpPlayerId: string;
+            stampCounts: {
+                [key: string]: number;
+            };
+            totalStamps: number;
+        };
+        CommunityLoreResponse: {
+            entries: components["schemas"]["LoreEntry"][];
         };
     };
     responses: never;
@@ -941,6 +971,35 @@ export interface operations {
             };
             /** @description Forbidden — round not found, not revealed, or jump not found. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCommunityLore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                communityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lore entries derived from Stamp density, sorted by total stamps descending. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityLoreResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -156,3 +156,16 @@ type PostCommentResponse struct {
 type ListCommentsResponse struct {
 	Comments []CommentDTO `json:"comments"`
 }
+
+type LoreEntryDTO struct {
+	JumpID       string         `json:"jumpId"`
+	RoundID      string         `json:"roundId"`
+	JumpCaption  string         `json:"jumpCaption"`
+	JumpPlayerID string         `json:"jumpPlayerId"`
+	StampCounts  map[string]int `json:"stampCounts"`
+	TotalStamps  int            `json:"totalStamps"`
+}
+
+type CommunityLoreResponse struct {
+	Entries []LoreEntryDTO `json:"entries"`
+}

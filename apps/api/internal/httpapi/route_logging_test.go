@@ -155,6 +155,10 @@ func (s loggingStore) ListComments(context.Context, string, string) ([]game.Comm
 	return nil, errors.New("not implemented")
 }
 
+func (s loggingStore) ListRevealedReactionsForCommunity(context.Context, string) ([]game.LoreReactionRow, error) {
+	return nil, errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},

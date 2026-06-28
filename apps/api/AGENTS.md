@@ -22,6 +22,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 | Stamp catalog & reactions | `internal/game/reaction.go` + `db/queries/stamps.sql` + `db/queries/reactions.sql` | `ListStampCatalog` (data-driven, public), `ApplyReaction` (one Stamp to a revealed Jump, repeatable). `GET /v1/stamp-catalog` (public) + `POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions` (bearerAuth). |
 | Comments | `internal/game/comment.go` + `db/queries/comments.sql` | `PostComment` (round-level or jump-level, post-reveal only), `ListComments` (scoped to round, optionally filtered to jump). `POST/GET /v1/rounds/{roundId}/comments` + `POST/GET /v1/rounds/{roundId}/jumps/{jumpId}/comments` (bearerAuth). Free-form channel distinct from Stamps. |
+| Lore derivation | `internal/game/lore.go` + `db/queries/lore.sql` | `DeriveCommunityLore` — pure derivation from Stamp density on revealed Jumps, keyed to moments, never per-Player. `GET /v1/communities/{communityId}/lore` (bearerAuth). No write path; no per-player ranking. |
 
 ## CONVENTIONS
 
