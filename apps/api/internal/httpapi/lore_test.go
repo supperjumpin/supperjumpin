@@ -17,20 +17,20 @@ func TestGetCommunityLoreReturnsEntriesSortedByDensity(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
-			"carol-token": {Provider: "test-provider", Subject: "carol-auth", Email: "carol@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
+			"carol-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
 	})
 
 	// Bootstrap
-	for _, tok := range []string{"alice-token", "bob-token", "carol-token"} {
-		doJSON(server, http.MethodGet, "/v1/me", tok, nil)
-	}
+	doJSON(server, http.MethodGet, "/v1/me", "alice-token", nil)
+	doJSON(server, http.MethodGet, "/v1/me", "bob-token", nil)
+	doJSON(server, http.MethodGet, "/v1/me", "carol-token", nil)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-lore", "alice-discord-lore", "Alice", "Lore Community")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Lore Community")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestGetCommunityLoreEmptyCommunity(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -196,7 +196,7 @@ func TestGetCommunityLoreEmptyCommunity(t *testing.T) {
 	// Bootstrap alice
 	doJSON(server, http.MethodGet, "/v1/me", "alice-token", nil)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-empty", "alice-empty", "Alice", "Empty Community")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Empty Community")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -229,8 +229,8 @@ func TestGetCommunityLoreExcludesNonRevealedRounds(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -241,7 +241,7 @@ func TestGetCommunityLoreExcludesNonRevealedRounds(t *testing.T) {
 		doJSON(server, http.MethodGet, "/v1/me", tok, nil)
 	}
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-sealed", "alice-sealed", "Alice", "Sealed Community")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Sealed Community")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}

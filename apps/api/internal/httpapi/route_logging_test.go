@@ -15,19 +15,17 @@ import (
 )
 
 type loggingStore struct {
-	bootstrapErr error
-	packs        []game.PromptPackSnapshot
-	prompts      []game.PromptSnapshot
+	resolveErr error
+	packs      []game.PromptPackSnapshot
+	prompts    []game.PromptSnapshot
 }
 
-func (s loggingStore) BootstrapIdentity(context.Context, AuthIdentity) (MeResponse, error) {
-	if s.bootstrapErr != nil {
-		return MeResponse{}, s.bootstrapErr
+
+func (s loggingStore) ResolveExternalActor(context.Context, string, string, string, string, string) (ResolveExternalActorResult, error) {
+	if s.resolveErr != nil {
+		return ResolveExternalActorResult{}, s.resolveErr
 	}
-	return MeResponse{
-		Account: Account{ID: "account_alice", Email: "alice@example.com"},
-		Player:  Player{ID: "player_alice", DisplayName: "alice"},
-	}, nil
+	return ResolveExternalActorResult{PlayerID: "player_alice", CommunityID: "community_alice"}, nil
 }
 
 func (s loggingStore) UpdateDisplayName(context.Context, string, string) (Player, error) {
@@ -60,11 +58,11 @@ func (s loggingStore) GetRevealTimeframe(context.Context, string) (game.RevealTi
 }
 
 func (s loggingStore) FindPlayer(context.Context, string) (game.PlayerSnapshot, bool, error) {
-	return game.PlayerSnapshot{}, false, errors.New("not implemented")
+	return game.PlayerSnapshot{ID: "player_alice", DisplayName: "alice"}, true, nil
 }
 
 func (s loggingStore) FindCommunity(context.Context, string) (game.CommunitySnapshot, bool, error) {
-	return game.CommunitySnapshot{}, false, errors.New("not implemented")
+	return game.CommunitySnapshot{ID: "community_alice", DisplayName: "Test Community"}, true, nil
 }
 
 func (s loggingStore) FindActiveRound(context.Context, string) (*game.RoundSnapshot, error) {
@@ -186,6 +184,7 @@ func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:server-1:alice-user")
 	req.Header.Set("User-Agent", "supperjumpin-test")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
@@ -195,11 +194,30 @@ func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	}
 	entry := decodeLogEntry(t, logs)
 	assertLogField(t, entry, "route", "GET /v1/me")
-	assertLogField(t, entry, "operation", "bootstrap_identity")
+	assertLogField(t, entry, "operation", "get_me")
 	assertLogField(t, entry, "outcome", "success")
 	assertLogField(t, entry, "actor_type", "player")
 	assertLogField(t, entry, "player_id", "player_alice")
 	assertLogField(t, entry, "user_agent", "supperjumpin-test")
+}
+
+func TestRouteLoggingRejectsMissingAdapterActor(t *testing.T) {
+	server, logs := newRouteLoggingTestServer(ServerConfig{
+		Store: loggingStore{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer alice-token")
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	entry := decodeLogEntry(t, logs)
+	assertLogField(t, entry, "route", "GET /v1/me")
+	assertLogField(t, entry, "outcome", "client_error")
+	assertLogField(t, entry, "error_code", "missing_adapter_actor")
 }
 
 func TestRouteLoggingAddsClientErrorClassification(t *testing.T) {
@@ -222,11 +240,12 @@ func TestRouteLoggingAddsClientErrorClassification(t *testing.T) {
 
 func TestRouteLoggingAddsServerErrorStackAndInternalError(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
-		Store: loggingStore{bootstrapErr: errors.New("SQL SELECT email FROM accounts WHERE secret")},
+		Store: loggingStore{resolveErr: errors.New("SQL SELECT email FROM accounts WHERE secret")},
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 
@@ -236,7 +255,7 @@ func TestRouteLoggingAddsServerErrorStackAndInternalError(t *testing.T) {
 	entry := decodeLogEntry(t, logs)
 	assertLogField(t, entry, "level", "ERROR")
 	assertLogField(t, entry, "outcome", "server_error")
-	assertLogField(t, entry, "error_code", "bootstrap_identity_failed")
+	assertLogField(t, entry, "error_code", "resolve_external_actor_failed")
 	assertLogField(t, entry, "internal_error", "redacted internal error")
 	for _, forbidden := range []string{"SELECT", "email", "secret"} {
 		if strings.Contains(logs.String(), forbidden) {
@@ -257,6 +276,7 @@ func TestRouteLoggingUpdateDisplayName(t *testing.T) {
 	body := strings.NewReader(`{"displayName":"New Name"}`)
 	req := httptest.NewRequest(http.MethodPatch, "/v1/me/display-name", body)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
@@ -298,7 +318,7 @@ func TestRouteLoggingPromptCatalogMarksPublicActorType(t *testing.T) {
 func newRouteLoggingTestServer(config ServerConfig) (http.Handler, *bytes.Buffer) {
 	var logs bytes.Buffer
 	config.Auth = StaticAuthVerifier{
-		"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+		"alice-token": {},
 	}
 	config.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	config.Now = fixedClock(time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC), time.Date(2026, 6, 17, 12, 0, 0, 1500000, time.UTC))

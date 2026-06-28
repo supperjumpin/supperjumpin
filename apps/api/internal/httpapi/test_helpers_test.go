@@ -11,6 +11,10 @@ import (
 )
 
 func doJSON(server http.Handler, method string, path string, token string, body any) *httptest.ResponseRecorder {
+	return doJSONAsActor(server, method, path, token, actorForToken(token), body)
+}
+
+func doJSONAsActor(server http.Handler, method string, path string, token string, actor string, body any) *httptest.ResponseRecorder {
 	var requestBody bytes.Buffer
 	if body != nil {
 		if err := json.NewEncoder(&requestBody).Encode(body); err != nil {
@@ -18,13 +22,31 @@ func doJSON(server http.Handler, method string, path string, token string, body 
 		}
 	}
 	req := httptest.NewRequest(method, path, &requestBody)
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+		if actor != "" {
+			req.Header.Set("X-Adapter-Actor", actor)
+		}
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 	return rec
+}
+
+func actorForToken(token string) string {
+	switch token {
+	case "alice-token":
+		return "discord:test-server:alice-user"
+	case "bob-token":
+		return "discord:test-server:bob-user"
+	case "carol-token":
+		return "discord:test-server:carol-user"
+	default:
+		return ""
+	}
 }
 
 func decodeResponse(t *testing.T, rec *httptest.ResponseRecorder, target any) {
@@ -41,9 +63,9 @@ func newTestServer(t *testing.T) http.Handler {
 func newTestServerWithStore(store *httpapi.PostgresStore) http.Handler {
 	return httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
-			"carol-token": {Provider: "test-provider", Subject: "carol-auth", Email: "carol@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
+			"carol-token": {},
 		},
 		Store: store,
 		Now:   store.Now,

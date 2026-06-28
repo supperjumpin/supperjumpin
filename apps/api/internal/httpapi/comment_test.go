@@ -18,8 +18,8 @@ func TestPostCommentOnRevealedJump(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -29,12 +29,13 @@ func TestPostCommentOnRevealedJump(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap alice: %d", bootRec.Code)
 	}
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-comment", "alice-discord-comment", "Alice", "Test Community Comment")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community Comment")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestPostCommentOnRevealedRound(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -140,9 +141,10 @@ func TestPostCommentOnRevealedRound(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-round-comment", "alice-discord-rc", "Alice", "Test Community Round Comment")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community Round Comment")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -212,7 +214,7 @@ func TestPostCommentFailsOnNonRevealedRound(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -221,9 +223,10 @@ func TestPostCommentFailsOnNonRevealedRound(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-noreveal-comment", "alice-discord-nrc", "Alice", "Test Community NoReveal Comment")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community NoReveal Comment")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -300,8 +303,8 @@ func TestListCommentsForJump(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -310,9 +313,10 @@ func TestListCommentsForJump(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-list-comment", "alice-discord-lc", "Alice", "Test Community List Comment")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community List Comment")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -422,8 +426,8 @@ func TestNonJumperCanComment(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -433,18 +437,20 @@ func TestNonJumperCanComment(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
 	bootRec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req2.Header.Set("Authorization", "Bearer bob-token")
+	req2.Header.Set("X-Adapter-Actor", "discord:test-server:bob-user")
 	server.ServeHTTP(bootRec2, req2)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-nonjumper", "alice-discord-nj", "Alice", "Test Community NonJumper")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community NonJumper")
 	if err != nil {
 		t.Fatalf("resolve alice: %v", err)
 	}
-	_, err = store.ResolveExternalActor(context.Background(), "discord", "server-nonjumper", "bob-discord-nj", "Bob", result.CommunityID)
+	_, err = store.ResolveExternalActor(context.Background(), "discord", "test-server", "bob-user", "Bob", result.CommunityID)
 	if err != nil {
 		t.Fatalf("resolve bob: %v", err)
 	}

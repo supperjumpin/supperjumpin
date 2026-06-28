@@ -72,8 +72,8 @@ func TestPatchMeDisplayNamePersistsAndReflectsInGetMe(t *testing.T) {
 		} `json:"player"`
 	}
 	decodeResponse(t, getRec, &initial)
-	if initial.Player.DisplayName != "alice" {
-		t.Fatalf("expected initial display name 'alice' from email, got %q", initial.Player.DisplayName)
+	if initial.Player.DisplayName != "player" {
+		t.Fatalf("expected initial display name 'player' from adapter actor bootstrap, got %q", initial.Player.DisplayName)
 	}
 
 	playerID := initial.Player.ID

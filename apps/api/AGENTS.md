@@ -8,7 +8,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, SUPPERJUMPIN_DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN, SUPPERJUMPIN_LOG_FORMAT, SUPPERJUMPIN_LOG_LEVEL |
+| Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, SUPPERJUMPIN_DATABASE_URL, SUPPERJUMPIN_ADAPTER_TOKEN, SUPPERJUMPIN_LOG_FORMAT, SUPPERJUMPIN_LOG_LEVEL |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig |
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | camelCase JSON tags |
 | Postgres-backed tests | `npm run api:test` | Canonical test path against Postgres |
@@ -17,7 +17,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | Prompt/Pack catalog | `internal/game/prompts.go` + `db/queries/prompts.sql` | `ListCatalog` (full catalog), `SelectPrompt` (by id), `SelectRandomPrompt` (random pick). Seeded via `0001_accounts_players.up.sql` — platform-authored, global. |
 | Round start | `internal/game/round.go` + `db/queries/rounds.sql` + `db/queries/timeframes.sql` | `ListRevealTimeframes` (data-driven menu, seeded), `StartRound` (one-active invariant, explicit or random prompt pick, reveal_by computed from timeframe duration). `POST /v1/rounds` + `GET /v1/reveal-timeframes`. |
-| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions. Pre-stable: fold schema changes into existing migration files |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions, comments. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 | Stamp catalog & reactions | `internal/game/reaction.go` + `db/queries/stamps.sql` + `db/queries/reactions.sql` | `ListStampCatalog` (data-driven, public), `ApplyReaction` (one Stamp to a revealed Jump, repeatable). `GET /v1/stamp-catalog` (public) + `POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions` (bearerAuth). |
@@ -28,7 +28,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 ## CONVENTIONS
 
 - **Standard library HTTP only**: `net/http` + `http.NewServeMux()` with Go 1.22 path patterns. No Gin, Echo, or Fiber.
-- **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` header. MVP development uses `SUPPERJUMPIN_DEV_AUTH_TOKEN` for local-first auth.
+- **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` plus `X-Adapter-Actor: discord:<guildID>:<userID>`. MVP development uses `SUPPERJUMPIN_ADAPTER_TOKEN` for local-first adapter auth.
 - **Error mapping**: Domain errors are mapped to HTTP status codes in transport helpers.
 - **sqlc for queries**: All repository interface methods delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run generate:sqlc`.
 - **Transactions**: Multi-step DB operations use `BeginTx` + `defer tx.Rollback()` + `tx.Commit()` with `qtx := s.queries.WithTx(tx)`.

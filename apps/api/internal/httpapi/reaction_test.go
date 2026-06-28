@@ -61,8 +61,8 @@ func TestApplyReactionAppliesStampToRevealedJump(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -72,12 +72,13 @@ func TestApplyReactionAppliesStampToRevealedJump(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap alice: %d", bootRec.Code)
 	}
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-react", "alice-discord-react", "Alice", "Test Community React")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community React")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestApplyReactionFailsOnNonRevealedRound(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -207,9 +208,10 @@ func TestApplyReactionFailsOnNonRevealedRound(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-react-2", "alice-discord-react-2", "Alice", "Test Community React 2")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community React 2")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -310,7 +312,7 @@ func TestApplyReactionFailsOnUnknownStamp(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -320,9 +322,10 @@ func TestApplyReactionFailsOnUnknownStamp(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-react-3", "alice-discord-react-3", "Alice", "Test Community React 3")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community React 3")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -398,7 +401,7 @@ func TestApplyReactionFailsOnUnknownJump(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -408,6 +411,7 @@ func TestApplyReactionFailsOnUnknownJump(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
 	// Get stamp
@@ -456,7 +460,7 @@ func TestApplyReactionAllowsMultipleStamps(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"bob-token": {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"bob-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -466,9 +470,10 @@ func TestApplyReactionAllowsMultipleStamps(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer bob-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:bob-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-react-multi", "bob-discord-multi", "Bob", "Test Community Multi")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "bob-user", "Bob", "Test Community Multi")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}

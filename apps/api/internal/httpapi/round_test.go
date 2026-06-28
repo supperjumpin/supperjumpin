@@ -46,7 +46,7 @@ func TestStartRoundCreatesRoundWithRandomPrompt(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-prod", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -56,13 +56,14 @@ func TestStartRoundCreatesRoundWithRandomPrompt(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap identity: expected 200, got %d: %s", bootRec.Code, bootRec.Body.String())
 	}
 
 	// Create community via ResolveExternalActor
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-1", "alice-discord", "Alice", "Test Community")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestStartRoundFailsWhenActiveRoundExists(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-prod", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -130,10 +131,11 @@ func TestStartRoundFailsWhenActiveRoundExists(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
 	// Create community
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-2", "alice-discord-2", "Alice", "Test Community 2")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community 2")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -207,7 +209,7 @@ func TestStartRoundRejectsInvalidTimeframe(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-prod", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -216,9 +218,10 @@ func TestStartRoundRejectsInvalidTimeframe(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-3", "alice-discord-3", "Alice", "Test Community 3")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community 3")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -237,7 +240,7 @@ func TestStartRoundWithExplicitPrompt(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-prod", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -246,9 +249,10 @@ func TestStartRoundWithExplicitPrompt(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-4", "alice-discord-4", "Alice", "Test Community 4")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community 4")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}

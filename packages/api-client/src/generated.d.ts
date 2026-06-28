@@ -7,11 +7,14 @@ export interface paths {
     "/v1/me": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
-        /** Fetch the signed-in Account and Player identity */
+        /** Fetch the signed-in Player and Community identity */
         get: operations["getMe"];
         put?: never;
         post?: never;
@@ -24,7 +27,10 @@ export interface paths {
     "/v1/me/display-name": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -92,7 +98,10 @@ export interface paths {
     "/v1/rounds": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -109,7 +118,10 @@ export interface paths {
     "/v1/rounds/{roundId}/commits": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -126,7 +138,10 @@ export interface paths {
     "/v1/rounds/{roundId}/jumps": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -144,7 +159,10 @@ export interface paths {
     "/v1/rounds/{roundId}/jumps/{jumpId}": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -161,7 +179,10 @@ export interface paths {
     "/v1/rounds/{roundId}/jumps/{jumpId}/reactions": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -178,7 +199,10 @@ export interface paths {
     "/v1/rounds/{roundId}/comments": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -196,7 +220,10 @@ export interface paths {
     "/v1/rounds/{roundId}/jumps/{jumpId}/comments": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -214,7 +241,10 @@ export interface paths {
     "/v1/communities/{communityId}/lore": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -231,7 +261,10 @@ export interface paths {
     "/v1/rounds/{roundId}/reveal": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -248,7 +281,10 @@ export interface paths {
     "/v1/rounds/{roundId}/recap": {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -267,20 +303,19 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         MeResponse: {
-            account: components["schemas"]["Account"];
             player: components["schemas"]["Player"];
+            community: components["schemas"]["Community"];
         };
         UpdateDisplayNameResponse: {
             player: components["schemas"]["Player"];
         };
-        Account: {
-            /** @description Internal Account identifier, distinct from external auth provider subject. */
-            id: string;
-            /** Format: email */
-            email: string;
-        };
         Player: {
             /** @description Internal in-game Player identifier. */
+            id: string;
+            displayName: string;
+        };
+        Community: {
+            /** @description Internal Community identifier. */
             id: string;
             displayName: string;
         };
@@ -480,7 +515,10 @@ export interface components {
         };
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+        XAdapterActorHeader: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -490,13 +528,16 @@ export interface operations {
     getMe: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The internal Account and Player attached to the external auth identity. */
+            /** @description The internal Player and Community attached to the adapter actor. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -504,6 +545,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
                 };
+            };
+            /** @description Missing or malformed adapter actor header. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Missing or invalid bearer token. */
             401: {
@@ -517,7 +565,10 @@ export interface operations {
     updateDisplayName: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -538,7 +589,7 @@ export interface operations {
                     "application/json": components["schemas"]["UpdateDisplayNameResponse"];
                 };
             };
-            /** @description Invalid or missing display name. */
+            /** @description Invalid or missing display name, or missing/malformed adapter actor header. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -638,7 +689,10 @@ export interface operations {
     startRound: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -683,7 +737,10 @@ export interface operations {
     commitToRound: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };
@@ -719,7 +776,10 @@ export interface operations {
     listRoundJumps: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };
@@ -755,7 +815,10 @@ export interface operations {
     submitJump: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };
@@ -802,7 +865,10 @@ export interface operations {
     getJump: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
                 jumpId: string;
@@ -839,7 +905,10 @@ export interface operations {
     applyReaction: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
                 jumpId: string;
@@ -887,7 +956,10 @@ export interface operations {
     listRoundComments: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };
@@ -923,7 +995,10 @@ export interface operations {
     postRoundComment: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };
@@ -970,7 +1045,10 @@ export interface operations {
     listJumpComments: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
                 jumpId: string;
@@ -1007,7 +1085,10 @@ export interface operations {
     postJumpComment: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
                 jumpId: string;
@@ -1055,7 +1136,10 @@ export interface operations {
     getCommunityLore: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 communityId: string;
             };
@@ -1084,7 +1168,10 @@ export interface operations {
     evaluateReveal: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };
@@ -1120,7 +1207,10 @@ export interface operations {
     getRoundRecap: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Platform actor tuple in the form `discord:<guildID>:<userID>`. */
+                "X-Adapter-Actor": components["parameters"]["XAdapterActorHeader"];
+            };
             path: {
                 roundId: string;
             };

@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"time"
 )
 
 const createCommunity = `-- name: CreateCommunity :exec
@@ -61,15 +60,9 @@ FROM players
 WHERE id = $1
 `
 
-type FindPlayerRow struct {
-	ID          string
-	DisplayName string
-	CreatedAt   time.Time
-}
-
-func (q *Queries) FindPlayer(ctx context.Context, id string) (FindPlayerRow, error) {
+func (q *Queries) FindPlayer(ctx context.Context, id string) (Player, error) {
 	row := q.db.QueryRowContext(ctx, findPlayer, id)
-	var i FindPlayerRow
+	var i Player
 	err := row.Scan(&i.ID, &i.DisplayName, &i.CreatedAt)
 	return i, err
 }
@@ -120,5 +113,21 @@ func (q *Queries) InsertExternalIdentity(ctx context.Context, arg InsertExternal
 		arg.PlayerID,
 		arg.CommunityID,
 	)
+	return err
+}
+
+const updatePlayerDisplayName = `-- name: UpdatePlayerDisplayName :exec
+UPDATE players
+SET display_name = $2
+WHERE id = $1
+`
+
+type UpdatePlayerDisplayNameParams struct {
+	ID          string
+	DisplayName string
+}
+
+func (q *Queries) UpdatePlayerDisplayName(ctx context.Context, arg UpdatePlayerDisplayNameParams) error {
+	_, err := q.db.ExecContext(ctx, updatePlayerDisplayName, arg.ID, arg.DisplayName)
 	return err
 }

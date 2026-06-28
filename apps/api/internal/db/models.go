@@ -9,19 +9,6 @@ import (
 	"time"
 )
 
-type Account struct {
-	ID        string
-	Email     string
-	CreatedAt time.Time
-}
-
-type AuthIdentity struct {
-	Provider  string
-	Subject   string
-	AccountID string
-	CreatedAt time.Time
-}
-
 type Comment struct {
 	ID        string
 	RoundID   string
@@ -70,7 +57,6 @@ type JumpEvidence struct {
 
 type Player struct {
 	ID          string
-	AccountID   sql.NullString
 	DisplayName string
 	CreatedAt   time.Time
 }

@@ -14,9 +14,6 @@ import (
 )
 
 type AuthIdentity struct {
-	Provider string
-	Subject  string
-	Email    string
 }
 
 type AuthVerifier interface {
@@ -33,7 +30,7 @@ type ServerConfig struct {
 func NewServer(config ServerConfig) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/me", func(w http.ResponseWriter, r *http.Request) {
-		setRequestOperation(r, "GET /v1/me", "bootstrap_identity")
+		setRequestOperation(r, "GET /v1/me", "get_me")
 		profile, ok := signedInProfile(w, r, config)
 		if !ok {
 			return
@@ -813,17 +810,15 @@ func signedInProfile(w http.ResponseWriter, r *http.Request, config ServerConfig
 		return MeResponse{}, false
 	}
 
-	identity, ok := config.Auth.Verify(token)
-	if !ok {
+	if _, ok := config.Auth.Verify(token); !ok {
 		recordHTTPError(r, http.StatusUnauthorized, "invalid_bearer_token", nil)
 		http.Error(w, "invalid bearer token", http.StatusUnauthorized)
 		return MeResponse{}, false
 	}
-
-	profile, err := config.Store.BootstrapIdentity(r.Context(), identity)
+	profile, status, code, message, err := resolveActorProfile(r, config)
 	if err != nil {
-		recordHTTPError(r, http.StatusInternalServerError, "bootstrap_identity_failed", err)
-		http.Error(w, "bootstrap identity", http.StatusInternalServerError)
+		recordHTTPError(r, status, code, err)
+		http.Error(w, message, status)
 		return MeResponse{}, false
 	}
 	AddRequestLogFields(r.Context(), slog.String("actor_type", "player"), slog.String("player_id", profile.Player.ID))

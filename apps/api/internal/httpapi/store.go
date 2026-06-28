@@ -11,7 +11,9 @@ type UpdateDisplayNameResponse struct {
 }
 
 type Store interface {
-	BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error)
+	ResolveExternalActor(ctx context.Context, platform string, platformServerID string, platformUserID string, playerDisplayName string, communityDisplayName string) (ResolveExternalActorResult, error)
+	FindPlayer(ctx context.Context, id string) (game.PlayerSnapshot, bool, error)
+	FindCommunity(ctx context.Context, id string) (game.CommunitySnapshot, bool, error)
 	UpdateDisplayName(ctx context.Context, playerID string, displayName string) (Player, error)
 	game.ListCatalogRepo
 	game.ListRevealTimeframesRepo

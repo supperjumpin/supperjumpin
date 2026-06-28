@@ -9,18 +9,19 @@ import (
 	"github.com/supperjumpin/supperjumpin/apps/api/internal/httpapi"
 )
 
-func testGetMeBootstrapsAccountAndPlayerFromLocalIdentity(t *testing.T) {
+func testGetMeResolvesPlayerAndCommunityFromAdapterActor(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"valid-token": {Provider: "test-provider", Subject: "auth-user-123", Email: "player@example.com"},
+			"adapter-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Authorization", "Bearer adapter-token")
+	req.Header.Set("X-Adapter-Actor", "discord:guild-123:user-abc")
 	rec := httptest.NewRecorder()
 
 	server.ServeHTTP(rec, req)
@@ -30,47 +31,68 @@ func testGetMeBootstrapsAccountAndPlayerFromLocalIdentity(t *testing.T) {
 	}
 
 	var body struct {
-		Account struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"account"`
 		Player struct {
 			ID          string `json:"id"`
 			DisplayName string `json:"displayName"`
 		} `json:"player"`
+		Community struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"displayName"`
+		} `json:"community"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 
-	if body.Account.ID == "" || body.Account.ID == "auth-user-123" {
-		t.Fatalf("expected internal account id distinct from auth subject, got %q", body.Account.ID)
+	if body.Player.ID == "" {
+		t.Fatal("expected player id")
 	}
-	if body.Player.ID == "" || body.Player.ID == body.Account.ID || body.Player.ID == "auth-user-123" {
-		t.Fatalf("expected separate internal player id, got account=%q player=%q", body.Account.ID, body.Player.ID)
-	}
-	if body.Account.Email != "player@example.com" {
-		t.Fatalf("expected account email from auth identity, got %q", body.Account.Email)
+	if body.Community.ID == "" {
+		t.Fatal("expected community id")
 	}
 	if body.Player.DisplayName != "player" {
-		t.Fatalf("expected display name derived from email, got %q", body.Player.DisplayName)
+		t.Fatalf("expected default player display name on first touch, got %q", body.Player.DisplayName)
+	}
+	if body.Community.DisplayName != "community" {
+		t.Fatalf("expected default community display name on first touch, got %q", body.Community.DisplayName)
 	}
 
 	second := httptest.NewRecorder()
 	server.ServeHTTP(second, req)
 	var secondBody struct {
-		Account struct {
-			ID string `json:"id"`
-		} `json:"account"`
 		Player struct {
 			ID string `json:"id"`
 		} `json:"player"`
+		Community struct {
+			ID string `json:"id"`
+		} `json:"community"`
 	}
 	if err := json.NewDecoder(second.Body).Decode(&secondBody); err != nil {
 		t.Fatalf("decode second response: %v", err)
 	}
-	if secondBody.Account.ID != body.Account.ID || secondBody.Player.ID != body.Player.ID {
+	if secondBody.Player.ID != body.Player.ID || secondBody.Community.ID != body.Community.ID {
 		t.Fatalf("expected repeated auth identity to return same internal identities")
+	}
+}
+
+func testGetMeRejectsMissingAdapterActor(t *testing.T) {
+	store := newCleanPostgresTestStore(t)
+	server := httpapi.NewServer(httpapi.ServerConfig{
+		Auth: httpapi.StaticAuthVerifier{
+			"adapter-token": {},
+		},
+		Store: store,
+		Now:   store.Now,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer adapter-token")
+	rec := httptest.NewRecorder()
+
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
 	}
 }
 
@@ -96,7 +118,7 @@ func testGetMeRejectsInvalidBearerToken(t *testing.T) {
 	store := newCleanPostgresTestStore(t)
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"valid-token": {Provider: "test-provider", Subject: "auth-user-123", Email: "player@example.com"},
+			"adapter-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -114,7 +136,8 @@ func testGetMeRejectsInvalidBearerToken(t *testing.T) {
 }
 
 func TestMe(t *testing.T) {
-	t.Run("bootstraps account and player from local identity", testGetMeBootstrapsAccountAndPlayerFromLocalIdentity)
+	t.Run("resolves player and community from adapter actor", testGetMeResolvesPlayerAndCommunityFromAdapterActor)
+	t.Run("rejects missing adapter actor", testGetMeRejectsMissingAdapterActor)
 	t.Run("rejects missing bearer token", testGetMeRejectsMissingBearerToken)
 	t.Run("rejects invalid bearer token", testGetMeRejectsInvalidBearerToken)
 }

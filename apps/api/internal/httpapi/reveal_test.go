@@ -19,7 +19,7 @@ func TestEvaluateRevealFiresWhenTimePassed(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -29,13 +29,14 @@ func TestEvaluateRevealFiresWhenTimePassed(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap identity: expected 200, got %d", bootRec.Code)
 	}
 
 	// Create community
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-reveal-1", "alice-discord", "Alice", "Test Community Reveal")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community Reveal")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestEvaluateRevealReturnsNotRevealedWhenBeforeTime(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"bob-token": {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"bob-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -109,13 +110,14 @@ func TestEvaluateRevealReturnsNotRevealedWhenBeforeTime(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer bob-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:bob-user")
 	server.ServeHTTP(bootRec, req)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap identity: expected 200, got %d", bootRec.Code)
 	}
 
 	// Create community
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-reveal-2", "bob-discord", "Bob", "Test Community Reveal 2")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "bob-user", "Bob", "Test Community Reveal 2")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -193,7 +195,7 @@ func TestEvaluateRevealIdempotent(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
+			"alice-token": {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -203,9 +205,10 @@ func TestEvaluateRevealIdempotent(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-reveal-3", "alice-discord-3", "Alice", "Test Community Reveal 3")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community Reveal 3")
 	if err != nil {
 		t.Fatalf("resolve external actor: %v", err)
 	}
@@ -303,8 +306,8 @@ func TestJumpContentVisibleAfterReveal(t *testing.T) {
 
 	server := httpapi.NewServer(httpapi.ServerConfig{
 		Auth: httpapi.StaticAuthVerifier{
-			"alice-token": {Provider: "test-provider", Subject: "alice-auth", Email: "alice@example.com"},
-			"bob-token":   {Provider: "test-provider", Subject: "bob-auth", Email: "bob@example.com"},
+			"alice-token": {},
+			"bob-token":   {},
 		},
 		Store: store,
 		Now:   store.Now,
@@ -314,19 +317,20 @@ func TestJumpContentVisibleAfterReveal(t *testing.T) {
 	bootRec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer alice-token")
+	req.Header.Set("X-Adapter-Actor", "discord:test-server:alice-user")
 	server.ServeHTTP(bootRec, req)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap alice: %d", bootRec.Code)
 	}
 
 	// Resolve alice to create community + player
-	result, err := store.ResolveExternalActor(context.Background(), "discord", "server-reveal-seal", "alice-discord-seal", "Alice", "Test Community Seal")
+	result, err := store.ResolveExternalActor(context.Background(), "discord", "test-server", "alice-user", "Alice", "Test Community Seal")
 	if err != nil {
 		t.Fatalf("resolve alice: %v", err)
 	}
 
 	// Resolve bob to create his player record
-	_, err = store.ResolveExternalActor(context.Background(), "discord", "server-reveal-seal", "bob-discord-seal", "Bob", "Test Community Seal")
+	_, err = store.ResolveExternalActor(context.Background(), "discord", "test-server", "bob-user", "Bob", "Test Community Seal")
 	if err != nil {
 		t.Fatalf("resolve bob: %v", err)
 	}
@@ -363,6 +367,7 @@ func TestJumpContentVisibleAfterReveal(t *testing.T) {
 	bootBobRec := httptest.NewRecorder()
 	reqBob := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	reqBob.Header.Set("Authorization", "Bearer bob-token")
+	reqBob.Header.Set("X-Adapter-Actor", "discord:test-server:bob-user")
 	server.ServeHTTP(bootBobRec, reqBob)
 	if bootBobRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap bob: %d", bootBobRec.Code)
