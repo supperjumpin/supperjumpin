@@ -16,4 +16,8 @@ type Store interface {
 	game.ListCatalogRepo
 	game.ListRevealTimeframesRepo
 	game.StartRoundRepo
+	game.CommitRepo
+	game.SubmitRepo
+	game.ListJumpsRepo
+	game.GetJumpRepo
 }

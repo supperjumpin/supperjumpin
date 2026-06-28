@@ -22,6 +22,13 @@ type AuthIdentity struct {
 	CreatedAt time.Time
 }
 
+type Commit struct {
+	ID          string
+	RoundID     string
+	PlayerID    string
+	CommittedAt time.Time
+}
+
 type Community struct {
 	ID          string
 	DisplayName string
@@ -35,6 +42,21 @@ type ExternalIdentity struct {
 	PlayerID         string
 	CommunityID      string
 	CreatedAt        time.Time
+}
+
+type Jump struct {
+	ID          string
+	RoundID     string
+	PlayerID    string
+	Caption     string
+	SubmittedAt time.Time
+}
+
+type JumpEvidence struct {
+	ID        string
+	JumpID    string
+	Url       string
+	SortOrder int32
 }
 
 type Player struct {

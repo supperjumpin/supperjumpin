@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -189,6 +190,176 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusCreated, StartRoundResponse{Round: round})
+	})
+	mux.HandleFunc("POST /v1/rounds/{roundId}/commits", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds/{roundId}/commits", "commit_to_round")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		now := config.Now()
+
+		result, err := game.CommitToRound(r.Context(), config.Store, game.CommitToRoundInput{
+			RoundID:  roundID,
+			PlayerID: profile.Player.ID,
+		}, now)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "commit_to_round_failed", err)
+			http.Error(w, "commit to round", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "commit_to_round_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, CommitResponse{CommitID: result.CommitID})
+	})
+	mux.HandleFunc("POST /v1/rounds/{roundId}/jumps", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds/{roundId}/jumps", "submit_jump")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request SubmitJumpRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			recordHTTPError(r, http.StatusBadRequest, "invalid_json", nil)
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+
+		if request.Caption == "" {
+			recordHTTPError(r, http.StatusBadRequest, "missing_caption", nil)
+			http.Error(w, "caption is required", http.StatusBadRequest)
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		now := config.Now()
+
+		result, err := game.SubmitJump(r.Context(), config.Store, game.SubmitJumpInput{
+			RoundID:      roundID,
+			PlayerID:     profile.Player.ID,
+			Caption:      request.Caption,
+			EvidenceURLs: request.EvidenceURLs,
+		}, now)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "submit_jump_failed", err)
+			http.Error(w, "submit jump", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "submit_jump_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		jumpDTO := JumpDTO{
+			ID:          result.Jump.ID,
+			RoundID:     result.Jump.RoundID,
+			PlayerID:    result.Jump.PlayerID,
+			Caption:     result.Jump.Caption,
+			EvidenceURLs: result.Jump.EvidenceURLs,
+			SubmittedAt: result.Jump.SubmittedAt.Format(time.RFC3339),
+		}
+
+		writeJSON(w, http.StatusCreated, SubmitJumpResponse{Jump: jumpDTO})
+	})
+	mux.HandleFunc("GET /v1/rounds/{roundId}/jumps", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/rounds/{roundId}/jumps", "list_round_jumps")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		result, err := game.ListJumpsForRound(r.Context(), config.Store, roundID, profile.Player.ID)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "list_round_jumps_failed", err)
+			http.Error(w, "list round jumps", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "list_round_jumps_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		jumps := make([]JumpDTO, 0, len(result.Jumps))
+		for _, j := range result.Jumps {
+			dto := JumpDTO{
+				ID:                 j.ID,
+				RoundID:            j.RoundID,
+				PlayerID:           j.PlayerID,
+				SealedViewer:       j.SealedViewer,
+				PlayerHasCommitted:  j.PlayerHasCommitted,
+				PlayerHasSubmitted:  j.PlayerHasSubmitted,
+			}
+			if j.SubmittedAt.Unix() > 0 {
+				dto.SubmittedAt = j.SubmittedAt.Format(time.RFC3339)
+			}
+			if !j.SealedViewer {
+				dto.Caption = j.Caption
+				dto.EvidenceURLs = j.EvidenceURLs
+			}
+			jumps = append(jumps, dto)
+		}
+
+		// Get round status for counts
+		status, err := config.Store.GetRoundStatus(r.Context(), roundID)
+		if err != nil && !errors.Is(err, game.ErrRoundNotFound) {
+			recordHTTPError(r, http.StatusInternalServerError, "get_round_status_failed", err)
+			http.Error(w, "get round status", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, ListJumpsResponse{
+			Jumps:          jumps,
+			CommitCount:    status.CommitCount,
+			SubmissionCount: status.SubmissionCount,
+		})
+	})
+	mux.HandleFunc("GET /v1/rounds/{roundId}/jumps/{jumpId}", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/rounds/{roundId}/jumps/{jumpId}", "get_jump")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		jumpID := r.PathValue("jumpId")
+		result, err := game.GetJump(r.Context(), config.Store, jumpID, profile.Player.ID)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "get_jump_failed", err)
+			http.Error(w, "get jump", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "get_jump_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		dto := JumpDTO{
+			ID:                 result.Jump.ID,
+			RoundID:            result.Jump.RoundID,
+			PlayerID:           result.Jump.PlayerID,
+			SealedViewer:       result.Jump.SealedViewer,
+			PlayerHasCommitted:  result.Jump.PlayerHasCommitted,
+			PlayerHasSubmitted:  result.Jump.PlayerHasSubmitted,
+		}
+		if result.Jump.SubmittedAt.Unix() > 0 {
+			dto.SubmittedAt = result.Jump.SubmittedAt.Format(time.RFC3339)
+		}
+		if !result.Jump.SealedViewer {
+			dto.Caption = result.Jump.Caption
+			dto.EvidenceURLs = result.Jump.EvidenceURLs
+		}
+
+		writeJSON(w, http.StatusOK, GetJumpResponse{Jump: dto})
 	})
 
 	return requestLoggingMiddleware(mux, config.Logger, config.Now)

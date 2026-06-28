@@ -96,6 +96,110 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: Forbidden — e.g. active Round already exists for this Community.
+  /v1/rounds/{roundId}/commits:
+    post:
+      operationId: commitToRound
+      summary: Commit to an active Round — Player becomes a Jumper
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Commit created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found or already committed.
+  /v1/rounds/{roundId}/jumps:
+    post:
+      operationId: submitJump
+      summary: Submit a sealed Jump for an active Round
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitJumpRequest"
+      responses:
+        "201":
+          description: Jump submitted (sealed until reveal).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitJumpResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found, not committed, or already submitted.
+    get:
+      operationId: listRoundJumps
+      summary: List Jumps for a Round (sealed pre-reveal), with commit/submission counts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of Jumps with commit and submission counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJumpsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
+  /v1/rounds/{roundId}/jumps/{jumpId}:
+    get:
+      operationId: getJump
+      summary: Get a single Jump (sealed pre-reveal for non-author)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The Jump (sealed if viewer is not the author and round not revealed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetJumpResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — jump not found.
 components:
   securitySchemes:
     bearerAuth:
@@ -234,3 +338,68 @@ components:
       properties:
         round:
           $ref: "#/components/schemas/Round"
+    CommitResponse:
+      type: object
+      required: [commitId]
+      properties:
+        commitId:
+          type: string
+    SubmitJumpRequest:
+      type: object
+      required: [caption]
+      properties:
+        caption:
+          type: string
+        evidenceUrls:
+          type: array
+          items:
+            type: string
+    SubmitJumpResponse:
+      type: object
+      required: [jump]
+      properties:
+        jump:
+          $ref: "#/components/schemas/Jump"
+    Jump:
+      type: object
+      required: [id, roundId, playerId, submittedAt, sealedViewer, playerHasCommitted, playerHasSubmitted]
+      properties:
+        id:
+          type: string
+        roundId:
+          type: string
+        playerId:
+          type: string
+        caption:
+          type: string
+        evidenceUrls:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+          format: date-time
+        sealedViewer:
+          type: boolean
+        playerHasCommitted:
+          type: boolean
+        playerHasSubmitted:
+          type: boolean
+    ListJumpsResponse:
+      type: object
+      required: [jumps, commitCount, submissionCount]
+      properties:
+        jumps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Jump"
+        commitCount:
+          type: integer
+        submissionCount:
+          type: integer
+    GetJumpResponse:
+      type: object
+      required: [jump]
+      properties:
+        jump:
+          $ref: "#/components/schemas/Jump"

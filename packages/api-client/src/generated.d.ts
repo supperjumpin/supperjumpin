@@ -89,6 +89,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/rounds/{roundId}/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit to an active Round — Player becomes a Jumper */
+        post: operations["commitToRound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jumps for a Round (sealed pre-reveal), with commit/submission counts */
+        get: operations["listRoundJumps"];
+        put?: never;
+        /** Submit a sealed Jump for an active Round */
+        post: operations["submitJump"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps/{jumpId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single Jump (sealed pre-reveal for non-author) */
+        get: operations["getJump"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -158,6 +210,36 @@ export interface components {
         };
         StartRoundResponse: {
             round: components["schemas"]["Round"];
+        };
+        CommitResponse: {
+            commitId: string;
+        };
+        SubmitJumpRequest: {
+            caption: string;
+            evidenceUrls?: string[];
+        };
+        SubmitJumpResponse: {
+            jump: components["schemas"]["Jump"];
+        };
+        Jump: {
+            id: string;
+            roundId: string;
+            playerId: string;
+            caption?: string;
+            evidenceUrls?: string[];
+            /** Format: date-time */
+            submittedAt: string;
+            sealedViewer: boolean;
+            playerHasCommitted: boolean;
+            playerHasSubmitted: boolean;
+        };
+        ListJumpsResponse: {
+            jumps: components["schemas"]["Jump"][];
+            commitCount: number;
+            submissionCount: number;
+        };
+        GetJumpResponse: {
+            jump: components["schemas"]["Jump"];
         };
     };
     responses: never;
@@ -326,6 +408,162 @@ export interface operations {
                 content?: never;
             };
             /** @description Forbidden — e.g. active Round already exists for this Community. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    commitToRound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Commit created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found or already committed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRoundJumps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of Jumps with commit and submission counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListJumpsResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    submitJump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitJumpRequest"];
+            };
+        };
+        responses: {
+            /** @description Jump submitted (sealed until reveal). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitJumpResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found, not committed, or already submitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getJump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Jump (sealed if viewer is not the author and round not revealed). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetJumpResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — jump not found. */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -63,3 +63,42 @@ type StartRoundRequest struct {
 type StartRoundResponse struct {
 	Round RoundDTO `json:"round"`
 }
+
+type CommitRequest struct {
+	// intentionally empty — the player is from auth, round from path
+}
+
+type CommitResponse struct {
+	CommitID string `json:"commitId"`
+}
+
+type SubmitJumpRequest struct {
+	Caption      string   `json:"caption"`
+	EvidenceURLs []string `json:"evidenceUrls"`
+}
+
+type SubmitJumpResponse struct {
+	Jump JumpDTO `json:"jump"`
+}
+
+type JumpDTO struct {
+	ID                 string   `json:"id"`
+	RoundID            string   `json:"roundId"`
+	PlayerID           string   `json:"playerId"`
+	Caption            string   `json:"caption,omitempty"`
+	EvidenceURLs       []string `json:"evidenceUrls,omitempty"`
+	SubmittedAt        string   `json:"submittedAt"`
+	SealedViewer       bool     `json:"sealedViewer"`
+	PlayerHasCommitted  bool    `json:"playerHasCommitted"`
+	PlayerHasSubmitted  bool    `json:"playerHasSubmitted"`
+}
+
+type ListJumpsResponse struct {
+	Jumps          []JumpDTO `json:"jumps"`
+	CommitCount    int       `json:"commitCount"`
+	SubmissionCount int      `json:"submissionCount"`
+}
+
+type GetJumpResponse struct {
+	Jump JumpDTO `json:"jump"`
+}

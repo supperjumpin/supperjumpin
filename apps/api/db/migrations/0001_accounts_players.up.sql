@@ -79,6 +79,33 @@ CREATE TABLE rounds (
 ALTER TABLE rounds ENABLE ROW LEVEL SECURITY;
 CREATE UNIQUE INDEX rounds_one_active_per_community ON rounds (community_id) WHERE status = 'active';
 
+CREATE TABLE commits (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    committed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (round_id, player_id)
+);
+ALTER TABLE commits ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE jumps (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    caption TEXT NOT NULL DEFAULT '',
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (round_id, player_id)
+);
+ALTER TABLE jumps ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE jump_evidence (
+    id TEXT PRIMARY KEY,
+    jump_id TEXT NOT NULL REFERENCES jumps(id),
+    url TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+ALTER TABLE jump_evidence ENABLE ROW LEVEL SECURITY;
+
 -- Seed reveal timeframes
 INSERT INTO reveal_timeframes (id, label, duration_hours, sort_order) VALUES
     ('reveal_tf_800ba5b17c98', '24 hours', 24, 1),
