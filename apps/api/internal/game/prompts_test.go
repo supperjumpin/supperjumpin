@@ -26,6 +26,15 @@ func (f *fakeListCatalogRepo) ListPrompts(_ context.Context) ([]game.PromptSnaps
 	return f.prompts, nil
 }
 
+func (f *fakeListCatalogRepo) GetPrompt(_ context.Context, id string) (game.PromptSnapshot, error) {
+	for _, p := range f.prompts {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return game.PromptSnapshot{}, game.ErrPromptNotFound
+}
+
 func pack(id, name, desc string) game.PromptPackSnapshot {
 	return game.PromptPackSnapshot{
 		ID:          id,
@@ -58,16 +67,22 @@ func TestListCatalogReturnsPacksWithPrompts(t *testing.T) {
 		prompt("prompt-3", "pack-2", "Across enemy lines.", "Enemy Lines", "tier_3"),
 	}
 
-	catalog, err := game.ListCatalog(context.Background(), repo)
+	result, err := game.ListCatalog(context.Background(), repo)
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if !result.Allowed {
+		t.Fatalf("expected Allowed=true, got %+v", result)
+	}
+	if result.Err != nil {
+		t.Fatalf("expected Err=nil, got %v", result.Err)
 	}
 
-	if len(catalog.Packs) != 2 {
-		t.Fatalf("expected 2 packs, got %d", len(catalog.Packs))
+	if len(result.Catalog.Packs) != 2 {
+		t.Fatalf("expected 2 packs, got %d", len(result.Catalog.Packs))
 	}
 
-	pack1 := catalog.Packs[0]
+	pack1 := result.Catalog.Packs[0]
 	if pack1.Pack.ID != "pack-1" {
 		t.Fatalf("expected first pack ID 'pack-1', got %q", pack1.Pack.ID)
 	}
@@ -75,7 +90,7 @@ func TestListCatalogReturnsPacksWithPrompts(t *testing.T) {
 		t.Fatalf("expected 2 prompts in pack-1, got %d", len(pack1.Prompts))
 	}
 
-	pack2 := catalog.Packs[1]
+	pack2 := result.Catalog.Packs[1]
 	if pack2.Pack.ID != "pack-2" {
 		t.Fatalf("expected second pack ID 'pack-2', got %q", pack2.Pack.ID)
 	}
@@ -96,13 +111,16 @@ func TestListCatalogEachPromptInExactlyOnePack(t *testing.T) {
 		prompt("c", "pack-2", "Enemy lines.", "Enemy Lines", "tier_3"),
 	}
 
-	catalog, err := game.ListCatalog(context.Background(), repo)
+	result, err := game.ListCatalog(context.Background(), repo)
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if !result.Allowed {
+		t.Fatalf("expected Allowed=true, got %+v", result)
 	}
 
 	promptSeen := make(map[string]int)
-	for _, pw := range catalog.Packs {
+	for _, pw := range result.Catalog.Packs {
 		for _, pr := range pw.Prompts {
 			promptSeen[pr.ID]++
 		}
@@ -127,19 +145,22 @@ func TestListCatalogDropsPromptsWhosePackIsNotInCatalog(t *testing.T) {
 		prompt("orphan", "pack-removed", "Stale prompt.", "Stale", "tier_1"),
 	}
 
-	catalog, err := game.ListCatalog(context.Background(), repo)
+	result, err := game.ListCatalog(context.Background(), repo)
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if !result.Allowed {
+		t.Fatalf("expected Allowed=true, got %+v", result)
 	}
 
-	if len(catalog.Packs) != 1 {
-		t.Fatalf("expected 1 pack, got %d", len(catalog.Packs))
+	if len(result.Catalog.Packs) != 1 {
+		t.Fatalf("expected 1 pack, got %d", len(result.Catalog.Packs))
 	}
-	if len(catalog.Packs[0].Prompts) != 1 {
-		t.Fatalf("expected 1 reachable prompt, got %d", len(catalog.Packs[0].Prompts))
+	if len(result.Catalog.Packs[0].Prompts) != 1 {
+		t.Fatalf("expected 1 reachable prompt, got %d", len(result.Catalog.Packs[0].Prompts))
 	}
-	if catalog.Packs[0].Prompts[0].ID != "a" {
-		t.Fatalf("expected reachable prompt 'a', got %q", catalog.Packs[0].Prompts[0].ID)
+	if result.Catalog.Packs[0].Prompts[0].ID != "a" {
+		t.Fatalf("expected reachable prompt 'a', got %q", result.Catalog.Packs[0].Prompts[0].ID)
 	}
 }
 
@@ -149,47 +170,65 @@ func TestListCatalogEmptyPacksReturnedWithoutPrompts(t *testing.T) {
 		pack("pack-empty", "Empty Pack", "No prompts"),
 	}
 
-	catalog, err := game.ListCatalog(context.Background(), repo)
+	result, err := game.ListCatalog(context.Background(), repo)
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if !result.Allowed {
+		t.Fatalf("expected Allowed=true, got %+v", result)
 	}
 
-	if len(catalog.Packs) != 1 {
-		t.Fatalf("expected 1 pack, got %d", len(catalog.Packs))
+	if len(result.Catalog.Packs) != 1 {
+		t.Fatalf("expected 1 pack, got %d", len(result.Catalog.Packs))
 	}
-	if len(catalog.Packs[0].Prompts) != 0 {
-		t.Fatalf("expected 0 prompts in empty pack, got %d", len(catalog.Packs[0].Prompts))
+	if len(result.Catalog.Packs[0].Prompts) != 0 {
+		t.Fatalf("expected 0 prompts in empty pack, got %d", len(result.Catalog.Packs[0].Prompts))
 	}
 }
 
 func TestListCatalogEmptyRepoReturnsEmptyCatalog(t *testing.T) {
 	repo := newFakeListCatalogRepo()
 
-	catalog, err := game.ListCatalog(context.Background(), repo)
+	result, err := game.ListCatalog(context.Background(), repo)
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if !result.Allowed {
+		t.Fatalf("expected Allowed=true, got %+v", result)
 	}
 
-	if len(catalog.Packs) != 0 {
-		t.Fatalf("expected 0 packs, got %d", len(catalog.Packs))
+	if len(result.Catalog.Packs) != 0 {
+		t.Fatalf("expected 0 packs, got %d", len(result.Catalog.Packs))
 	}
 }
 
 func TestListCatalogPackErrorPropagated(t *testing.T) {
 	broken := &brokenCatalogRepo{packErr: errors.New("db down")}
 
-	_, err := game.ListCatalog(context.Background(), broken)
-	if err == nil {
-		t.Fatal("expected error from broken pack repo, got nil")
+	result, err := game.ListCatalog(context.Background(), broken)
+	if err != nil {
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if result.Allowed {
+		t.Fatalf("expected Allowed=false on repo error, got %+v", result)
+	}
+	if result.Err == nil || result.Err.Error() != "db down" {
+		t.Fatalf("expected 'db down' on Err, got %v", result.Err)
 	}
 }
 
 func TestListCatalogPromptErrorPropagated(t *testing.T) {
 	broken := &brokenCatalogRepo{promptErr: errors.New("db down")}
 
-	catalog, err := game.ListCatalog(context.Background(), broken)
-	if err == nil {
-		t.Fatalf("expected error from broken prompt repo, got catalog %+v", catalog)
+	result, err := game.ListCatalog(context.Background(), broken)
+	if err != nil {
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if result.Allowed {
+		t.Fatalf("expected Allowed=false on repo error, got %+v", result)
+	}
+	if result.Err == nil || result.Err.Error() != "db down" {
+		t.Fatalf("expected 'db down' on Err, got %v", result.Err)
 	}
 }
 
@@ -210,4 +249,8 @@ func (b *brokenCatalogRepo) ListPrompts(_ context.Context) ([]game.PromptSnapsho
 		return nil, b.promptErr
 	}
 	return []game.PromptSnapshot{}, nil
+}
+
+func (b *brokenCatalogRepo) GetPrompt(_ context.Context, _ string) (game.PromptSnapshot, error) {
+	return game.PromptSnapshot{}, game.ErrPromptNotFound
 }

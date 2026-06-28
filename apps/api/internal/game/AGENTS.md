@@ -9,7 +9,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 | File | Responsibility |
 |------|---------------|
 | `identity.go` | Idempotent ensure-Player operation: given opaque (playerID, communityID), ensures both entities exist. Adapter resolves platform actors → internal IDs before calling. |
-| `prompts.go` | Prompt/Pack catalog: first-class reusable Prompts grouped into Packs. `ListCatalog` assembles the full catalog (packs with their prompts) for platform-authored global curation (ADR-0039). |
+| `prompts.go` | Prompt/Pack catalog: first-class reusable Prompts grouped into Packs. `ListCatalog` assembles the full catalog (packs with their prompts); `SelectPrompt` looks up by id (returns `ErrPromptNotFound`); `SelectRandomPrompt` picks one from the catalog (returns `ErrNoPromptsAvailable` when empty). Random-pick randomness is injected via a `func(n int) int` picker for testability. Platform-authored global curation (ADR-0039). |
 
 ## CONVENTIONS
 

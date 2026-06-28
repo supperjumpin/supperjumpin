@@ -147,3 +147,21 @@ func (s *PostgresStore) ListPrompts(ctx context.Context) ([]game.PromptSnapshot,
 	}
 	return result, nil
 }
+
+func (s *PostgresStore) GetPrompt(ctx context.Context, id string) (game.PromptSnapshot, error) {
+	row, err := s.queries.GetPrompt(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return game.PromptSnapshot{}, game.ErrPromptNotFound
+		}
+		return game.PromptSnapshot{}, err
+	}
+	return game.PromptSnapshot{
+		ID:        row.ID,
+		PackID:    row.PackID,
+		Copy:      row.Copy,
+		Theme:     row.Theme,
+		CostTier:  row.CostTier,
+		CreatedAt: row.CreatedAt,
+	}, nil
+}

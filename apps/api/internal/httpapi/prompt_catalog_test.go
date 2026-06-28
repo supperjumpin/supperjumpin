@@ -114,3 +114,35 @@ func TestGetPromptCatalogRejectsMethodOtherThanGet(t *testing.T) {
 		t.Fatalf("expected status 405, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestGetPromptCatalogReturnsPacksInDeterministicOrder(t *testing.T) {
+	server := newTestServer(t)
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/prompt-catalog", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		Packs []struct {
+			DisplayName string `json:"displayName"`
+		} `json:"packs"`
+	}
+	decodeResponse(t, rec, &body)
+
+	gotOrder := make([]string, 0, len(body.Packs))
+	for _, p := range body.Packs {
+		gotOrder = append(gotOrder, p.DisplayName)
+	}
+	wantOrder := []string{"Field Operations", "Kitchen Classics", "Low-Stakes Smuggling"}
+	if len(gotOrder) != len(wantOrder) {
+		t.Fatalf("expected %d packs, got %d: %v", len(wantOrder), len(gotOrder), gotOrder)
+	}
+	for i, want := range wantOrder {
+		if gotOrder[i] != want {
+			t.Fatalf("expected pack order %v, got %v (mismatch at index %d: want %q, got %q)", wantOrder, gotOrder, i, want, gotOrder[i])
+		}
+	}
+}

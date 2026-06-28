@@ -42,6 +42,15 @@ func (s loggingStore) ListPrompts(context.Context) ([]game.PromptSnapshot, error
 	return s.prompts, nil
 }
 
+func (s loggingStore) GetPrompt(_ context.Context, id string) (game.PromptSnapshot, error) {
+	for _, p := range s.prompts {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return game.PromptSnapshot{}, game.ErrPromptNotFound
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},

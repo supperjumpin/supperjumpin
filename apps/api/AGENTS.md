@@ -10,12 +10,13 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 |------|----------|-------|
 | Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, SUPPERJUMPIN_DATABASE_URL, SUPPERJUMPIN_DEV_AUTH_TOKEN, SUPPERJUMPIN_LOG_FORMAT, SUPPERJUMPIN_LOG_LEVEL |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig |
-| Change DTO / JSON shape | `internal/httpapi/dto.go` | DTO structs with camelCase JSON tags |
+| Change DTO / JSON shape | `internal/httpapi/dto.go` | camelCase JSON tags |
 | Postgres-backed tests | `npm run api:test` | Canonical test path against Postgres |
 | Persistence adapter | `internal/httpapi/postgres_store.go` | sqlc-generated queries via `db.Queries` |
 | External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
-| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities. Pre-stable: fold schema changes into existing migration files |
+| Prompt/Pack catalog | `internal/game/prompts.go` + `db/queries/prompts.sql` | `ListCatalog` (full catalog), `SelectPrompt` (by id), `SelectRandomPrompt` (random pick). Seeded via `0001_accounts_players.up.sql` — platform-authored, global. |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 

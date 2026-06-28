@@ -2,7 +2,13 @@ package game
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrPromptNotFound      = errors.New("prompt not found")
+	ErrNoPromptsAvailable  = errors.New("no prompts available")
 )
 
 type PromptPackSnapshot struct {
@@ -30,20 +36,43 @@ type PackWithPrompts struct {
 	Prompts []PromptSnapshot
 }
 
+type ListCatalogResult struct {
+	Catalog CatalogSnapshot
+	Allowed bool
+	Err     error
+}
+
+type SelectPromptInput struct {
+	PromptID string
+}
+
+type SelectPromptResult struct {
+	Prompt  PromptSnapshot
+	Allowed bool
+	Err     error
+}
+
+type SelectRandomPromptResult struct {
+	Prompt  PromptSnapshot
+	Allowed bool
+	Err     error
+}
+
 type ListCatalogRepo interface {
 	ListPromptPacks(ctx context.Context) ([]PromptPackSnapshot, error)
 	ListPrompts(ctx context.Context) ([]PromptSnapshot, error)
+	GetPrompt(ctx context.Context, id string) (PromptSnapshot, error)
 }
 
-func ListCatalog(ctx context.Context, repo ListCatalogRepo) (CatalogSnapshot, error) {
+func ListCatalog(ctx context.Context, repo ListCatalogRepo) (ListCatalogResult, error) {
 	packs, err := repo.ListPromptPacks(ctx)
 	if err != nil {
-		return CatalogSnapshot{}, err
+		return ListCatalogResult{Allowed: false, Err: err}, nil
 	}
 
 	prompts, err := repo.ListPrompts(ctx)
 	if err != nil {
-		return CatalogSnapshot{}, err
+		return ListCatalogResult{Allowed: false, Err: err}, nil
 	}
 
 	promptByPack := make(map[string][]PromptSnapshot)
@@ -61,5 +90,30 @@ func ListCatalog(ctx context.Context, repo ListCatalogRepo) (CatalogSnapshot, er
 		})
 	}
 
-	return result, nil
+	return ListCatalogResult{Catalog: result, Allowed: true}, nil
+}
+
+func SelectPrompt(ctx context.Context, repo ListCatalogRepo, input SelectPromptInput) (SelectPromptResult, error) {
+	if input.PromptID == "" {
+		return SelectPromptResult{Allowed: false, Err: ErrPromptNotFound}, nil
+	}
+	p, err := repo.GetPrompt(ctx, input.PromptID)
+	if err != nil {
+		if errors.Is(err, ErrPromptNotFound) {
+			return SelectPromptResult{Allowed: false, Err: ErrPromptNotFound}, nil
+		}
+		return SelectPromptResult{Allowed: false, Err: err}, nil
+	}
+	return SelectPromptResult{Prompt: p, Allowed: true}, nil
+}
+
+func SelectRandomPrompt(ctx context.Context, repo ListCatalogRepo, pickIndex func(n int) int) (SelectRandomPromptResult, error) {
+	prompts, err := repo.ListPrompts(ctx)
+	if err != nil {
+		return SelectRandomPromptResult{Allowed: false, Err: err}, nil
+	}
+	if len(prompts) == 0 {
+		return SelectRandomPromptResult{Allowed: false, Err: ErrNoPromptsAvailable}, nil
+	}
+	return SelectRandomPromptResult{Prompt: prompts[pickIndex(len(prompts))], Allowed: true}, nil
 }

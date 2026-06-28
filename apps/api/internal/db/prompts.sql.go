@@ -50,7 +50,7 @@ func (q *Queries) GetPromptPack(ctx context.Context, id string) (PromptPack, err
 const listPromptPacks = `-- name: ListPromptPacks :many
 SELECT id, display_name, description, created_at
 FROM prompt_packs
-ORDER BY created_at
+ORDER BY display_name
 `
 
 func (q *Queries) ListPromptPacks(ctx context.Context) ([]PromptPack, error) {
@@ -84,7 +84,7 @@ func (q *Queries) ListPromptPacks(ctx context.Context) ([]PromptPack, error) {
 const listPrompts = `-- name: ListPrompts :many
 SELECT id, pack_id, copy, theme, cost_tier, created_at
 FROM prompts
-ORDER BY created_at
+ORDER BY pack_id, id
 `
 
 func (q *Queries) ListPrompts(ctx context.Context) ([]Prompt, error) {
@@ -121,7 +121,7 @@ const listPromptsByPack = `-- name: ListPromptsByPack :many
 SELECT id, pack_id, copy, theme, cost_tier, created_at
 FROM prompts
 WHERE pack_id = $1
-ORDER BY created_at
+ORDER BY id
 `
 
 func (q *Queries) ListPromptsByPack(ctx context.Context, packID string) ([]Prompt, error) {
