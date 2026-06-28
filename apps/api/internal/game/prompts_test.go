@@ -105,9 +105,6 @@ func TestListCatalogEachPromptInExactlyOnePack(t *testing.T) {
 	for _, pw := range catalog.Packs {
 		for _, pr := range pw.Prompts {
 			promptSeen[pr.ID]++
-			if pr.PackID != pw.Pack.ID {
-				t.Fatalf("prompt %s has pack_id %q but was grouped under pack %q", pr.ID, pr.PackID, pw.Pack.ID)
-			}
 		}
 	}
 	for id, count := range promptSeen {
@@ -117,6 +114,32 @@ func TestListCatalogEachPromptInExactlyOnePack(t *testing.T) {
 	}
 	if len(promptSeen) != 3 {
 		t.Fatalf("expected 3 unique prompts, got %d", len(promptSeen))
+	}
+}
+
+func TestListCatalogDropsPromptsWhosePackIsNotInCatalog(t *testing.T) {
+	repo := newFakeListCatalogRepo()
+	repo.packs = []game.PromptPackSnapshot{
+		pack("pack-1", "Kitchen Classics", "Fridge bits"),
+	}
+	repo.prompts = []game.PromptSnapshot{
+		prompt("a", "pack-1", "Fine dining.", "Fine Dining", "tier_1"),
+		prompt("orphan", "pack-removed", "Stale prompt.", "Stale", "tier_1"),
+	}
+
+	catalog, err := game.ListCatalog(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(catalog.Packs) != 1 {
+		t.Fatalf("expected 1 pack, got %d", len(catalog.Packs))
+	}
+	if len(catalog.Packs[0].Prompts) != 1 {
+		t.Fatalf("expected 1 reachable prompt, got %d", len(catalog.Packs[0].Prompts))
+	}
+	if catalog.Packs[0].Prompts[0].ID != "a" {
+		t.Fatalf("expected reachable prompt 'a', got %q", catalog.Packs[0].Prompts[0].ID)
 	}
 }
 

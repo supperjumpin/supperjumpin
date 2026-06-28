@@ -72,6 +72,7 @@ func NewServer(config ServerConfig) http.Handler {
 	})
 	mux.HandleFunc("GET /v1/prompt-catalog", func(w http.ResponseWriter, r *http.Request) {
 		setRequestOperation(r, "GET /v1/prompt-catalog", "list_prompt_catalog")
+		AddRequestLogField(r.Context(), "actor_type", "public")
 
 		catalog, err := game.ListCatalog(r.Context(), config.Store)
 		if err != nil {
