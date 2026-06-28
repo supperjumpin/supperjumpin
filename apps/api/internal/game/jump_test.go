@@ -496,9 +496,10 @@ func TestListJumpsRoundNotFound(t *testing.T) {
 
 func TestGetJumpAuthorSeesFullContentPreReveal(t *testing.T) {
 	repo := &fakeGetJumpRepo{
-		round: game.RoundSnapshot{ID: "round-1", Status: "active"},
-		jump: game.JumpSnapshot{ID: "jump-1", RoundID: "round-1", PlayerID: "player-a", Caption: "My jump", SubmittedAt: frozenNow},
-		evidence: []string{"https://example.com/pic.jpg"},
+		round:       game.RoundSnapshot{ID: "round-1", Status: "active"},
+		roundExists: true,
+		jump:        game.JumpSnapshot{ID: "jump-1", RoundID: "round-1", PlayerID: "player-a", Caption: "My jump", SubmittedAt: frozenNow},
+		evidence:    []string{"https://example.com/pic.jpg"},
 	}
 
 	result, err := game.GetJump(context.Background(), repo, "jump-1", "player-a")
@@ -521,9 +522,10 @@ func TestGetJumpAuthorSeesFullContentPreReveal(t *testing.T) {
 
 func TestGetJumpNonAuthorSeesSealedContentPreReveal(t *testing.T) {
 	repo := &fakeGetJumpRepo{
-		round: game.RoundSnapshot{ID: "round-1", Status: "active"},
-		jump: game.JumpSnapshot{ID: "jump-1", RoundID: "round-1", PlayerID: "player-a", Caption: "My jump", SubmittedAt: frozenNow},
-		evidence: []string{"https://example.com/pic.jpg"},
+		round:       game.RoundSnapshot{ID: "round-1", Status: "active"},
+		roundExists: true,
+		jump:        game.JumpSnapshot{ID: "jump-1", RoundID: "round-1", PlayerID: "player-a", Caption: "My jump", SubmittedAt: frozenNow},
+		evidence:    []string{"https://example.com/pic.jpg"},
 	}
 
 	result, err := game.GetJump(context.Background(), repo, "jump-1", "player-b")
@@ -542,14 +544,15 @@ func TestGetJumpNonAuthorSeesSealedContentPreReveal(t *testing.T) {
 }
 
 type fakeGetJumpRepo struct {
-	round    game.RoundSnapshot
-	jump     game.JumpSnapshot
-	evidence []string
-	getErr   error
+	round       game.RoundSnapshot
+	roundExists bool
+	jump        game.JumpSnapshot
+	evidence    []string
+	getErr      error
 }
 
 func (f *fakeGetJumpRepo) FindRound(ctx context.Context, roundID string) (game.RoundSnapshot, bool, error) {
-	return f.round, true, nil
+	return f.round, f.roundExists, nil
 }
 
 func (f *fakeGetJumpRepo) GetJumpByID(ctx context.Context, jumpID string) (game.JumpSnapshot, error) {
@@ -561,4 +564,25 @@ func (f *fakeGetJumpRepo) GetJumpByID(ctx context.Context, jumpID string) (game.
 
 func (f *fakeGetJumpRepo) ListEvidenceForJump(ctx context.Context, jumpID string) ([]string, error) {
 	return f.evidence, nil
+}
+
+func TestGetJumpFailsWhenRoundMissing(t *testing.T) {
+	// Defensive: an orphaned Jump (its Round no longer exists) should return a
+	// clean ErrRoundNotFound instead of silently treating the round as
+	// un-revealed (which would surface as opaque sealed content).
+	repo := &fakeGetJumpRepo{
+		roundExists: false,
+		jump:        game.JumpSnapshot{ID: "jump-1", RoundID: "round-missing", PlayerID: "player-a", Caption: "orphan", SubmittedAt: frozenNow},
+	}
+
+	result, err := game.GetJump(context.Background(), repo, "jump-1", "player-a")
+	if err != nil {
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if result.Allowed {
+		t.Fatal("expected Allowed=false when round is missing")
+	}
+	if !errors.Is(result.Err, game.ErrRoundNotFound) {
+		t.Fatalf("expected ErrRoundNotFound, got %v", result.Err)
+	}
 }

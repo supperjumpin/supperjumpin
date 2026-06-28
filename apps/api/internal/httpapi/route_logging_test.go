@@ -147,6 +147,10 @@ func (s loggingStore) CreateReaction(context.Context, game.ReactionSnapshot) err
 	return errors.New("not implemented")
 }
 
+func (s loggingStore) FindReaction(context.Context, string, string, string) (*game.ReactionSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (s loggingStore) CreateComment(context.Context, game.CommentSnapshot) error {
 	return errors.New("not implemented")
 }

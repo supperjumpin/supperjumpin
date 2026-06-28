@@ -33,3 +33,28 @@ func (q *Queries) CreateReaction(ctx context.Context, arg CreateReactionParams) 
 	)
 	return err
 }
+
+const findReaction = `-- name: FindReaction :one
+SELECT id, stamp_id, jump_id, player_id, created_at
+FROM reactions
+WHERE stamp_id = $1 AND jump_id = $2 AND player_id = $3
+`
+
+type FindReactionParams struct {
+	StampID  string
+	JumpID   string
+	PlayerID string
+}
+
+func (q *Queries) FindReaction(ctx context.Context, arg FindReactionParams) (Reaction, error) {
+	row := q.db.QueryRowContext(ctx, findReaction, arg.StampID, arg.JumpID, arg.PlayerID)
+	var i Reaction
+	err := row.Scan(
+		&i.ID,
+		&i.StampID,
+		&i.JumpID,
+		&i.PlayerID,
+		&i.CreatedAt,
+	)
+	return i, err
+}

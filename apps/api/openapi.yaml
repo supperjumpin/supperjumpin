@@ -158,7 +158,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SubmitJumpResponse"
         "400":
-          description: Invalid request body.
+          description: Invalid request body — caption is required and at least one evidence URL is required.
         "401":
           description: Missing or invalid bearer token.
         "403":
@@ -248,7 +248,7 @@ paths:
         "401":
           description: Missing or invalid bearer token.
         "403":
-          description: Forbidden — jump not found, round not revealed, or stamp not found.
+          description: Forbidden — jump not found, round not revealed, stamp not found, or this player already applied this stamp to this jump.
   /v1/rounds/{roundId}/comments:
     post:
       operationId: postRoundComment
@@ -578,12 +578,13 @@ components:
           type: string
     SubmitJumpRequest:
       type: object
-      required: [caption]
+      required: [caption, evidenceUrls]
       properties:
         caption:
           type: string
         evidenceUrls:
           type: array
+          minItems: 1
           items:
             type: string
     SubmitJumpResponse:
@@ -789,7 +790,7 @@ components:
           format: date-time
     RecapResponse:
       type: object
-      required: [roundId, communityId, promptId, status, revealBy, createdBy, createdAt, jumps, comments, ghostJumpers, lore]
+      required: [roundId, communityId, promptId, status, revealBy, createdBy, createdAt, jumps, comments, ghostJumpers, lore, nextRoundHook, standoutStamps, standoutComments]
       properties:
         roundId:
           type: string
@@ -823,3 +824,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LoreEntry"
+        nextRoundHook:
+          $ref: "#/components/schemas/NextRoundHook"
+        standoutStamps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StandoutStamp"
+        standoutComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+    NextRoundHook:
+      type: object
+      required: []
+      description: |
+        Artifact slot for teasing/setting up the next Round. The domain
+        surfaces whether an active Round already exists for the Community
+        (and its Prompt if so); the wording/voice is a presentation concern.
+      properties:
+        activeRoundId:
+          type: string
+          description: Empty when no active Round exists for the Community.
+        promptId:
+          type: string
+          description: Empty when no active Round exists for the Community.
+    StandoutStamp:
+      type: object
+      required: [jumpId, stance, count]
+      description: |
+        The dominant Stamp stance on a single Jump in this Round — the
+        reaction that Jump is "known for". Ties are broken alphabetically by
+        stance for determinism. Ordering in the array is by the Jump's
+        TotalStamps desc, then JumpID asc.
+      properties:
+        jumpId:
+          type: string
+        stance:
+          type: string
+        count:
+          type: integer

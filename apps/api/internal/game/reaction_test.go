@@ -98,6 +98,7 @@ type fakeApplyReactionRepo struct {
 	getRoundErr error
 	getStampErr error
 	createErr   error
+	findErr     error
 }
 
 func newFakeApplyReactionRepo() *fakeApplyReactionRepo {
@@ -148,8 +149,26 @@ func (f *fakeApplyReactionRepo) CreateReaction(_ context.Context, r game.Reactio
 	if f.createErr != nil {
 		return f.createErr
 	}
+	for _, existing := range f.reactions {
+		if existing.JumpID == r.JumpID && existing.PlayerID == r.PlayerID && existing.StampID == r.StampID {
+			return errors.New("unique constraint violation: duplicate reaction")
+		}
+	}
 	f.reactions = append(f.reactions, r)
 	return nil
+}
+
+func (f *fakeApplyReactionRepo) FindReaction(_ context.Context, jumpID, playerID, stampID string) (*game.ReactionSnapshot, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	for _, r := range f.reactions {
+		if r.JumpID == jumpID && r.PlayerID == playerID && r.StampID == stampID {
+			rCopy := r
+			return &rCopy, nil
+		}
+	}
+	return nil, nil
 }
 
 func TestApplyReactionAppliesStampToRevealedJump(t *testing.T) {
@@ -274,6 +293,69 @@ func TestApplyReactionAllowsRepeatReactions(t *testing.T) {
 	}
 }
 
+func TestApplyReactionFailsWhenAlreadyReactedWithSameStamp(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakeApplyReactionRepo()
+	repo.jumps["jump-1"] = game.JumpSnapshot{ID: "jump-1", RoundID: "round-1"}
+	repo.rounds["round-1"] = game.RoundSnapshot{ID: "round-1", Status: "revealed"}
+	repo.stamps["stamp-1"] = stamp("stamp-1", "approval", "Approve", "✅", "Yes.")
+	repo.players["player-a"] = game.PlayerSnapshot{ID: "player-a", DisplayName: "Alice"}
+
+	// First application succeeds
+	r1, err := game.ApplyReaction(ctx, repo, game.ApplyReactionInput{
+		JumpID:   "jump-1",
+		StampID:  "stamp-1",
+		PlayerID: "player-a",
+	}, reactionFrozenNow)
+	if err != nil || !r1.Allowed {
+		t.Fatalf("first should succeed, got err=%v", r1.Err)
+	}
+
+	// Second application of the SAME stamp on the SAME jump by the SAME player fails
+	r2, err := game.ApplyReaction(ctx, repo, game.ApplyReactionInput{
+		JumpID:   "jump-1",
+		StampID:  "stamp-1",
+		PlayerID: "player-a",
+	}, reactionFrozenNow)
+	if err != nil {
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if r2.Allowed {
+		t.Fatal("expected Allowed=false for duplicate reaction (same stamp)")
+	}
+	if !errors.Is(r2.Err, game.ErrAlreadyReacted) {
+		t.Fatalf("expected ErrAlreadyReacted, got %v", r2.Err)
+	}
+	if len(repo.reactions) != 1 {
+		t.Fatalf("expected only 1 reaction persisted, got %d", len(repo.reactions))
+	}
+}
+
+func TestApplyReactionFindReactionErrorPropagated(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakeApplyReactionRepo()
+	repo.jumps["jump-1"] = game.JumpSnapshot{ID: "jump-1", RoundID: "round-1"}
+	repo.rounds["round-1"] = game.RoundSnapshot{ID: "round-1", Status: "revealed"}
+	repo.stamps["stamp-1"] = stamp("stamp-1", "approval", "Approve", "✅", "Yes.")
+	repo.players["player-a"] = game.PlayerSnapshot{ID: "player-a", DisplayName: "Alice"}
+	repo.findErr = errors.New("db down")
+
+	result, err := game.ApplyReaction(ctx, repo, game.ApplyReactionInput{
+		JumpID:   "jump-1",
+		StampID:  "stamp-1",
+		PlayerID: "player-a",
+	}, reactionFrozenNow)
+	if err != nil {
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if result.Allowed {
+		t.Fatal("expected Allowed=false on FindReaction error")
+	}
+	if result.Err == nil || result.Err.Error() != "db down" {
+		t.Fatalf("expected 'db down' error, got %v", result.Err)
+	}
+}
+
 func TestApplyReactionFailsOnUnknownJump(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeApplyReactionRepo()
@@ -318,5 +400,32 @@ func TestApplyReactionFailsOnUnknownPlayer(t *testing.T) {
 	}
 	if !errors.Is(result.Err, game.ErrPlayerNotFound) {
 		t.Fatalf("expected ErrPlayerNotFound, got %v", result.Err)
+	}
+}
+
+func TestApplyReactionFailsWhenRoundMissing(t *testing.T) {
+	// Defensive: an orphaned Jump (its Round no longer exists) should return
+	// a clean ErrRoundNotFound rather than silently treating the round as
+	// un-revealed.
+	ctx := context.Background()
+	repo := newFakeApplyReactionRepo()
+	repo.jumps["jump-orphan"] = game.JumpSnapshot{ID: "jump-orphan", RoundID: "round-missing"}
+	// round not set in repo.rounds → GetRound returns ok=false
+	repo.stamps["stamp-1"] = stamp("stamp-1", "approval", "Approve", "✅", "Yes.")
+	repo.players["player-a"] = game.PlayerSnapshot{ID: "player-a", DisplayName: "Alice"}
+
+	result, err := game.ApplyReaction(ctx, repo, game.ApplyReactionInput{
+		JumpID:   "jump-orphan",
+		StampID:  "stamp-1",
+		PlayerID: "player-a",
+	}, reactionFrozenNow)
+	if err != nil {
+		t.Fatalf("expected no outer error, got %v", err)
+	}
+	if result.Allowed {
+		t.Fatal("expected Allowed=false when round is missing")
+	}
+	if !errors.Is(result.Err, game.ErrRoundNotFound) {
+		t.Fatalf("expected ErrRoundNotFound, got %v", result.Err)
 	}
 }

@@ -162,8 +162,9 @@ func TestSubmitJumpFailsWithoutCommit(t *testing.T) {
 	_, communityID := bootstrapAndResolve(t, store, server, "alice-token", "srv-submit-2", "alice-dc-s2")
 	roundID := createRound(t, server, store, "alice-token", communityID)
 
-	submitBody := map[string]string{
-		"caption": "Should fail — not committed",
+	submitBody := map[string]any{
+		"caption":      "Should fail — not committed",
+		"evidenceUrls": []string{"https://example.com/photo.jpg"},
 	}
 	submitRec := doJSON(server, http.MethodPost, "/v1/rounds/"+roundID+"/jumps", "alice-token", submitBody)
 	if submitRec.Code != http.StatusForbidden {
@@ -183,6 +184,25 @@ func TestSubmitJumpFailsWithoutCaption(t *testing.T) {
 	// Submit without caption
 	submitBody := map[string]any{
 		"evidenceUrls": []string{"https://example.com/photo.jpg"},
+	}
+	submitRec := doJSON(server, http.MethodPost, "/v1/rounds/"+roundID+"/jumps", "alice-token", submitBody)
+	if submitRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", submitRec.Code, submitRec.Body.String())
+	}
+}
+
+func TestSubmitJumpFailsWithoutEvidence(t *testing.T) {
+	store := newCleanPostgresTestStore(t)
+	server := newTestServerWithStore(store)
+	_, communityID := bootstrapAndResolve(t, store, server, "alice-token", "srv-submit-4", "alice-dc-s4")
+	roundID := createRound(t, server, store, "alice-token", communityID)
+
+	// Commit
+	doJSON(server, http.MethodPost, "/v1/rounds/"+roundID+"/commits", "alice-token", nil)
+
+	// Submit with caption but no evidence URLs
+	submitBody := map[string]any{
+		"caption": "Caption but no photos",
 	}
 	submitRec := doJSON(server, http.MethodPost, "/v1/rounds/"+roundID+"/jumps", "alice-token", submitBody)
 	if submitRec.Code != http.StatusBadRequest {
@@ -274,7 +294,8 @@ func TestListJumpsShowsGhostJumper(t *testing.T) {
 	// Bob commits and submits
 	doJSON(server, http.MethodPost, "/v1/rounds/"+roundID+"/commits", "bob-token", nil)
 	doJSON(server, http.MethodPost, "/v1/rounds/"+roundID+"/jumps", "bob-token", map[string]any{
-		"caption": "Bob's jump",
+		"caption":      "Bob's jump",
+		"evidenceUrls": []string{"https://example.com/bob.jpg"},
 	})
 
 	// Alice views jumps — should see herself as committed-but-not-submitted

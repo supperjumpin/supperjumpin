@@ -185,16 +185,30 @@ type GhostJumperDTO struct {
 	CommittedAt string `json:"committedAt"`
 }
 
+type NextRoundHookDTO struct {
+	ActiveRoundID string `json:"activeRoundId,omitempty"`
+	PromptID      string `json:"promptId,omitempty"`
+}
+
+type StandoutStampDTO struct {
+	JumpID string `json:"jumpId"`
+	Stance string `json:"stance"`
+	Count  int    `json:"count"`
+}
+
 type RecapResponse struct {
-	RoundID      string              `json:"roundId"`
-	CommunityID  string              `json:"communityId"`
-	PromptID     string              `json:"promptId"`
-	Status       string              `json:"status"`
-	RevealBy     string              `json:"revealBy"`
-	CreatedBy    string              `json:"createdBy"`
-	CreatedAt    string              `json:"createdAt"`
-	Jumps        []RecapJumpEntryDTO `json:"jumps"`
-	Comments     []CommentDTO        `json:"comments"`
-	GhostJumpers []GhostJumperDTO    `json:"ghostJumpers"`
-	Lore         []LoreEntryDTO      `json:"lore"`
+	RoundID          string               `json:"roundId"`
+	CommunityID      string               `json:"communityId"`
+	PromptID         string               `json:"promptId"`
+	Status           string               `json:"status"`
+	RevealBy         string               `json:"revealBy"`
+	CreatedBy        string               `json:"createdBy"`
+	CreatedAt        string               `json:"createdAt"`
+	Jumps            []RecapJumpEntryDTO  `json:"jumps"`
+	Comments         []CommentDTO         `json:"comments"`
+	GhostJumpers     []GhostJumperDTO     `json:"ghostJumpers"`
+	Lore             []LoreEntryDTO       `json:"lore"`
+	NextRoundHook    NextRoundHookDTO     `json:"nextRoundHook"`
+	StandoutStamps   []StandoutStampDTO   `json:"standoutStamps"`
+	StandoutComments []CommentDTO         `json:"standoutComments"`
 }

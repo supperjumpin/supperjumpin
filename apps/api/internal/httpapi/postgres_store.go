@@ -482,6 +482,27 @@ func (s *PostgresStore) CreateReaction(ctx context.Context, reaction game.Reacti
 	})
 }
 
+func (s *PostgresStore) FindReaction(ctx context.Context, jumpID, playerID, stampID string) (*game.ReactionSnapshot, error) {
+	row, err := s.queries.FindReaction(ctx, db.FindReactionParams{
+		StampID:  stampID,
+		JumpID:   jumpID,
+		PlayerID: playerID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &game.ReactionSnapshot{
+		ID:        row.ID,
+		StampID:   row.StampID,
+		JumpID:    row.JumpID,
+		PlayerID:  row.PlayerID,
+		CreatedAt: row.CreatedAt,
+	}, nil
+}
+
 // --- PostCommentRepo ---
 
 func (s *PostgresStore) CreateComment(ctx context.Context, comment game.CommentSnapshot) error {

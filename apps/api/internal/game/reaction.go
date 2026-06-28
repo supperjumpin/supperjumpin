@@ -9,6 +9,7 @@ import (
 var (
 	ErrStampNotFound    = errors.New("stamp not found")
 	ErrRoundNotRevealed = errors.New("round is not revealed")
+	ErrAlreadyReacted   = errors.New("player already reacted with this stamp on this jump")
 )
 
 type StampSnapshot struct {
@@ -55,6 +56,7 @@ type ApplyReactionRepo interface {
 	GetRound(ctx context.Context, roundID string) (RoundSnapshot, bool, error)
 	GetStamp(ctx context.Context, stampID string) (StampSnapshot, error)
 	FindPlayer(ctx context.Context, playerID string) (PlayerSnapshot, bool, error)
+	FindReaction(ctx context.Context, jumpID, playerID, stampID string) (*ReactionSnapshot, error)
 	CreateReaction(ctx context.Context, reaction ReactionSnapshot) error
 }
 
@@ -75,9 +77,12 @@ func ApplyReaction(ctx context.Context, repo ApplyReactionRepo, input ApplyReact
 		return ApplyReactionResult{Allowed: false, Err: err}, nil
 	}
 
-	round, _, err := repo.GetRound(ctx, jump.RoundID)
+	round, roundExists, err := repo.GetRound(ctx, jump.RoundID)
 	if err != nil {
 		return ApplyReactionResult{Allowed: false, Err: err}, nil
+	}
+	if !roundExists {
+		return ApplyReactionResult{Allowed: false, Err: ErrRoundNotFound}, nil
 	}
 	if round.Status != "revealed" {
 		return ApplyReactionResult{Allowed: false, Err: ErrRoundNotRevealed}, nil
@@ -97,6 +102,14 @@ func ApplyReaction(ctx context.Context, repo ApplyReactionRepo, input ApplyReact
 	}
 	if !playerExists {
 		return ApplyReactionResult{Allowed: false, Err: ErrPlayerNotFound}, nil
+	}
+
+	existing, err := repo.FindReaction(ctx, input.JumpID, input.PlayerID, input.StampID)
+	if err != nil {
+		return ApplyReactionResult{Allowed: false, Err: err}, nil
+	}
+	if existing != nil {
+		return ApplyReactionResult{Allowed: false, Err: ErrAlreadyReacted}, nil
 	}
 
 	reactionID := domainStableID("reaction", input.JumpID+":"+input.PlayerID+":"+input.StampID)

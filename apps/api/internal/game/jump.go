@@ -304,9 +304,12 @@ func GetJump(ctx context.Context, repo GetJumpRepo, jumpID, viewerPlayerID strin
 		return GetJumpResult{Allowed: false, Err: err}, nil
 	}
 
-	roundData, _, err := repo.FindRound(ctx, jump.RoundID)
+	roundData, roundExists, err := repo.FindRound(ctx, jump.RoundID)
 	if err != nil {
 		return GetJumpResult{Allowed: false, Err: err}, nil
+	}
+	if !roundExists {
+		return GetJumpResult{Allowed: false, Err: ErrRoundNotFound}, nil
 	}
 
 	isRevealed := roundData.Status == "revealed"

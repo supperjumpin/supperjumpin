@@ -337,7 +337,7 @@ export interface components {
         };
         SubmitJumpRequest: {
             caption: string;
-            evidenceUrls?: string[];
+            evidenceUrls: string[];
         };
         SubmitJumpResponse: {
             jump: components["schemas"]["Jump"];
@@ -452,6 +452,31 @@ export interface components {
             comments: components["schemas"]["Comment"][];
             ghostJumpers: components["schemas"]["GhostJumper"][];
             lore: components["schemas"]["LoreEntry"][];
+            nextRoundHook: components["schemas"]["NextRoundHook"];
+            standoutStamps: components["schemas"]["StandoutStamp"][];
+            standoutComments: components["schemas"]["Comment"][];
+        };
+        /**
+         * @description Artifact slot for teasing/setting up the next Round. The domain
+         *     surfaces whether an active Round already exists for the Community
+         *     (and its Prompt if so); the wording/voice is a presentation concern.
+         */
+        NextRoundHook: {
+            /** @description Empty when no active Round exists for the Community. */
+            activeRoundId?: string;
+            /** @description Empty when no active Round exists for the Community. */
+            promptId?: string;
+        };
+        /**
+         * @description The dominant Stamp stance on a single Jump in this Round — the
+         *     reaction that Jump is "known for". Ties are broken alphabetically by
+         *     stance for determinism. Ordering in the array is by the Jump's
+         *     TotalStamps desc, then JumpID asc.
+         */
+        StandoutStamp: {
+            jumpId: string;
+            stance: string;
+            count: number;
         };
     };
     responses: never;
@@ -751,7 +776,7 @@ export interface operations {
                     "application/json": components["schemas"]["SubmitJumpResponse"];
                 };
             };
-            /** @description Invalid request body. */
+            /** @description Invalid request body — caption is required and at least one evidence URL is required. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -850,7 +875,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Forbidden — jump not found, round not revealed, or stamp not found. */
+            /** @description Forbidden — jump not found, round not revealed, stamp not found, or this player already applied this stamp to this jump. */
             403: {
                 headers: {
                     [name: string]: unknown;

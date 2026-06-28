@@ -30,23 +30,44 @@ type RecapJumpEntry struct {
 	TotalStamps  int
 }
 
+// StandoutStampEntry is the dominant stance on a single jump in this Round —
+// the reaction that jump is "known for". Ties are broken alphabetically by
+// stance so derivation is deterministic.
+type StandoutStampEntry struct {
+	JumpID string
+	Stance string
+	Count  int
+}
+
 type GhostJumperEntry struct {
 	PlayerID    string
 	CommittedAt time.Time
 }
 
 type RecapSnapshot struct {
-	RoundID      string
-	CommunityID  string
-	PromptID     string
-	Status       string
-	RevealBy     time.Time
-	CreatedBy    string
-	CreatedAt    time.Time
-	Jumps        []RecapJumpEntry
-	Comments     []CommentSnapshot
-	GhostJumpers []GhostJumperEntry
-	Lore         []LoreEntrySnapshot
+	RoundID          string
+	CommunityID      string
+	PromptID         string
+	Status           string
+	RevealBy         time.Time
+	CreatedBy        string
+	CreatedAt        time.Time
+	Jumps            []RecapJumpEntry
+	Comments         []CommentSnapshot
+	GhostJumpers     []GhostJumperEntry
+	Lore             []LoreEntrySnapshot
+	NextRoundHook    NextRoundHookSnapshot
+	StandoutStamps   []StandoutStampEntry
+	StandoutComments []CommentSnapshot
+}
+
+// NextRoundHookSnapshot is the artifact slot the presentation layer uses to
+// tease or set up the next Round. The domain surfaces whether an active Round
+// already exists for the Community (and its Prompt if so); the wording/voice
+// is a presentation concern, not domain state.
+type NextRoundHookSnapshot struct {
+	ActiveRoundID string // empty when no active Round exists for the Community
+	PromptID      string // empty when no active Round exists
 }
 
 type RecapResult struct {
@@ -65,6 +86,7 @@ type RecapRepo interface {
 	ListAllCommentsForRound(ctx context.Context, roundID string) ([]CommentSnapshot, error)
 	ListGhostJumpers(ctx context.Context, roundID string) ([]RecapGhostJumperRow, error)
 	ListRevealedReactionsForCommunity(ctx context.Context, communityID string) ([]LoreReactionRow, error)
+	FindActiveRound(ctx context.Context, communityID string) (*RoundSnapshot, error)
 }
 
 // --- domain function ---
@@ -194,19 +216,111 @@ func AssembleRecap(ctx context.Context, repo RecapRepo, roundID string) (RecapRe
 		return lore[i].TotalStamps > lore[j].TotalStamps
 	})
 
+	// --- next-round hook ---
+	// Surfaces whether an active Round already exists for the Community (set
+	// up by a player after this one revealed). The wording/voice is a
+	// presentation concern; the domain only produces the artifact slot.
+	nextRoundHook := NextRoundHookSnapshot{}
+	if next, err := repo.FindActiveRound(ctx, round.CommunityID); err != nil {
+		return RecapResult{Allowed: false, Err: err}, nil
+	} else if next != nil {
+		nextRoundHook.ActiveRoundID = next.ID
+		nextRoundHook.PromptID = next.PromptID
+	}
+
+	// --- standout stamps & comments ---
+	// Standout Stamps: per jump with stamps, the dominant stance on that
+	// jump (highest count; alphabetical tiebreak by stance for determinism).
+	// Sorted by the jump's TotalStamps desc, then JumpID asc.
+	// Standout Comments: comments posted on the jump(s) with the highest
+	// TotalStamps in this Round (the Round's "moment(s)"). Round-level
+	// comments (no JumpID) are part of the flat Comments list, not standouts.
+	standoutStamps, standoutComments := deriveStandouts(recapJumps, comments)
+
 	recap := RecapSnapshot{
-		RoundID:      round.ID,
-		CommunityID:  round.CommunityID,
-		PromptID:     round.PromptID,
-		Status:       round.Status,
-		RevealBy:     round.RevealBy,
-		CreatedBy:    round.CreatedBy,
-		CreatedAt:    round.CreatedAt,
-		Jumps:        recapJumps,
-		Comments:     comments,
-		GhostJumpers: ghostJumpers,
-		Lore:         lore,
+		RoundID:          round.ID,
+		CommunityID:      round.CommunityID,
+		PromptID:         round.PromptID,
+		Status:           round.Status,
+		RevealBy:         round.RevealBy,
+		CreatedBy:        round.CreatedBy,
+		CreatedAt:        round.CreatedAt,
+		Jumps:            recapJumps,
+		Comments:         comments,
+		GhostJumpers:     ghostJumpers,
+		Lore:             lore,
+		NextRoundHook:    nextRoundHook,
+		StandoutStamps:   standoutStamps,
+		StandoutComments: standoutComments,
 	}
 
 	return RecapResult{Recap: recap, Allowed: true}, nil
+}
+
+// deriveStandouts computes the standout stamps (dominant stance per jump with
+// stamps) and standout comments (comments on the top-stamped jump(s)) from
+// the assembled jump entries and comments. All ordering is deterministic:
+//
+//   - standoutStamps: sorted by jump TotalStamps desc, then JumpID asc;
+//     per-jump dominant stance picked by count desc, then stance asc.
+//   - standoutComments: grouped under the top TotalStamps (tie → multiple
+//     jumps); within the result, comments preserve their input order.
+func deriveStandouts(jumps []RecapJumpEntry, comments []CommentSnapshot) ([]StandoutStampEntry, []CommentSnapshot) {
+	totalByJump := make(map[string]int, len(jumps))
+	for _, j := range jumps {
+		totalByJump[j.JumpID] = j.TotalStamps
+	}
+
+	// standout stamps
+	stamps := make([]StandoutStampEntry, 0, len(jumps))
+	for _, j := range jumps {
+		if j.TotalStamps <= 0 {
+			continue
+		}
+		bestStance := ""
+		bestCount := 0
+		for stance, count := range j.StampCounts {
+			if count > bestCount || (count == bestCount && stance < bestStance) || bestStance == "" {
+				bestStance = stance
+				bestCount = count
+			}
+		}
+		if bestStance == "" {
+			continue
+		}
+		stamps = append(stamps, StandoutStampEntry{
+			JumpID: j.JumpID,
+			Stance: bestStance,
+			Count:  bestCount,
+		})
+	}
+	sort.Slice(stamps, func(i, j int) bool {
+		ti, tj := totalByJump[stamps[i].JumpID], totalByJump[stamps[j].JumpID]
+		if ti != tj {
+			return ti > tj
+		}
+		return stamps[i].JumpID < stamps[j].JumpID
+	})
+
+	// standout comments: comments on the jump(s) with the highest TotalStamps
+	maxTotal := 0
+	for _, j := range jumps {
+		if j.TotalStamps > maxTotal {
+			maxTotal = j.TotalStamps
+		}
+	}
+	topJumpIDs := make(map[string]bool)
+	for _, j := range jumps {
+		if maxTotal > 0 && j.TotalStamps == maxTotal {
+			topJumpIDs[j.JumpID] = true
+		}
+	}
+	standoutComments := make([]CommentSnapshot, 0)
+	for _, c := range comments {
+		if c.JumpID != "" && topJumpIDs[c.JumpID] {
+			standoutComments = append(standoutComments, c)
+		}
+	}
+
+	return stamps, standoutComments
 }

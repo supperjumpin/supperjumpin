@@ -237,6 +237,11 @@ func NewServer(config ServerConfig) http.Handler {
 			http.Error(w, "caption is required", http.StatusBadRequest)
 			return
 		}
+		if len(request.EvidenceURLs) == 0 {
+			recordHTTPError(r, http.StatusBadRequest, "missing_evidence", nil)
+			http.Error(w, "at least one evidence url is required", http.StatusBadRequest)
+			return
+		}
 
 		roundID := r.PathValue("roundId")
 		now := config.Now()
@@ -427,18 +432,45 @@ func NewServer(config ServerConfig) http.Handler {
 			})
 		}
 
+standoutStamps := make([]StandoutStampDTO, 0, len(recap.StandoutStamps))
+		for _, s := range recap.StandoutStamps {
+			standoutStamps = append(standoutStamps, StandoutStampDTO{
+				JumpID: s.JumpID,
+				Stance: s.Stance,
+				Count:  s.Count,
+			})
+		}
+
+		standoutComments := make([]CommentDTO, 0, len(recap.StandoutComments))
+		for _, c := range recap.StandoutComments {
+			standoutComments = append(standoutComments, CommentDTO{
+				ID:        c.ID,
+				RoundID:   c.RoundID,
+				JumpID:    c.JumpID,
+				PlayerID:  c.PlayerID,
+				Body:      c.Body,
+				CreatedAt: c.CreatedAt.Format(time.RFC3339),
+			})
+		}
+
 		writeJSON(w, http.StatusOK, RecapResponse{
-			RoundID:      recap.RoundID,
-			CommunityID:  recap.CommunityID,
-			PromptID:     recap.PromptID,
-			Status:       recap.Status,
-			RevealBy:     recap.RevealBy.Format(time.RFC3339),
-			CreatedBy:    recap.CreatedBy,
-			CreatedAt:    recap.CreatedAt.Format(time.RFC3339),
-			Jumps:        jumps,
-			Comments:     comments,
-			GhostJumpers: ghostJumpers,
-			Lore:         lore,
+			RoundID:       recap.RoundID,
+			CommunityID:   recap.CommunityID,
+			PromptID:      recap.PromptID,
+			Status:        recap.Status,
+			RevealBy:      recap.RevealBy.Format(time.RFC3339),
+			CreatedBy:     recap.CreatedBy,
+			CreatedAt:     recap.CreatedAt.Format(time.RFC3339),
+			Jumps:         jumps,
+			Comments:      comments,
+			GhostJumpers:  ghostJumpers,
+			Lore:          lore,
+			NextRoundHook: NextRoundHookDTO{
+				ActiveRoundID: recap.NextRoundHook.ActiveRoundID,
+				PromptID:      recap.NextRoundHook.PromptID,
+			},
+			StandoutStamps:   standoutStamps,
+			StandoutComments: standoutComments,
 		})
 	})
 	mux.HandleFunc("GET /v1/rounds/{roundId}/jumps/{jumpId}", func(w http.ResponseWriter, r *http.Request) {
