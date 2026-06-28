@@ -16,9 +16,14 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | Prompt/Pack catalog | `internal/game/prompts.go` + `db/queries/prompts.sql` | `ListCatalog` (full catalog), `SelectPrompt` (by id), `SelectRandomPrompt` (random pick). Seeded via `0001_accounts_players.up.sql` — platform-authored, global. |
-| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts. Pre-stable: fold schema changes into existing migration files |
+| Round start | `internal/game/round.go` + `db/queries/rounds.sql` + `db/queries/timeframes.sql` | `ListRevealTimeframes` (data-driven menu, seeded), `StartRound` (one-active invariant, explicit or random prompt pick, reveal_by computed from timeframe duration). `POST /v1/rounds` + `GET /v1/reveal-timeframes`. |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
+| Stamp catalog & reactions | `internal/game/reaction.go` + `db/queries/stamps.sql` + `db/queries/reactions.sql` | `ListStampCatalog` (data-driven, public), `ApplyReaction` (one Stamp to a revealed Jump, repeatable). `GET /v1/stamp-catalog` (public) + `POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions` (bearerAuth). |
+| Comments | `internal/game/comment.go` + `db/queries/comments.sql` | `PostComment` (round-level or jump-level, post-reveal only), `ListComments` (scoped to round, optionally filtered to jump). `POST/GET /v1/rounds/{roundId}/comments` + `POST/GET /v1/rounds/{roundId}/jumps/{jumpId}/comments` (bearerAuth). Free-form channel distinct from Stamps. |
+| Lore derivation | `internal/game/lore.go` + `db/queries/lore.sql` | `DeriveCommunityLore` — pure derivation from Stamp density on revealed Jumps, keyed to moments, never per-Player. `GET /v1/communities/{communityId}/lore` (bearerAuth). No write path; no per-player ranking. |
+| Recap assembly | `internal/game/recap.go` + `db/queries/recap.sql` | `AssembleRecap` — read-only assembly of the Recap artifact for a revealed Round: jumps with stamp counts/evidence, all comments, Ghost Jumpers (committed, never submitted), resurfaced Community Lore. `GET /v1/rounds/{roundId}/recap` (bearerAuth). Format/narrator voice are presentation, not domain. |
 
 ## CONVENTIONS
 

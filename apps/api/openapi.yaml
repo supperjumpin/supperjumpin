@@ -58,6 +58,380 @@ paths:
                 $ref: "#/components/schemas/PromptCatalogResponse"
         "500":
           description: Internal server error.
+  /v1/reveal-timeframes:
+    get:
+      operationId: listRevealTimeframes
+      summary: Fetch the available reveal timeframe menu items
+      responses:
+        "200":
+          description: The available reveal timeframes, ordered by sort_order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealTimeframesResponse"
+        "500":
+          description: Internal server error.
+  /v1/stamp-catalog:
+    get:
+      operationId: listStampCatalog
+      summary: Fetch the data-driven stamp catalog (labels/glyphs/copy are tunable data)
+      responses:
+        "200":
+          description: The full stamp catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StampCatalogResponse"
+        "500":
+          description: Internal server error.
+  /v1/rounds:
+    post:
+      operationId: startRound
+      summary: Start a new Round for a Community
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRoundRequest"
+      responses:
+        "201":
+          description: The newly created Round.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartRoundResponse"
+        "400":
+          description: Invalid or missing request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — e.g. active Round already exists for this Community.
+  /v1/rounds/{roundId}/commits:
+    post:
+      operationId: commitToRound
+      summary: Commit to an active Round — Player becomes a Jumper
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Commit created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found or already committed.
+  /v1/rounds/{roundId}/jumps:
+    post:
+      operationId: submitJump
+      summary: Submit a sealed Jump for an active Round
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitJumpRequest"
+      responses:
+        "201":
+          description: Jump submitted (sealed until reveal).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitJumpResponse"
+        "400":
+          description: Invalid request body — caption is required and at least one evidence URL is required.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found, not committed, or already submitted.
+    get:
+      operationId: listRoundJumps
+      summary: List Jumps for a Round (sealed pre-reveal), with commit/submission counts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of Jumps with commit and submission counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJumpsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
+  /v1/rounds/{roundId}/jumps/{jumpId}:
+    get:
+      operationId: getJump
+      summary: Get a single Jump (sealed pre-reveal for non-author)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The Jump (sealed if viewer is not the author and round not revealed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetJumpResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — jump not found.
+  /v1/rounds/{roundId}/jumps/{jumpId}/reactions:
+    post:
+      operationId: applyReaction
+      summary: Apply a Stamp to a revealed Jump — one-tap, repeatable, no rubric
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyReactionRequest"
+      responses:
+        "201":
+          description: Reaction applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyReactionResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — jump not found, round not revealed, stamp not found, or this player already applied this stamp to this jump.
+  /v1/rounds/{roundId}/comments:
+    post:
+      operationId: postRoundComment
+      summary: Post a free-form comment on the Round
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostCommentRequest"
+      responses:
+        "201":
+          description: Comment posted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostCommentResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found or not revealed.
+    get:
+      operationId: listRoundComments
+      summary: List comments on the Round
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of round-level comments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCommentsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
+  /v1/rounds/{roundId}/jumps/{jumpId}/comments:
+    post:
+      operationId: postJumpComment
+      summary: Post a free-form comment on a Jump
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostCommentRequest"
+      responses:
+        "201":
+          description: Comment posted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostCommentResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found, not revealed, or jump not found.
+    get:
+      operationId: listJumpComments
+      summary: List comments on a Jump
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of comments on the jump.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCommentsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
+  /v1/communities/{communityId}/lore:
+    get:
+      operationId: getCommunityLore
+      summary: Derive the Community's Lore from Stamp density on revealed Jumps
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lore entries derived from Stamp density, sorted by total stamps descending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityLoreResponse"
+        "401":
+          description: Missing or invalid bearer token.
+  /v1/rounds/{roundId}/reveal:
+    post:
+      operationId: evaluateReveal
+      summary: Evaluate the reveal condition for a Round and transition to revealed state if condition is met
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reveal evaluation result. The round field contains current round state; revealed indicates whether the round is in revealed state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealRoundResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
+  /v1/rounds/{roundId}/recap:
+    get:
+      operationId: getRoundRecap
+      summary: Assemble the Recap artifact for a revealed Round — jumps with stamp counts, comments, ghost jumpers, and community Lore
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The assembled Recap for the revealed Round.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecapResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found or not revealed.
 components:
   securitySchemes:
     bearerAuth:
@@ -139,3 +513,353 @@ components:
           type: string
         costTier:
           type: string
+    RevealTimeframe:
+      type: object
+      required: [id, label, durationHours]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        durationHours:
+          type: integer
+    RevealTimeframesResponse:
+      type: object
+      required: [timeframes]
+      properties:
+        timeframes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevealTimeframe"
+    StartRoundRequest:
+      type: object
+      required: [communityId, revealTimeframeId]
+      properties:
+        communityId:
+          type: string
+        promptId:
+          type: string
+          description: If omitted, a random prompt is selected from the catalog.
+        revealTimeframeId:
+          type: string
+    Round:
+      type: object
+      required: [id, communityId, promptId, status, revealBy, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+        communityId:
+          type: string
+        promptId:
+          type: string
+        status:
+          type: string
+        revealBy:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        prompt:
+          $ref: "#/components/schemas/Prompt"
+    StartRoundResponse:
+      type: object
+      required: [round]
+      properties:
+        round:
+          $ref: "#/components/schemas/Round"
+    CommitResponse:
+      type: object
+      required: [commitId]
+      properties:
+        commitId:
+          type: string
+    SubmitJumpRequest:
+      type: object
+      required: [caption, evidenceUrls]
+      properties:
+        caption:
+          type: string
+        evidenceUrls:
+          type: array
+          minItems: 1
+          items:
+            type: string
+    SubmitJumpResponse:
+      type: object
+      required: [jump]
+      properties:
+        jump:
+          $ref: "#/components/schemas/Jump"
+    Jump:
+      type: object
+      required: [id, roundId, playerId, submittedAt, sealedViewer, playerHasCommitted, playerHasSubmitted]
+      properties:
+        id:
+          type: string
+        roundId:
+          type: string
+        playerId:
+          type: string
+        caption:
+          type: string
+        evidenceUrls:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+          format: date-time
+        sealedViewer:
+          type: boolean
+        playerHasCommitted:
+          type: boolean
+        playerHasSubmitted:
+          type: boolean
+    ListJumpsResponse:
+      type: object
+      required: [jumps, commitCount, submissionCount]
+      properties:
+        jumps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Jump"
+        commitCount:
+          type: integer
+        submissionCount:
+          type: integer
+    GetJumpResponse:
+      type: object
+      required: [jump]
+      properties:
+        jump:
+          $ref: "#/components/schemas/Jump"
+    RevealRoundResponse:
+      type: object
+      required: [round, revealed]
+      properties:
+        round:
+          $ref: "#/components/schemas/Round"
+        revealed:
+          type: boolean
+    Stamp:
+      type: object
+      required: [id, stance, label]
+      properties:
+        id:
+          type: string
+        stance:
+          type: string
+        label:
+          type: string
+        glyph:
+          type: string
+        copy:
+          type: string
+    StampCatalogResponse:
+      type: object
+      required: [stamps]
+      properties:
+        stamps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stamp"
+    ApplyReactionRequest:
+      type: object
+      required: [stampId]
+      properties:
+        stampId:
+          type: string
+    ApplyReactionResponse:
+      type: object
+      required: [reaction]
+      properties:
+        reaction:
+          $ref: "#/components/schemas/Reaction"
+    Reaction:
+      type: object
+      required: [id, stampId, jumpId, playerId, createdAt]
+      properties:
+        id:
+          type: string
+        stampId:
+          type: string
+        jumpId:
+          type: string
+        playerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PostCommentRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+    Comment:
+      type: object
+      required: [id, roundId, playerId, body, createdAt]
+      properties:
+        id:
+          type: string
+        roundId:
+          type: string
+        jumpId:
+          type: string
+        playerId:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PostCommentResponse:
+      type: object
+      required: [comment]
+      properties:
+        comment:
+          $ref: "#/components/schemas/Comment"
+    ListCommentsResponse:
+      type: object
+      required: [comments]
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+    LoreEntry:
+      type: object
+      required: [jumpId, roundId, jumpCaption, jumpPlayerId, stampCounts, totalStamps]
+      properties:
+        jumpId:
+          type: string
+        roundId:
+          type: string
+        jumpCaption:
+          type: string
+        jumpPlayerId:
+          type: string
+        stampCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        totalStamps:
+          type: integer
+    CommunityLoreResponse:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoreEntry"
+    RecapJumpEntry:
+      type: object
+      required: [jumpId, playerId, caption, evidenceUrls, submittedAt, stampCounts, totalStamps]
+      properties:
+        jumpId:
+          type: string
+        playerId:
+          type: string
+        caption:
+          type: string
+        evidenceUrls:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+          format: date-time
+        stampCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        totalStamps:
+          type: integer
+    GhostJumper:
+      type: object
+      required: [playerId, committedAt]
+      properties:
+        playerId:
+          type: string
+        committedAt:
+          type: string
+          format: date-time
+    RecapResponse:
+      type: object
+      required: [roundId, communityId, promptId, status, revealBy, createdBy, createdAt, jumps, comments, ghostJumpers, lore, nextRoundHook, standoutStamps, standoutComments]
+      properties:
+        roundId:
+          type: string
+        communityId:
+          type: string
+        promptId:
+          type: string
+        status:
+          type: string
+        revealBy:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        jumps:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecapJumpEntry"
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+        ghostJumpers:
+          type: array
+          items:
+            $ref: "#/components/schemas/GhostJumper"
+        lore:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoreEntry"
+        nextRoundHook:
+          $ref: "#/components/schemas/NextRoundHook"
+        standoutStamps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StandoutStamp"
+        standoutComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+    NextRoundHook:
+      type: object
+      required: []
+      description: |
+        Artifact slot for teasing/setting up the next Round. The domain
+        surfaces whether an active Round already exists for the Community
+        (and its Prompt if so); the wording/voice is a presentation concern.
+      properties:
+        activeRoundId:
+          type: string
+          description: Empty when no active Round exists for the Community.
+        promptId:
+          type: string
+          description: Empty when no active Round exists for the Community.
+    StandoutStamp:
+      type: object
+      required: [jumpId, stance, count]
+      description: |
+        The dominant Stamp stance on a single Jump in this Round — the
+        reaction that Jump is "known for". Ties are broken alphabetically by
+        stance for determinism. Ordering in the array is by the Jump's
+        TotalStamps desc, then JumpID asc.
+      properties:
+        jumpId:
+          type: string
+        stance:
+          type: string
+        count:
+          type: integer

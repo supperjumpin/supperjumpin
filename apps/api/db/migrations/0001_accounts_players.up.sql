@@ -58,6 +58,91 @@ CREATE TABLE prompts (
 );
 ALTER TABLE prompts ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE reveal_timeframes (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    duration_hours INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE reveal_timeframes ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE rounds (
+    id TEXT PRIMARY KEY,
+    community_id TEXT NOT NULL REFERENCES communities(id),
+    prompt_id TEXT NOT NULL REFERENCES prompts(id),
+    status TEXT NOT NULL DEFAULT 'active',
+    reveal_by TIMESTAMPTZ NOT NULL,
+    created_by TEXT NOT NULL REFERENCES players(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE rounds ENABLE ROW LEVEL SECURITY;
+CREATE UNIQUE INDEX rounds_one_active_per_community ON rounds (community_id) WHERE status = 'active';
+
+CREATE TABLE commits (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    committed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (round_id, player_id)
+);
+ALTER TABLE commits ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE jumps (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    caption TEXT NOT NULL DEFAULT '',
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (round_id, player_id)
+);
+ALTER TABLE jumps ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE jump_evidence (
+    id TEXT PRIMARY KEY,
+    jump_id TEXT NOT NULL REFERENCES jumps(id),
+    url TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+ALTER TABLE jump_evidence ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE stamps (
+    id TEXT PRIMARY KEY,
+    stance TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    glyph TEXT NOT NULL DEFAULT '',
+    copy TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE stamps ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE reactions (
+    id TEXT PRIMARY KEY,
+    stamp_id TEXT NOT NULL REFERENCES stamps(id),
+    jump_id TEXT NOT NULL REFERENCES jumps(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (stamp_id, jump_id, player_id)
+);
+ALTER TABLE reactions ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE comments (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    jump_id TEXT REFERENCES jumps(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+
+-- Seed reveal timeframes
+INSERT INTO reveal_timeframes (id, label, duration_hours, sort_order) VALUES
+    ('reveal_tf_800ba5b17c98', '24 hours', 24, 1),
+    ('reveal_tf_b7dc9247648a', '3 days', 72, 2),
+    ('reveal_tf_785c3a1ef405', '7 days', 168, 3)
+ON CONFLICT (id) DO NOTHING;
+
 -- Seed platform-authored prompt catalog
 INSERT INTO prompt_packs (id, display_name, description) VALUES
     ('prompt_pack_8c22a060a7c2', 'Kitchen Classics', 'Zero-cost fridge and pantry bits. Use what you already have.'),
@@ -75,4 +160,14 @@ INSERT INTO prompts (id, pack_id, copy, theme, cost_tier) VALUES
     ('prompt_bc6ede2f6a49', 'prompt_pack_f7f1ecd68377', 'Two foods that should never touch. Plate them together. Make a case for why it works.', 'Forbidden Pairing', 'tier_2'),
     ('prompt_10f6348588e2', 'prompt_pack_0c066c1877fa', 'Food from one chain, consumed or presented at a direct competitor. The Costco-dog-goes-fancy energy.', 'Across Enemy Lines', 'tier_3'),
     ('prompt_8ec40aa96ad7', 'prompt_pack_0c066c1877fa', 'Commit to a full multi-course meal in a location that serves zero food. Tablecloth, courses, the works.', 'Pop-Up Restaurant', 'tier_3')
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed stamp catalog (stance = stable identity; label/glyph/copy = tunable data)
+INSERT INTO stamps (id, stance, label, glyph, copy) VALUES
+    ('stamp_5ca49a5c9cb3', 'approval', 'Approve', '✅', 'Yes. This is the one.'),
+    ('stamp_c4597ab59a37', 'appetite', 'Appetite', '🍽️', 'Would.'),
+    ('stamp_8b7b5c74d6ed', 'chaos', 'Chaos', '🌀', 'This person should not be left unsupervised.'),
+    ('stamp_eba3c8a70ce8', 'lore', 'Lore', '📜', 'This will be remembered.'),
+    ('stamp_f2e80bf2f62c', 'certification', 'Certified', '🏅', 'Textbook. Frame it.'),
+    ('stamp_08bd90c58697', 'affectionate_failure', 'Noble Effort', '💀', 'The spirit was willing.')
 ON CONFLICT (id) DO NOTHING;

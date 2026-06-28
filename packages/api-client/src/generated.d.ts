@@ -55,6 +55,213 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reveal-timeframes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the available reveal timeframe menu items */
+        get: operations["listRevealTimeframes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stamp-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the data-driven stamp catalog (labels/glyphs/copy are tunable data) */
+        get: operations["listStampCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a new Round for a Community */
+        post: operations["startRound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit to an active Round — Player becomes a Jumper */
+        post: operations["commitToRound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jumps for a Round (sealed pre-reveal), with commit/submission counts */
+        get: operations["listRoundJumps"];
+        put?: never;
+        /** Submit a sealed Jump for an active Round */
+        post: operations["submitJump"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps/{jumpId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single Jump (sealed pre-reveal for non-author) */
+        get: operations["getJump"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps/{jumpId}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply a Stamp to a revealed Jump — one-tap, repeatable, no rubric */
+        post: operations["applyReaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List comments on the Round */
+        get: operations["listRoundComments"];
+        put?: never;
+        /** Post a free-form comment on the Round */
+        post: operations["postRoundComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps/{jumpId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List comments on a Jump */
+        get: operations["listJumpComments"];
+        put?: never;
+        /** Post a free-form comment on a Jump */
+        post: operations["postJumpComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/communities/{communityId}/lore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Derive the Community's Lore from Stamp density on revealed Jumps */
+        get: operations["getCommunityLore"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Evaluate the reveal condition for a Round and transition to revealed state if condition is met */
+        post: operations["evaluateReveal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/recap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Assemble the Recap artifact for a revealed Round — jumps with stamp counts, comments, ghost jumpers, and community Lore */
+        get: operations["getRoundRecap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -95,6 +302,181 @@ export interface components {
             copy: string;
             theme: string;
             costTier: string;
+        };
+        RevealTimeframe: {
+            id: string;
+            label: string;
+            durationHours: number;
+        };
+        RevealTimeframesResponse: {
+            timeframes: components["schemas"]["RevealTimeframe"][];
+        };
+        StartRoundRequest: {
+            communityId: string;
+            /** @description If omitted, a random prompt is selected from the catalog. */
+            promptId?: string;
+            revealTimeframeId: string;
+        };
+        Round: {
+            id: string;
+            communityId: string;
+            promptId: string;
+            status: string;
+            /** Format: date-time */
+            revealBy: string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            prompt?: components["schemas"]["Prompt"];
+        };
+        StartRoundResponse: {
+            round: components["schemas"]["Round"];
+        };
+        CommitResponse: {
+            commitId: string;
+        };
+        SubmitJumpRequest: {
+            caption: string;
+            evidenceUrls: string[];
+        };
+        SubmitJumpResponse: {
+            jump: components["schemas"]["Jump"];
+        };
+        Jump: {
+            id: string;
+            roundId: string;
+            playerId: string;
+            caption?: string;
+            evidenceUrls?: string[];
+            /** Format: date-time */
+            submittedAt: string;
+            sealedViewer: boolean;
+            playerHasCommitted: boolean;
+            playerHasSubmitted: boolean;
+        };
+        ListJumpsResponse: {
+            jumps: components["schemas"]["Jump"][];
+            commitCount: number;
+            submissionCount: number;
+        };
+        GetJumpResponse: {
+            jump: components["schemas"]["Jump"];
+        };
+        RevealRoundResponse: {
+            round: components["schemas"]["Round"];
+            revealed: boolean;
+        };
+        Stamp: {
+            id: string;
+            stance: string;
+            label: string;
+            glyph?: string;
+            copy?: string;
+        };
+        StampCatalogResponse: {
+            stamps: components["schemas"]["Stamp"][];
+        };
+        ApplyReactionRequest: {
+            stampId: string;
+        };
+        ApplyReactionResponse: {
+            reaction: components["schemas"]["Reaction"];
+        };
+        Reaction: {
+            id: string;
+            stampId: string;
+            jumpId: string;
+            playerId: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PostCommentRequest: {
+            body: string;
+        };
+        Comment: {
+            id: string;
+            roundId: string;
+            jumpId?: string;
+            playerId: string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PostCommentResponse: {
+            comment: components["schemas"]["Comment"];
+        };
+        ListCommentsResponse: {
+            comments: components["schemas"]["Comment"][];
+        };
+        LoreEntry: {
+            jumpId: string;
+            roundId: string;
+            jumpCaption: string;
+            jumpPlayerId: string;
+            stampCounts: {
+                [key: string]: number;
+            };
+            totalStamps: number;
+        };
+        CommunityLoreResponse: {
+            entries: components["schemas"]["LoreEntry"][];
+        };
+        RecapJumpEntry: {
+            jumpId: string;
+            playerId: string;
+            caption: string;
+            evidenceUrls: string[];
+            /** Format: date-time */
+            submittedAt: string;
+            stampCounts: {
+                [key: string]: number;
+            };
+            totalStamps: number;
+        };
+        GhostJumper: {
+            playerId: string;
+            /** Format: date-time */
+            committedAt: string;
+        };
+        RecapResponse: {
+            roundId: string;
+            communityId: string;
+            promptId: string;
+            status: string;
+            /** Format: date-time */
+            revealBy: string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            jumps: components["schemas"]["RecapJumpEntry"][];
+            comments: components["schemas"]["Comment"][];
+            ghostJumpers: components["schemas"]["GhostJumper"][];
+            lore: components["schemas"]["LoreEntry"][];
+            nextRoundHook: components["schemas"]["NextRoundHook"];
+            standoutStamps: components["schemas"]["StandoutStamp"][];
+            standoutComments: components["schemas"]["Comment"][];
+        };
+        /**
+         * @description Artifact slot for teasing/setting up the next Round. The domain
+         *     surfaces whether an active Round already exists for the Community
+         *     (and its Prompt if so); the wording/voice is a presentation concern.
+         */
+        NextRoundHook: {
+            /** @description Empty when no active Round exists for the Community. */
+            activeRoundId?: string;
+            /** @description Empty when no active Round exists for the Community. */
+            promptId?: string;
+        };
+        /**
+         * @description The dominant Stamp stance on a single Jump in this Round — the
+         *     reaction that Jump is "known for". Ties are broken alphabetically by
+         *     stance for determinism. Ordering in the array is by the Jump's
+         *     TotalStamps desc, then JumpID asc.
+         */
+        StandoutStamp: {
+            jumpId: string;
+            stance: string;
+            count: number;
         };
     };
     responses: never;
@@ -192,6 +574,578 @@ export interface operations {
             };
             /** @description Internal server error. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRevealTimeframes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The available reveal timeframes, ordered by sort_order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevealTimeframesResponse"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listStampCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The full stamp catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampCatalogResponse"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    startRound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartRoundRequest"];
+            };
+        };
+        responses: {
+            /** @description The newly created Round. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartRoundResponse"];
+                };
+            };
+            /** @description Invalid or missing request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — e.g. active Round already exists for this Community. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    commitToRound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Commit created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found or already committed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRoundJumps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of Jumps with commit and submission counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListJumpsResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    submitJump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitJumpRequest"];
+            };
+        };
+        responses: {
+            /** @description Jump submitted (sealed until reveal). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitJumpResponse"];
+                };
+            };
+            /** @description Invalid request body — caption is required and at least one evidence URL is required. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found, not committed, or already submitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getJump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Jump (sealed if viewer is not the author and round not revealed). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetJumpResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — jump not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    applyReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyReactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Reaction applied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyReactionResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — jump not found, round not revealed, stamp not found, or this player already applied this stamp to this jump. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRoundComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of round-level comments. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCommentsResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postRoundComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Comment posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostCommentResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found or not revealed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listJumpComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of comments on the jump. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCommentsResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postJumpComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Comment posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostCommentResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found, not revealed, or jump not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCommunityLore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                communityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lore entries derived from Stamp density, sorted by total stamps descending. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityLoreResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    evaluateReveal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reveal evaluation result. The round field contains current round state; revealed indicates whether the round is in revealed state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevealRoundResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getRoundRecap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The assembled Recap for the revealed Round. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecapResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found or not revealed. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

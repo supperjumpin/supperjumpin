@@ -22,6 +22,22 @@ type AuthIdentity struct {
 	CreatedAt time.Time
 }
 
+type Comment struct {
+	ID        string
+	RoundID   string
+	JumpID    sql.NullString
+	PlayerID  string
+	Body      string
+	CreatedAt time.Time
+}
+
+type Commit struct {
+	ID          string
+	RoundID     string
+	PlayerID    string
+	CommittedAt time.Time
+}
+
 type Community struct {
 	ID          string
 	DisplayName string
@@ -35,6 +51,21 @@ type ExternalIdentity struct {
 	PlayerID         string
 	CommunityID      string
 	CreatedAt        time.Time
+}
+
+type Jump struct {
+	ID          string
+	RoundID     string
+	PlayerID    string
+	Caption     string
+	SubmittedAt time.Time
+}
+
+type JumpEvidence struct {
+	ID        string
+	JumpID    string
+	Url       string
+	SortOrder int32
 }
 
 type Player struct {
@@ -58,4 +89,39 @@ type PromptPack struct {
 	DisplayName string
 	Description string
 	CreatedAt   time.Time
+}
+
+type Reaction struct {
+	ID        string
+	StampID   string
+	JumpID    string
+	PlayerID  string
+	CreatedAt time.Time
+}
+
+type RevealTimeframe struct {
+	ID            string
+	Label         string
+	DurationHours int32
+	SortOrder     int32
+	CreatedAt     time.Time
+}
+
+type Round struct {
+	ID          string
+	CommunityID string
+	PromptID    string
+	Status      string
+	RevealBy    time.Time
+	CreatedBy   string
+	CreatedAt   time.Time
+}
+
+type Stamp struct {
+	ID        string
+	Stance    string
+	Label     string
+	Glyph     string
+	Copy      string
+	CreatedAt time.Time
 }

@@ -51,6 +51,134 @@ func (s loggingStore) GetPrompt(_ context.Context, id string) (game.PromptSnapsh
 	return game.PromptSnapshot{}, game.ErrPromptNotFound
 }
 
+func (s loggingStore) ListRevealTimeframes(context.Context) ([]game.RevealTimeframeSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetRevealTimeframe(context.Context, string) (game.RevealTimeframeSnapshot, error) {
+	return game.RevealTimeframeSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) FindPlayer(context.Context, string) (game.PlayerSnapshot, bool, error) {
+	return game.PlayerSnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) FindCommunity(context.Context, string) (game.CommunitySnapshot, bool, error) {
+	return game.CommunitySnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) FindActiveRound(context.Context, string) (*game.RoundSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateRound(context.Context, game.RoundSnapshot) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) FindRound(context.Context, string) (game.RoundSnapshot, bool, error) {
+	return game.RoundSnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) FindCommit(context.Context, string, string) (*game.CommitSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateCommit(context.Context, game.CommitSnapshot) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) FindJump(context.Context, string, string) (*game.JumpSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateJump(context.Context, game.JumpSnapshot) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) InsertEvidence(context.Context, string, []string) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) ListJumps(context.Context, string) ([]game.JumpSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListEvidence(context.Context, []string) (map[string][]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetRoundStatus(context.Context, string) (game.RoundStatus, error) {
+	return game.RoundStatus{}, errors.New("not implemented")
+}
+
+func (s loggingStore) FindCommitForPlayer(context.Context, string, string) (*game.CommitSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetJumpByID(context.Context, string) (game.JumpSnapshot, error) {
+	return game.JumpSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) ListEvidenceForJump(context.Context, string) ([]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetRound(ctx context.Context, roundID string) (game.RoundSnapshot, bool, error) {
+	return game.RoundSnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) UpdateRoundStatus(context.Context, string, string) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) ListStamps(context.Context) ([]game.StampSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetStamp(context.Context, string) (game.StampSnapshot, error) {
+	return game.StampSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) GetJump(context.Context, string) (game.JumpSnapshot, error) {
+	return game.JumpSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateReaction(context.Context, game.ReactionSnapshot) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) FindReaction(context.Context, string, string, string) (*game.ReactionSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateComment(context.Context, game.CommentSnapshot) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) ListComments(context.Context, string, string) ([]game.CommentSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListRevealedReactionsForCommunity(context.Context, string) ([]game.LoreReactionRow, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListJumpsWithContent(context.Context, string) ([]game.JumpSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListReactionsForRound(context.Context, string) ([]game.RecapReactionRow, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListAllCommentsForRound(context.Context, string) ([]game.CommentSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListGhostJumpers(context.Context, string) ([]game.RecapGhostJumperRow, error) {
+	return nil, errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},
