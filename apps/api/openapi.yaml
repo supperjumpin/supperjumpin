@@ -45,19 +45,6 @@ paths:
           description: Invalid or missing display name.
         "401":
           description: Missing or invalid bearer token.
-  /v1/prompt-catalog:
-    get:
-      operationId: listPromptCatalog
-      summary: Fetch the platform-authored prompt catalog (packs and their prompts)
-      responses:
-        "200":
-          description: The full prompt catalog, organized by pack.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PromptCatalogResponse"
-        "500":
-          description: Internal server error.
 components:
   securitySchemes:
     bearerAuth:
@@ -104,38 +91,4 @@ components:
         error:
           type: string
         message:
-          type: string
-    PromptCatalogResponse:
-      type: object
-      required: [packs]
-      properties:
-        packs:
-          type: array
-          items:
-            $ref: "#/components/schemas/PromptPack"
-    PromptPack:
-      type: object
-      required: [id, displayName, description, prompts]
-      properties:
-        id:
-          type: string
-        displayName:
-          type: string
-        description:
-          type: string
-        prompts:
-          type: array
-          items:
-            $ref: "#/components/schemas/Prompt"
-    Prompt:
-      type: object
-      required: [id, copy, theme, costTier]
-      properties:
-        id:
-          type: string
-        copy:
-          type: string
-        theme:
-          type: string
-        costTier:
           type: string

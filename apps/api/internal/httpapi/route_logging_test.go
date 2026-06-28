@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/supperjumpin/supperjumpin/apps/api/internal/game"
 )
 
 type loggingStore struct {
@@ -30,14 +28,6 @@ func (s loggingStore) BootstrapIdentity(context.Context, AuthIdentity) (MeRespon
 
 func (s loggingStore) UpdateDisplayName(context.Context, string, string) (Player, error) {
 	return Player{}, errors.New("not implemented")
-}
-
-func (s loggingStore) ListPromptPacks(context.Context) ([]game.PromptPackSnapshot, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s loggingStore) ListPrompts(context.Context) ([]game.PromptSnapshot, error) {
-	return nil, errors.New("not implemented")
 }
 
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {

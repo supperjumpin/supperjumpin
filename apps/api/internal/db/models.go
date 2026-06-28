@@ -43,19 +43,3 @@ type Player struct {
 	DisplayName string
 	CreatedAt   time.Time
 }
-
-type Prompt struct {
-	ID        string
-	PackID    string
-	Copy      string
-	Theme     string
-	CostTier  string
-	CreatedAt time.Time
-}
-
-type PromptPack struct {
-	ID          string
-	DisplayName string
-	Description string
-	CreatedAt   time.Time
-}

@@ -9,7 +9,6 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 | File | Responsibility |
 |------|---------------|
 | `identity.go` | Idempotent ensure-Player operation: given opaque (playerID, communityID), ensures both entities exist. Adapter resolves platform actors → internal IDs before calling. |
-| `prompts.go` | Prompt/Pack catalog: first-class reusable Prompts grouped into Packs. `ListCatalog` assembles the full catalog (packs with their prompts) for platform-authored global curation (ADR-0039). |
 
 ## CONVENTIONS
 
