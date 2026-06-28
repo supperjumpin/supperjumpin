@@ -72,16 +72,22 @@ func NewServer(config ServerConfig) http.Handler {
 	})
 	mux.HandleFunc("GET /v1/prompt-catalog", func(w http.ResponseWriter, r *http.Request) {
 		setRequestOperation(r, "GET /v1/prompt-catalog", "list_prompt_catalog")
+		AddRequestLogField(r.Context(), "actor_type", "public")
 
-		catalog, err := game.ListCatalog(r.Context(), config.Store)
+		result, err := game.ListCatalog(r.Context(), config.Store)
 		if err != nil {
 			recordHTTPError(r, http.StatusInternalServerError, "list_prompt_catalog_failed", err)
 			http.Error(w, "list prompt catalog", http.StatusInternalServerError)
 			return
 		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusInternalServerError, "list_prompt_catalog_failed", result.Err)
+			http.Error(w, "list prompt catalog", http.StatusInternalServerError)
+			return
+		}
 
-		packs := make([]PromptPackDTO, 0, len(catalog.Packs))
-		for _, pw := range catalog.Packs {
+		packs := make([]PromptPackDTO, 0, len(result.Catalog.Packs))
+		for _, pw := range result.Catalog.Packs {
 			prompts := make([]PromptDTO, 0, len(pw.Prompts))
 			for _, p := range pw.Prompts {
 				prompts = append(prompts, PromptDTO{

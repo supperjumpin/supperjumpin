@@ -32,6 +32,7 @@ Go backend (`apps/api`) + generated TypeScript client (`packages/api-client`). D
 | Add/modify API endpoint | `apps/api/internal/httpapi/server.go` | Routes + handler closures |
 | Change API contract | `apps/api/openapi.yaml` → regenerate client | CI enforces sync |
 | Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
+| Prompt/Pack catalog | `apps/api/internal/game/prompts.go` + `apps/api/db/queries/prompts.sql` + `GET /v1/prompt-catalog` | `ListCatalog` / `SelectPrompt` / `SelectRandomPrompt`. Copy is data, not contract shape (ADR-0039). |
 | Check CI pipeline | `.github/workflows/ci.yml` | Go + Node |
 | Domain terminology | `CONTEXT.md` | Authoritative vocabulary |
 

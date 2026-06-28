@@ -16,6 +16,8 @@ import (
 
 type loggingStore struct {
 	bootstrapErr error
+	packs        []game.PromptPackSnapshot
+	prompts      []game.PromptSnapshot
 }
 
 func (s loggingStore) BootstrapIdentity(context.Context, AuthIdentity) (MeResponse, error) {
@@ -33,11 +35,20 @@ func (s loggingStore) UpdateDisplayName(context.Context, string, string) (Player
 }
 
 func (s loggingStore) ListPromptPacks(context.Context) ([]game.PromptPackSnapshot, error) {
-	return nil, errors.New("not implemented")
+	return s.packs, nil
 }
 
 func (s loggingStore) ListPrompts(context.Context) ([]game.PromptSnapshot, error) {
-	return nil, errors.New("not implemented")
+	return s.prompts, nil
+}
+
+func (s loggingStore) GetPrompt(_ context.Context, id string) (game.PromptSnapshot, error) {
+	for _, p := range s.prompts {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return game.PromptSnapshot{}, game.ErrPromptNotFound
 }
 
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
@@ -129,6 +140,31 @@ func TestRouteLoggingUpdateDisplayName(t *testing.T) {
 	assertLogField(t, entry, "route", "PATCH /v1/me/display-name")
 	assertLogField(t, entry, "operation", "update_display_name")
 	assertLogField(t, entry, "error_code", "update_display_name_failed")
+}
+
+func TestRouteLoggingPromptCatalogMarksPublicActorType(t *testing.T) {
+	server, logs := newRouteLoggingTestServer(ServerConfig{
+		Store: loggingStore{
+			packs: []game.PromptPackSnapshot{
+				{ID: "pack-1", DisplayName: "Kitchen Classics"},
+			},
+			prompts: []game.PromptSnapshot{
+				{ID: "prompt-1", PackID: "pack-1", Copy: "X", Theme: "T", CostTier: "tier_1"},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/prompt-catalog", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	entry := decodeLogEntry(t, logs)
+	assertLogField(t, entry, "route", "GET /v1/prompt-catalog")
+	assertLogField(t, entry, "operation", "list_prompt_catalog")
+	assertLogField(t, entry, "outcome", "success")
+	assertLogField(t, entry, "actor_type", "public")
 }
 
 func newRouteLoggingTestServer(config ServerConfig) (http.Handler, *bytes.Buffer) {
