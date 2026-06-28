@@ -323,6 +323,40 @@ func NewServer(config ServerConfig) http.Handler {
 			SubmissionCount: status.SubmissionCount,
 		})
 	})
+	mux.HandleFunc("POST /v1/rounds/{roundId}/reveal", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds/{roundId}/reveal", "evaluate_reveal")
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		now := config.Now()
+
+		result, err := game.EvaluateReveal(r.Context(), config.Store, roundID, now)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "evaluate_reveal_failed", err)
+			http.Error(w, "evaluate reveal", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "evaluate_reveal_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		round := RoundDTO{
+			ID:          result.Round.ID,
+			CommunityID: result.Round.CommunityID,
+			PromptID:    result.Round.PromptID,
+			Status:      result.Round.Status,
+			RevealBy:    result.Round.RevealBy.Format(time.RFC3339),
+			CreatedBy:   result.Round.CreatedBy,
+			CreatedAt:   result.Round.CreatedAt.Format(time.RFC3339),
+		}
+
+		writeJSON(w, http.StatusOK, RevealRoundResponse{Round: round, Revealed: result.Revealed})
+	})
 	mux.HandleFunc("GET /v1/rounds/{roundId}/jumps/{jumpId}", func(w http.ResponseWriter, r *http.Request) {
 		setRequestOperation(r, "GET /v1/rounds/{roundId}/jumps/{jumpId}", "get_jump")
 		profile, ok := signedInProfile(w, r, config)

@@ -12,3 +12,6 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);
 SELECT id, community_id, prompt_id, status, reveal_by, created_by, created_at
 FROM rounds
 WHERE id = $1;
+
+-- name: UpdateRoundStatus :exec
+UPDATE rounds SET status = $2 WHERE id = $1;

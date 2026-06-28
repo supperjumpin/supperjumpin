@@ -20,4 +20,5 @@ type Store interface {
 	game.SubmitRepo
 	game.ListJumpsRepo
 	game.GetJumpRepo
+	game.RevealRepo
 }

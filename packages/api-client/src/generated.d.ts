@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/rounds/{roundId}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Evaluate the reveal condition for a Round and transition to revealed state if condition is met */
+        post: operations["evaluateReveal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -240,6 +257,10 @@ export interface components {
         };
         GetJumpResponse: {
             jump: components["schemas"]["Jump"];
+        };
+        RevealRoundResponse: {
+            round: components["schemas"]["Round"];
+            revealed: boolean;
         };
     };
     responses: never;
@@ -564,6 +585,42 @@ export interface operations {
                 content?: never;
             };
             /** @description Forbidden — jump not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    evaluateReveal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reveal evaluation result. The round field contains current round state; revealed indicates whether the round is in revealed state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevealRoundResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -200,6 +200,29 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: Forbidden — jump not found.
+  /v1/rounds/{roundId}/reveal:
+    post:
+      operationId: evaluateReveal
+      summary: Evaluate the reveal condition for a Round and transition to revealed state if condition is met
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reveal evaluation result. The round field contains current round state; revealed indicates whether the round is in revealed state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealRoundResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
 components:
   securitySchemes:
     bearerAuth:
@@ -403,3 +426,11 @@ components:
       properties:
         jump:
           $ref: "#/components/schemas/Jump"
+    RevealRoundResponse:
+      type: object
+      required: [round, revealed]
+      properties:
+        round:
+          $ref: "#/components/schemas/Round"
+        revealed:
+          type: boolean

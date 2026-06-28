@@ -123,6 +123,14 @@ func (s loggingStore) ListEvidenceForJump(context.Context, string) ([]string, er
 	return nil, errors.New("not implemented")
 }
 
+func (s loggingStore) GetRound(ctx context.Context, roundID string) (game.RoundSnapshot, bool, error) {
+	return game.RoundSnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) UpdateRoundStatus(context.Context, string, string) error {
+	return errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},

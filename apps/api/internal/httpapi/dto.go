@@ -102,3 +102,8 @@ type ListJumpsResponse struct {
 type GetJumpResponse struct {
 	Jump JumpDTO `json:"jump"`
 }
+
+type RevealRoundResponse struct {
+	Round    RoundDTO `json:"round"`
+	Revealed bool     `json:"revealed"`
+}

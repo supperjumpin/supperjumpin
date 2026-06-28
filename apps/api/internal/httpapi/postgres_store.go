@@ -383,6 +383,19 @@ func (s *PostgresStore) FindCommitForPlayer(ctx context.Context, roundID, player
 	return s.FindCommit(ctx, roundID, playerID)
 }
 
+// --- RevealRepo ---
+
+func (s *PostgresStore) GetRound(ctx context.Context, roundID string) (game.RoundSnapshot, bool, error) {
+	return s.FindRound(ctx, roundID)
+}
+
+func (s *PostgresStore) UpdateRoundStatus(ctx context.Context, roundID, status string) error {
+	return s.queries.UpdateRoundStatus(ctx, db.UpdateRoundStatusParams{
+		ID:     roundID,
+		Status: status,
+	})
+}
+
 // --- GetJumpRepo ---
 
 func (s *PostgresStore) GetJumpByID(ctx context.Context, jumpID string) (game.JumpSnapshot, error) {

@@ -80,3 +80,17 @@ func (q *Queries) GetRound(ctx context.Context, id string) (Round, error) {
 	)
 	return i, err
 }
+
+const updateRoundStatus = `-- name: UpdateRoundStatus :exec
+UPDATE rounds SET status = $2 WHERE id = $1
+`
+
+type UpdateRoundStatusParams struct {
+	ID     string
+	Status string
+}
+
+func (q *Queries) UpdateRoundStatus(ctx context.Context, arg UpdateRoundStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateRoundStatus, arg.ID, arg.Status)
+	return err
+}
