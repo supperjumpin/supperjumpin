@@ -481,3 +481,62 @@ func (s *PostgresStore) CreateReaction(ctx context.Context, reaction game.Reacti
 		CreatedAt: reaction.CreatedAt,
 	})
 }
+
+// --- PostCommentRepo ---
+
+func (s *PostgresStore) CreateComment(ctx context.Context, comment game.CommentSnapshot) error {
+	var jumpID sql.NullString
+	if comment.JumpID != "" {
+		jumpID = sql.NullString{String: comment.JumpID, Valid: true}
+	}
+	return s.queries.CreateComment(ctx, db.CreateCommentParams{
+		ID:        comment.ID,
+		RoundID:   comment.RoundID,
+		JumpID:    jumpID,
+		PlayerID:  comment.PlayerID,
+		Body:      comment.Body,
+		CreatedAt: comment.CreatedAt,
+	})
+}
+
+// --- ListCommentsRepo ---
+
+func (s *PostgresStore) ListComments(ctx context.Context, roundID, jumpID string) ([]game.CommentSnapshot, error) {
+	if jumpID != "" {
+		rows, err := s.queries.ListCommentsForJump(ctx, db.ListCommentsForJumpParams{
+			RoundID: roundID,
+			JumpID:  sql.NullString{String: jumpID, Valid: true},
+		})
+		if err != nil {
+			return nil, err
+		}
+		result := make([]game.CommentSnapshot, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, game.CommentSnapshot{
+				ID:        row.ID,
+				RoundID:   row.RoundID,
+				JumpID:    row.JumpID.String,
+				PlayerID:  row.PlayerID,
+				Body:      row.Body,
+				CreatedAt: row.CreatedAt,
+			})
+		}
+		return result, nil
+	}
+
+	rows, err := s.queries.ListCommentsForRound(ctx, roundID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.CommentSnapshot, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.CommentSnapshot{
+			ID:        row.ID,
+			RoundID:   row.RoundID,
+			PlayerID:  row.PlayerID,
+			Body:      row.Body,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return result, nil
+}

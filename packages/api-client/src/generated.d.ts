@@ -175,6 +175,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/rounds/{roundId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List comments on the Round */
+        get: operations["listRoundComments"];
+        put?: never;
+        /** Post a free-form comment on the Round */
+        post: operations["postRoundComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds/{roundId}/jumps/{jumpId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List comments on a Jump */
+        get: operations["listJumpComments"];
+        put?: never;
+        /** Post a free-form comment on a Jump */
+        post: operations["postJumpComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/rounds/{roundId}/reveal": {
         parameters: {
             query?: never;
@@ -319,6 +355,24 @@ export interface components {
             playerId: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        PostCommentRequest: {
+            body: string;
+        };
+        Comment: {
+            id: string;
+            roundId: string;
+            jumpId?: string;
+            playerId: string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PostCommentResponse: {
+            comment: components["schemas"]["Comment"];
+        };
+        ListCommentsResponse: {
+            comments: components["schemas"]["Comment"][];
         };
     };
     responses: never;
@@ -718,6 +772,174 @@ export interface operations {
                 content?: never;
             };
             /** @description Forbidden — jump not found, round not revealed, or stamp not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRoundComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of round-level comments. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCommentsResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postRoundComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Comment posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostCommentResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found or not revealed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listJumpComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of comments on the jump. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCommentsResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postJumpComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roundId: string;
+                jumpId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Comment posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostCommentResponse"];
+                };
+            };
+            /** @description Invalid request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — round not found, not revealed, or jump not found. */
             403: {
                 headers: {
                     [name: string]: unknown;

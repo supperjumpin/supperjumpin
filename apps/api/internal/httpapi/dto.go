@@ -135,3 +135,24 @@ type ReactionDTO struct {
 type ApplyReactionResponse struct {
 	Reaction ReactionDTO `json:"reaction"`
 }
+
+type PostCommentRequest struct {
+	Body string `json:"body"`
+}
+
+type CommentDTO struct {
+	ID        string `json:"id"`
+	RoundID   string `json:"roundId"`
+	JumpID    string `json:"jumpId,omitempty"`
+	PlayerID  string `json:"playerId"`
+	Body      string `json:"body"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type PostCommentResponse struct {
+	Comment CommentDTO `json:"comment"`
+}
+
+type ListCommentsResponse struct {
+	Comments []CommentDTO `json:"comments"`
+}

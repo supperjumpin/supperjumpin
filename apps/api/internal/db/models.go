@@ -22,6 +22,15 @@ type AuthIdentity struct {
 	CreatedAt time.Time
 }
 
+type Comment struct {
+	ID        string
+	RoundID   string
+	JumpID    sql.NullString
+	PlayerID  string
+	Body      string
+	CreatedAt time.Time
+}
+
 type Commit struct {
 	ID          string
 	RoundID     string

@@ -249,6 +249,122 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: Forbidden — jump not found, round not revealed, or stamp not found.
+  /v1/rounds/{roundId}/comments:
+    post:
+      operationId: postRoundComment
+      summary: Post a free-form comment on the Round
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostCommentRequest"
+      responses:
+        "201":
+          description: Comment posted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostCommentResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found or not revealed.
+    get:
+      operationId: listRoundComments
+      summary: List comments on the Round
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of round-level comments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCommentsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
+  /v1/rounds/{roundId}/jumps/{jumpId}/comments:
+    post:
+      operationId: postJumpComment
+      summary: Post a free-form comment on a Jump
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostCommentRequest"
+      responses:
+        "201":
+          description: Comment posted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostCommentResponse"
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found, not revealed, or jump not found.
+    get:
+      operationId: listJumpComments
+      summary: List comments on a Jump
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jumpId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of comments on the jump.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCommentsResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found.
   /v1/rounds/{roundId}/reveal:
     post:
       operationId: evaluateReveal
@@ -532,3 +648,40 @@ components:
         createdAt:
           type: string
           format: date-time
+    PostCommentRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+    Comment:
+      type: object
+      required: [id, roundId, playerId, body, createdAt]
+      properties:
+        id:
+          type: string
+        roundId:
+          type: string
+        jumpId:
+          type: string
+        playerId:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PostCommentResponse:
+      type: object
+      required: [comment]
+      properties:
+        comment:
+          $ref: "#/components/schemas/Comment"
+    ListCommentsResponse:
+      type: object
+      required: [comments]
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"

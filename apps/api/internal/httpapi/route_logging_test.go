@@ -147,6 +147,14 @@ func (s loggingStore) CreateReaction(context.Context, game.ReactionSnapshot) err
 	return errors.New("not implemented")
 }
 
+func (s loggingStore) CreateComment(context.Context, game.CommentSnapshot) error {
+	return errors.New("not implemented")
+}
+
+func (s loggingStore) ListComments(context.Context, string, string) ([]game.CommentSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},

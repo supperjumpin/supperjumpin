@@ -23,4 +23,6 @@ type Store interface {
 	game.RevealRepo
 	game.ListStampCatalogRepo
 	game.ApplyReactionRepo
+	game.PostCommentRepo
+	game.ListCommentsRepo
 }

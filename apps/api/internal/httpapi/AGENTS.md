@@ -19,6 +19,7 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Reveal HTTP surface | `server.go` (`POST /v1/rounds/{roundId}/reveal`) + `dto.go` (`RevealRoundResponse`) | Authenticated (bearerAuth). Calls `game.EvaluateReveal` with injected clock for condition evaluation. Returns round state and `revealed` flag. |
 | Stamp catalog HTTP surface | `server.go` (`GET /v1/stamp-catalog`) + `dto.go` (`StampCatalogResponse`, `StampDTO`) | Public, unauthenticated. Returns data-driven stamp catalog (stance = stable identity; label/glyph/copy = tunable data). |
 | Reaction HTTP surface | `server.go` (`POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions`) + `dto.go` (`ApplyReactionRequest`, `ApplyReactionResponse`, `ReactionDTO`) | Authenticated (bearerAuth). Calls `game.ApplyReaction` — applies a Stamp to a revealed Jump, one-tap, repeatable. |
+| Comment HTTP surface | `server.go` (`POST/GET /v1/rounds/{roundId}/comments`, `POST/GET /v1/rounds/{roundId}/jumps/{jumpId}/comments`) + `dto.go` (`PostCommentRequest`, `PostCommentResponse`, `CommentDTO`, `ListCommentsResponse`) | Authenticated (bearerAuth). Calls `game.PostComment` (round-level or jump-level) and `game.ListComments`. Comments are free-form, post-reveal only, distinct from Stamps. |
 | Integration tests | `*_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS

@@ -126,6 +126,16 @@ CREATE TABLE reactions (
 );
 ALTER TABLE reactions ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE comments (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    jump_id TEXT REFERENCES jumps(id),
+    player_id TEXT NOT NULL REFERENCES players(id),
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+
 -- Seed reveal timeframes
 INSERT INTO reveal_timeframes (id, label, duration_hours, sort_order) VALUES
     ('reveal_tf_800ba5b17c98', '24 hours', 24, 1),

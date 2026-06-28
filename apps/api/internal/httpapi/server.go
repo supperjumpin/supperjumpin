@@ -473,6 +473,182 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusCreated, ApplyReactionResponse{Reaction: reaction})
 	})
+	mux.HandleFunc("POST /v1/rounds/{roundId}/comments", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds/{roundId}/comments", "post_round_comment")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request PostCommentRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			recordHTTPError(r, http.StatusBadRequest, "invalid_json", nil)
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(request.Body) == "" {
+			recordHTTPError(r, http.StatusBadRequest, "missing_comment_body", nil)
+			http.Error(w, "body is required", http.StatusBadRequest)
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		now := config.Now()
+
+		result, err := game.PostComment(r.Context(), config.Store, game.PostCommentInput{
+			RoundID:  roundID,
+			JumpID:   "",
+			PlayerID: profile.Player.ID,
+			Body:     strings.TrimSpace(request.Body),
+		}, now)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "post_round_comment_failed", err)
+			http.Error(w, "post comment", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "post_round_comment_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		comment := CommentDTO{
+			ID:        result.Comment.ID,
+			RoundID:   result.Comment.RoundID,
+			PlayerID:  result.Comment.PlayerID,
+			Body:      result.Comment.Body,
+			CreatedAt: result.Comment.CreatedAt.Format(time.RFC3339),
+		}
+
+		writeJSON(w, http.StatusCreated, PostCommentResponse{Comment: comment})
+	})
+	mux.HandleFunc("GET /v1/rounds/{roundId}/comments", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/rounds/{roundId}/comments", "list_round_comments")
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+
+		result, err := game.ListComments(r.Context(), config.Store, game.ListCommentsInput{
+			RoundID: roundID,
+			JumpID:  "",
+		})
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "list_round_comments_failed", err)
+			http.Error(w, "list comments", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "list_round_comments_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		comments := make([]CommentDTO, 0, len(result.Comments))
+		for _, c := range result.Comments {
+			comments = append(comments, CommentDTO{
+				ID:        c.ID,
+				RoundID:   c.RoundID,
+				PlayerID:  c.PlayerID,
+				Body:      c.Body,
+				CreatedAt: c.CreatedAt.Format(time.RFC3339),
+			})
+		}
+
+		writeJSON(w, http.StatusOK, ListCommentsResponse{Comments: comments})
+	})
+	mux.HandleFunc("POST /v1/rounds/{roundId}/jumps/{jumpId}/comments", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds/{roundId}/jumps/{jumpId}/comments", "post_jump_comment")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request PostCommentRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			recordHTTPError(r, http.StatusBadRequest, "invalid_json", nil)
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(request.Body) == "" {
+			recordHTTPError(r, http.StatusBadRequest, "missing_comment_body", nil)
+			http.Error(w, "body is required", http.StatusBadRequest)
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		jumpID := r.PathValue("jumpId")
+		now := config.Now()
+
+		result, err := game.PostComment(r.Context(), config.Store, game.PostCommentInput{
+			RoundID:  roundID,
+			JumpID:   jumpID,
+			PlayerID: profile.Player.ID,
+			Body:     strings.TrimSpace(request.Body),
+		}, now)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "post_jump_comment_failed", err)
+			http.Error(w, "post comment", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "post_jump_comment_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		comment := CommentDTO{
+			ID:        result.Comment.ID,
+			RoundID:   result.Comment.RoundID,
+			JumpID:    result.Comment.JumpID,
+			PlayerID:  result.Comment.PlayerID,
+			Body:      result.Comment.Body,
+			CreatedAt: result.Comment.CreatedAt.Format(time.RFC3339),
+		}
+
+		writeJSON(w, http.StatusCreated, PostCommentResponse{Comment: comment})
+	})
+	mux.HandleFunc("GET /v1/rounds/{roundId}/jumps/{jumpId}/comments", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/rounds/{roundId}/jumps/{jumpId}/comments", "list_jump_comments")
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		jumpID := r.PathValue("jumpId")
+
+		result, err := game.ListComments(r.Context(), config.Store, game.ListCommentsInput{
+			RoundID: roundID,
+			JumpID:  jumpID,
+		})
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "list_jump_comments_failed", err)
+			http.Error(w, "list comments", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "list_jump_comments_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		comments := make([]CommentDTO, 0, len(result.Comments))
+		for _, c := range result.Comments {
+			comments = append(comments, CommentDTO{
+				ID:        c.ID,
+				RoundID:   c.RoundID,
+				JumpID:    c.JumpID,
+				PlayerID:  c.PlayerID,
+				Body:      c.Body,
+				CreatedAt: c.CreatedAt.Format(time.RFC3339),
+			})
+		}
+
+		writeJSON(w, http.StatusOK, ListCommentsResponse{Comments: comments})
+	})
 
 	return requestLoggingMiddleware(mux, config.Logger, config.Now)
 }
