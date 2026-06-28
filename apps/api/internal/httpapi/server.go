@@ -357,6 +357,90 @@ func NewServer(config ServerConfig) http.Handler {
 
 		writeJSON(w, http.StatusOK, RevealRoundResponse{Round: round, Revealed: result.Revealed})
 	})
+	mux.HandleFunc("GET /v1/rounds/{roundId}/recap", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/rounds/{roundId}/recap", "get_round_recap")
+		_, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		roundID := r.PathValue("roundId")
+		AddRequestLogField(r.Context(), "round_id", roundID)
+
+		result, err := game.AssembleRecap(r.Context(), config.Store, roundID)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "get_round_recap_failed", err)
+			http.Error(w, "get round recap", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "get_round_recap_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		recap := result.Recap
+		AddRequestLogField(r.Context(), "community_id", recap.CommunityID)
+
+		jumps := make([]RecapJumpEntryDTO, 0, len(recap.Jumps))
+		for _, j := range recap.Jumps {
+			jumps = append(jumps, RecapJumpEntryDTO{
+				JumpID:       j.JumpID,
+				PlayerID:     j.PlayerID,
+				Caption:      j.Caption,
+				EvidenceURLs: j.EvidenceURLs,
+				SubmittedAt:  j.SubmittedAt.Format(time.RFC3339),
+				StampCounts:  j.StampCounts,
+				TotalStamps:  j.TotalStamps,
+			})
+		}
+
+		comments := make([]CommentDTO, 0, len(recap.Comments))
+		for _, c := range recap.Comments {
+			comments = append(comments, CommentDTO{
+				ID:        c.ID,
+				RoundID:   c.RoundID,
+				JumpID:    c.JumpID,
+				PlayerID:  c.PlayerID,
+				Body:      c.Body,
+				CreatedAt: c.CreatedAt.Format(time.RFC3339),
+			})
+		}
+
+		ghostJumpers := make([]GhostJumperDTO, 0, len(recap.GhostJumpers))
+		for _, g := range recap.GhostJumpers {
+			ghostJumpers = append(ghostJumpers, GhostJumperDTO{
+				PlayerID:    g.PlayerID,
+				CommittedAt: g.CommittedAt.Format(time.RFC3339),
+			})
+		}
+
+		lore := make([]LoreEntryDTO, 0, len(recap.Lore))
+		for _, e := range recap.Lore {
+			lore = append(lore, LoreEntryDTO{
+				JumpID:       e.JumpID,
+				RoundID:      e.RoundID,
+				JumpCaption:  e.JumpCaption,
+				JumpPlayerID: e.JumpPlayerID,
+				StampCounts:  e.StampCounts,
+				TotalStamps:  e.TotalStamps,
+			})
+		}
+
+		writeJSON(w, http.StatusOK, RecapResponse{
+			RoundID:      recap.RoundID,
+			CommunityID:  recap.CommunityID,
+			PromptID:     recap.PromptID,
+			Status:       recap.Status,
+			RevealBy:     recap.RevealBy.Format(time.RFC3339),
+			CreatedBy:    recap.CreatedBy,
+			CreatedAt:    recap.CreatedAt.Format(time.RFC3339),
+			Jumps:        jumps,
+			Comments:     comments,
+			GhostJumpers: ghostJumpers,
+			Lore:         lore,
+		})
+	})
 	mux.HandleFunc("GET /v1/rounds/{roundId}/jumps/{jumpId}", func(w http.ResponseWriter, r *http.Request) {
 		setRequestOperation(r, "GET /v1/rounds/{roundId}/jumps/{jumpId}", "get_jump")
 		profile, ok := signedInProfile(w, r, config)

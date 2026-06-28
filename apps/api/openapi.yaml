@@ -409,6 +409,29 @@ paths:
           description: Missing or invalid bearer token.
         "403":
           description: Forbidden — round not found.
+  /v1/rounds/{roundId}/recap:
+    get:
+      operationId: getRoundRecap
+      summary: Assemble the Recap artifact for a revealed Round — jumps with stamp counts, comments, ghost jumpers, and community Lore
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roundId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The assembled Recap for the revealed Round.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecapResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — round not found or not revealed.
 components:
   securitySchemes:
     bearerAuth:
@@ -729,6 +752,74 @@ components:
       required: [entries]
       properties:
         entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoreEntry"
+    RecapJumpEntry:
+      type: object
+      required: [jumpId, playerId, caption, evidenceUrls, submittedAt, stampCounts, totalStamps]
+      properties:
+        jumpId:
+          type: string
+        playerId:
+          type: string
+        caption:
+          type: string
+        evidenceUrls:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+          format: date-time
+        stampCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        totalStamps:
+          type: integer
+    GhostJumper:
+      type: object
+      required: [playerId, committedAt]
+      properties:
+        playerId:
+          type: string
+        committedAt:
+          type: string
+          format: date-time
+    RecapResponse:
+      type: object
+      required: [roundId, communityId, promptId, status, revealBy, createdBy, createdAt, jumps, comments, ghostJumpers, lore]
+      properties:
+        roundId:
+          type: string
+        communityId:
+          type: string
+        promptId:
+          type: string
+        status:
+          type: string
+        revealBy:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        jumps:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecapJumpEntry"
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+        ghostJumpers:
+          type: array
+          items:
+            $ref: "#/components/schemas/GhostJumper"
+        lore:
           type: array
           items:
             $ref: "#/components/schemas/LoreEntry"

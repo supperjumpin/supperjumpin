@@ -169,3 +169,32 @@ type LoreEntryDTO struct {
 type CommunityLoreResponse struct {
 	Entries []LoreEntryDTO `json:"entries"`
 }
+
+type RecapJumpEntryDTO struct {
+	JumpID       string         `json:"jumpId"`
+	PlayerID     string         `json:"playerId"`
+	Caption      string         `json:"caption"`
+	EvidenceURLs []string       `json:"evidenceUrls"`
+	SubmittedAt  string         `json:"submittedAt"`
+	StampCounts  map[string]int `json:"stampCounts"`
+	TotalStamps  int            `json:"totalStamps"`
+}
+
+type GhostJumperDTO struct {
+	PlayerID    string `json:"playerId"`
+	CommittedAt string `json:"committedAt"`
+}
+
+type RecapResponse struct {
+	RoundID      string              `json:"roundId"`
+	CommunityID  string              `json:"communityId"`
+	PromptID     string              `json:"promptId"`
+	Status       string              `json:"status"`
+	RevealBy     string              `json:"revealBy"`
+	CreatedBy    string              `json:"createdBy"`
+	CreatedAt    string              `json:"createdAt"`
+	Jumps        []RecapJumpEntryDTO `json:"jumps"`
+	Comments     []CommentDTO        `json:"comments"`
+	GhostJumpers []GhostJumperDTO    `json:"ghostJumpers"`
+	Lore         []LoreEntryDTO      `json:"lore"`
+}

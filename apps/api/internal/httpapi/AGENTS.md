@@ -21,6 +21,7 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Reaction HTTP surface | `server.go` (`POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions`) + `dto.go` (`ApplyReactionRequest`, `ApplyReactionResponse`, `ReactionDTO`) | Authenticated (bearerAuth). Calls `game.ApplyReaction` — applies a Stamp to a revealed Jump, one-tap, repeatable. |
 | Comment HTTP surface | `server.go` (`POST/GET /v1/rounds/{roundId}/comments`, `POST/GET /v1/rounds/{roundId}/jumps/{jumpId}/comments`) + `dto.go` (`PostCommentRequest`, `PostCommentResponse`, `CommentDTO`, `ListCommentsResponse`) | Authenticated (bearerAuth). Calls `game.PostComment` (round-level or jump-level) and `game.ListComments`. Comments are free-form, post-reveal only, distinct from Stamps. |
 | Lore HTTP surface | `server.go` (`GET /v1/communities/{communityId}/lore`) + `dto.go` (`LoreEntryDTO`, `CommunityLoreResponse`) | Authenticated (bearerAuth). Calls `game.DeriveCommunityLore` — pure derivation from Stamp density on revealed Jumps, keyed to moments, never per-Player. |
+| Recap HTTP surface | `server.go` (`GET /v1/rounds/{roundId}/recap`) + `dto.go` (`RecapResponse`, `RecapJumpEntryDTO`, `GhostJumperDTO`) | Authenticated (bearerAuth). Calls `game.AssembleRecap` — read-only assembly of the Recap artifact: jumps with stamp counts, comments, ghost jumpers, community lore. Format/narrator voice are presentation, not domain. |
 | Integration tests | `*_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS

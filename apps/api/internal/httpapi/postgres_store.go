@@ -501,6 +501,75 @@ func (s *PostgresStore) CreateComment(ctx context.Context, comment game.CommentS
 
 // --- ListCommentsRepo ---
 
+// --- RecapRepo ---
+
+func (s *PostgresStore) ListJumpsWithContent(ctx context.Context, roundID string) ([]game.JumpSnapshot, error) {
+	rows, err := s.queries.ListJumpsByRoundWithContent(ctx, roundID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.JumpSnapshot, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.JumpSnapshot{
+			ID:          row.ID,
+			RoundID:     row.RoundID,
+			PlayerID:    row.PlayerID,
+			Caption:     row.Caption,
+			SubmittedAt: row.SubmittedAt,
+		})
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) ListReactionsForRound(ctx context.Context, roundID string) ([]game.RecapReactionRow, error) {
+	rows, err := s.queries.ListReactionsForRound(ctx, roundID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.RecapReactionRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.RecapReactionRow{
+			JumpID:      row.JumpID,
+			StampStance: row.StampStance,
+		})
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) ListAllCommentsForRound(ctx context.Context, roundID string) ([]game.CommentSnapshot, error) {
+	rows, err := s.queries.ListAllCommentsForRound(ctx, roundID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.CommentSnapshot, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.CommentSnapshot{
+			ID:        row.ID,
+			RoundID:   row.RoundID,
+			JumpID:    row.JumpID.String,
+			PlayerID:  row.PlayerID,
+			Body:      row.Body,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) ListGhostJumpers(ctx context.Context, roundID string) ([]game.RecapGhostJumperRow, error) {
+	rows, err := s.queries.ListGhostJumpers(ctx, roundID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.RecapGhostJumperRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, game.RecapGhostJumperRow{
+			PlayerID:    row.PlayerID,
+			CommittedAt: row.CommittedAt,
+		})
+	}
+	return result, nil
+}
+
 // --- LoreRepo ---
 
 func (s *PostgresStore) ListRevealedReactionsForCommunity(ctx context.Context, communityID string) ([]game.LoreReactionRow, error) {

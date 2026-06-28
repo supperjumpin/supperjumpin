@@ -159,6 +159,22 @@ func (s loggingStore) ListRevealedReactionsForCommunity(context.Context, string)
 	return nil, errors.New("not implemented")
 }
 
+func (s loggingStore) ListJumpsWithContent(context.Context, string) ([]game.JumpSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListReactionsForRound(context.Context, string) ([]game.RecapReactionRow, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListAllCommentsForRound(context.Context, string) ([]game.CommentSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) ListGhostJumpers(context.Context, string) ([]game.RecapGhostJumperRow, error) {
+	return nil, errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},
