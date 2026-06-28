@@ -98,7 +98,7 @@ npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 
 - `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary.
 - Infrastructure is local-first: Docker Postgres, local dev bearer auth. Hosted infrastructure will be additive when introduced.
-- Auth is local-first: `SUPPERJUMPIN_DEV_AUTH_TOKEN` defaults to `dev-token` in `npm run api:dev`.
+- Auth is local-first: `SUPPERJUMPIN_ADAPTER_TOKEN` defaults to `dev-token` in `npm run api:dev`.
 - `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests.
 - `npm run api:test:coverage` writes `coverage/api.coverprofile` and appends a summary when `GITHUB_STEP_SUMMARY` is set.
 - `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.

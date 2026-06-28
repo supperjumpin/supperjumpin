@@ -1,7 +1,6 @@
 package httpapi_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -11,18 +10,21 @@ import (
 func bootstrapAndResolve(t *testing.T, store *httpapi.PostgresStore, server http.Handler, token, platformServerID, platformUserID string) (playerID, communityID string) {
 	t.Helper()
 
-	// Bootstrap identity
-	bootRec := doJSON(server, http.MethodGet, "/v1/me", token, nil)
+	bootRec := doJSONAsActor(server, http.MethodGet, "/v1/me", token, "discord:"+platformServerID+":"+platformUserID, nil)
 	if bootRec.Code != http.StatusOK {
 		t.Fatalf("bootstrap identity: expected 200, got %d: %s", bootRec.Code, bootRec.Body.String())
 	}
 
-	// Resolve external actor
-	result, err := store.ResolveExternalActor(context.Background(), "discord", platformServerID, platformUserID, "Test Player", "Test Community")
-	if err != nil {
-		t.Fatalf("resolve external actor: %v", err)
+	var me struct {
+		Player struct {
+			ID string `json:"id"`
+		} `json:"player"`
+		Community struct {
+			ID string `json:"id"`
+		} `json:"community"`
 	}
-	return result.PlayerID, result.CommunityID
+	decodeResponse(t, bootRec, &me)
+	return me.Player.ID, me.Community.ID
 }
 
 func createRound(t *testing.T, server http.Handler, store *httpapi.PostgresStore, token, communityID string) (roundID string) {

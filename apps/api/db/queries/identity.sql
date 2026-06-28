@@ -27,3 +27,8 @@ WHERE id = $1;
 INSERT INTO players (id, display_name)
 VALUES ($1, $2)
 ON CONFLICT (id) DO NOTHING;
+
+-- name: UpdatePlayerDisplayName :exec
+UPDATE players
+SET display_name = $2
+WHERE id = $1;

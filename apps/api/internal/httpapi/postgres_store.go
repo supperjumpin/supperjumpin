@@ -53,50 +53,6 @@ func (s *PostgresStore) SetClock(now func() time.Time) {
 	s.now = now
 }
 
-func (s *PostgresStore) BootstrapIdentity(ctx context.Context, identity AuthIdentity) (MeResponse, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return MeResponse{}, err
-	}
-	defer tx.Rollback()
-	qtx := s.queries.WithTx(tx)
-
-	profile, err := qtx.GetProfileByAuthIdentity(ctx, db.GetProfileByAuthIdentityParams{
-		Provider: identity.Provider,
-		Subject:  identity.Subject,
-	})
-	if err == nil {
-		return MeResponse{
-			Account: Account{ID: profile.ID, Email: profile.Email},
-			Player:  Player{ID: profile.ID_2, DisplayName: profile.DisplayName},
-		}, tx.Commit()
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return MeResponse{}, err
-	}
-	key := identity.Provider + ":" + identity.Subject
-	account := Account{ID: stableID("account", key), Email: identity.Email}
-	player := Player{ID: stableID("player", account.ID), DisplayName: displayName(identity.Email)}
-	if err := qtx.UpsertAccount(ctx, db.UpsertAccountParams{
-		ID: account.ID, Email: account.Email,
-	}); err != nil {
-		return MeResponse{}, err
-	}
-	if err := qtx.InsertAuthIdentity(ctx, db.InsertAuthIdentityParams{
-		Provider: identity.Provider, Subject: identity.Subject, AccountID: account.ID,
-	}); err != nil {
-		return MeResponse{}, err
-	}
-	if err := qtx.InsertPlayer(ctx, db.InsertPlayerParams{
-		ID: player.ID, AccountID: sql.NullString{String: account.ID, Valid: true}, DisplayName: player.DisplayName,
-	}); err != nil {
-		return MeResponse{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return MeResponse{}, err
-	}
-	return MeResponse{Account: account, Player: player}, nil
-}
 func (s *PostgresStore) UpdateDisplayName(ctx context.Context, playerID string, displayName string) (Player, error) {
 	if err := s.queries.UpdatePlayerDisplayName(ctx, db.UpdatePlayerDisplayNameParams{
 		ID:          playerID,

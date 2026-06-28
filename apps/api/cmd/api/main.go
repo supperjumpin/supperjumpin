@@ -26,12 +26,8 @@ func main() {
 	}
 
 	auth := httpapi.AuthVerifierChain{}
-	if token := os.Getenv("SUPPERJUMPIN_DEV_AUTH_TOKEN"); token != "" {
-		auth = append(auth, httpapi.StaticAuthVerifier{token: {
-			Provider: "local-dev",
-			Subject:  envOrDefault("SUPPERJUMPIN_DEV_AUTH_SUBJECT", "dev-player"),
-			Email:    envOrDefault("SUPPERJUMPIN_DEV_AUTH_EMAIL", "player@example.com"),
-		}})
+	if token := os.Getenv("SUPPERJUMPIN_ADAPTER_TOKEN"); token != "" {
+		auth = append(auth, httpapi.StaticAuthVerifier{token: {}})
 	}
 
 	databaseURL, err := requiredDatabaseURL()

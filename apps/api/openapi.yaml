@@ -4,21 +4,27 @@ info:
   version: 0.1.0
 paths:
   /v1/me:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     get:
       operationId: getMe
-      summary: Fetch the signed-in Account and Player identity
+      summary: Fetch the signed-in Player and Community identity
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: The internal Account and Player attached to the external auth identity.
+          description: The internal Player and Community attached to the adapter actor.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MeResponse"
+        "400":
+          description: Missing or malformed adapter actor header.
         "401":
           description: Missing or invalid bearer token.
   /v1/me/display-name:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     patch:
       operationId: updateDisplayName
       summary: Update the signed-in Player's display name
@@ -42,7 +48,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UpdateDisplayNameResponse"
         "400":
-          description: Invalid or missing display name.
+          description: Invalid or missing display name, or missing/malformed adapter actor header.
         "401":
           description: Missing or invalid bearer token.
   /v1/prompt-catalog:
@@ -85,6 +91,8 @@ paths:
         "500":
           description: Internal server error.
   /v1/rounds:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: startRound
       summary: Start a new Round for a Community
@@ -110,6 +118,8 @@ paths:
         "403":
           description: Forbidden — e.g. active Round already exists for this Community.
   /v1/rounds/{roundId}/commits:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: commitToRound
       summary: Commit to an active Round — Player becomes a Jumper
@@ -133,6 +143,8 @@ paths:
         "403":
           description: Forbidden — round not found or already committed.
   /v1/rounds/{roundId}/jumps:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: submitJump
       summary: Submit a sealed Jump for an active Round
@@ -186,6 +198,8 @@ paths:
         "403":
           description: Forbidden — round not found.
   /v1/rounds/{roundId}/jumps/{jumpId}:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     get:
       operationId: getJump
       summary: Get a single Jump (sealed pre-reveal for non-author)
@@ -214,6 +228,8 @@ paths:
         "403":
           description: Forbidden — jump not found.
   /v1/rounds/{roundId}/jumps/{jumpId}/reactions:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: applyReaction
       summary: Apply a Stamp to a revealed Jump — one-tap, repeatable, no rubric
@@ -250,6 +266,8 @@ paths:
         "403":
           description: Forbidden — jump not found, round not revealed, stamp not found, or this player already applied this stamp to this jump.
   /v1/rounds/{roundId}/comments:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: postRoundComment
       summary: Post a free-form comment on the Round
@@ -303,6 +321,8 @@ paths:
         "403":
           description: Forbidden — round not found.
   /v1/rounds/{roundId}/jumps/{jumpId}/comments:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: postJumpComment
       summary: Post a free-form comment on a Jump
@@ -366,6 +386,8 @@ paths:
         "403":
           description: Forbidden — round not found.
   /v1/communities/{communityId}/lore:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     get:
       operationId: getCommunityLore
       summary: Derive the Community's Lore from Stamp density on revealed Jumps
@@ -387,6 +409,8 @@ paths:
         "401":
           description: Missing or invalid bearer token.
   /v1/rounds/{roundId}/reveal:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     post:
       operationId: evaluateReveal
       summary: Evaluate the reveal condition for a Round and transition to revealed state if condition is met
@@ -410,6 +434,8 @@ paths:
         "403":
           description: Forbidden — round not found.
   /v1/rounds/{roundId}/recap:
+    parameters:
+      - $ref: "#/components/parameters/XAdapterActorHeader"
     get:
       operationId: getRoundRecap
       summary: Assemble the Recap artifact for a revealed Round — jumps with stamp counts, comments, ghost jumpers, and community Lore
@@ -433,35 +459,34 @@ paths:
         "403":
           description: Forbidden — round not found or not revealed.
 components:
+  parameters:
+    XAdapterActorHeader:
+      name: X-Adapter-Actor
+      in: header
+      required: true
+      description: Platform actor tuple in the form `discord:<guildID>:<userID>`.
+      schema:
+        type: string
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+      description: Adapter authorization bearer token.
   schemas:
     MeResponse:
       type: object
-      required: [account, player]
+      required: [player, community]
       properties:
-        account:
-          $ref: "#/components/schemas/Account"
         player:
           $ref: "#/components/schemas/Player"
+        community:
+          $ref: "#/components/schemas/Community"
     UpdateDisplayNameResponse:
       type: object
       required: [player]
       properties:
         player:
           $ref: "#/components/schemas/Player"
-    Account:
-      type: object
-      required: [id, email]
-      properties:
-        id:
-          type: string
-          description: Internal Account identifier, distinct from external auth provider subject.
-        email:
-          type: string
-          format: email
     Player:
       type: object
       required: [id, displayName]
@@ -469,6 +494,15 @@ components:
         id:
           type: string
           description: Internal in-game Player identifier.
+        displayName:
+          type: string
+    Community:
+      type: object
+      required: [id, displayName]
+      properties:
+        id:
+          type: string
+          description: Internal Community identifier.
         displayName:
           type: string
     ErrorResponse:
