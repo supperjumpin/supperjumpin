@@ -92,7 +92,7 @@ GitHub PRD: $repo#$prd_number
 4. If no sub-issues exist, decide the next unfinished piece of work; create sub-issues only if the PRD clearly needs decomposition before implementation.
 5. Use PRD issue comments as the progress log. Read prior Ralph progress comments before deciding what remains.
 6. If there is no remaining work, or the next work needs a human decision, add a short PRD comment and output <promise>COMPLETE</promise>.
-7. Otherwise, execute the chosen work by using /tdd when test-first is appropriate, or /implement otherwise. Pass the chosen issue/PRD context into that skill.
+7. Otherwise, execute the chosen work by using /tdd. Pass the chosen issue/PRD context into the skill.
 8. After the skill finishes, comment on the PRD or relevant sub-issue with concise progress, result, verification, and commit hash; then make one commit for the completed slice.
 
 Nonnegotiables: follow repo AGENTS.md files, do not push, do not rebase, do not touch unrelated user changes, do not close issues directly unless the issue explicitly says to.
