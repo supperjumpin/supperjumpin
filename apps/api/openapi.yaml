@@ -58,6 +58,44 @@ paths:
                 $ref: "#/components/schemas/PromptCatalogResponse"
         "500":
           description: Internal server error.
+  /v1/reveal-timeframes:
+    get:
+      operationId: listRevealTimeframes
+      summary: Fetch the available reveal timeframe menu items
+      responses:
+        "200":
+          description: The available reveal timeframes, ordered by sort_order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealTimeframesResponse"
+        "500":
+          description: Internal server error.
+  /v1/rounds:
+    post:
+      operationId: startRound
+      summary: Start a new Round for a Community
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRoundRequest"
+      responses:
+        "201":
+          description: The newly created Round.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartRoundResponse"
+        "400":
+          description: Invalid or missing request body.
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Forbidden — e.g. active Round already exists for this Community.
 components:
   securitySchemes:
     bearerAuth:
@@ -139,3 +177,60 @@ components:
           type: string
         costTier:
           type: string
+    RevealTimeframe:
+      type: object
+      required: [id, label, durationHours]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        durationHours:
+          type: integer
+    RevealTimeframesResponse:
+      type: object
+      required: [timeframes]
+      properties:
+        timeframes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevealTimeframe"
+    StartRoundRequest:
+      type: object
+      required: [communityId, revealTimeframeId]
+      properties:
+        communityId:
+          type: string
+        promptId:
+          type: string
+          description: If omitted, a random prompt is selected from the catalog.
+        revealTimeframeId:
+          type: string
+    Round:
+      type: object
+      required: [id, communityId, promptId, status, revealBy, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+        communityId:
+          type: string
+        promptId:
+          type: string
+        status:
+          type: string
+        revealBy:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        prompt:
+          $ref: "#/components/schemas/Prompt"
+    StartRoundResponse:
+      type: object
+      required: [round]
+      properties:
+        round:
+          $ref: "#/components/schemas/Round"

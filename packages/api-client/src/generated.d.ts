@@ -55,6 +55,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reveal-timeframes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the available reveal timeframe menu items */
+        get: operations["listRevealTimeframes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a new Round for a Community */
+        post: operations["startRound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -95,6 +129,35 @@ export interface components {
             copy: string;
             theme: string;
             costTier: string;
+        };
+        RevealTimeframe: {
+            id: string;
+            label: string;
+            durationHours: number;
+        };
+        RevealTimeframesResponse: {
+            timeframes: components["schemas"]["RevealTimeframe"][];
+        };
+        StartRoundRequest: {
+            communityId: string;
+            /** @description If omitted, a random prompt is selected from the catalog. */
+            promptId?: string;
+            revealTimeframeId: string;
+        };
+        Round: {
+            id: string;
+            communityId: string;
+            promptId: string;
+            status: string;
+            /** Format: date-time */
+            revealBy: string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            prompt?: components["schemas"]["Prompt"];
+        };
+        StartRoundResponse: {
+            round: components["schemas"]["Round"];
         };
     };
     responses: never;
@@ -192,6 +255,78 @@ export interface operations {
             };
             /** @description Internal server error. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRevealTimeframes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The available reveal timeframes, ordered by sort_order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevealTimeframesResponse"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    startRound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartRoundRequest"];
+            };
+        };
+        responses: {
+            /** @description The newly created Round. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartRoundResponse"];
+                };
+            };
+            /** @description Invalid or missing request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — e.g. active Round already exists for this Community. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

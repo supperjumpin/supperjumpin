@@ -165,3 +165,65 @@ func (s *PostgresStore) GetPrompt(ctx context.Context, id string) (game.PromptSn
 		CreatedAt: row.CreatedAt,
 	}, nil
 }
+
+func (s *PostgresStore) ListRevealTimeframes(ctx context.Context) ([]game.RevealTimeframeSnapshot, error) {
+	rows, err := s.queries.ListRevealTimeframes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]game.RevealTimeframeSnapshot, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, game.RevealTimeframeSnapshot{
+			ID:            r.ID,
+			Label:         r.Label,
+			DurationHours: int(r.DurationHours),
+		})
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) GetRevealTimeframe(ctx context.Context, id string) (game.RevealTimeframeSnapshot, error) {
+	row, err := s.queries.GetRevealTimeframe(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return game.RevealTimeframeSnapshot{}, game.ErrRevealTimeframeNotFound
+		}
+		return game.RevealTimeframeSnapshot{}, err
+	}
+	return game.RevealTimeframeSnapshot{
+		ID:            row.ID,
+		Label:         row.Label,
+		DurationHours: int(row.DurationHours),
+	}, nil
+}
+
+func (s *PostgresStore) FindActiveRound(ctx context.Context, communityID string) (*game.RoundSnapshot, error) {
+	row, err := s.queries.FindActiveRound(ctx, communityID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &game.RoundSnapshot{
+		ID:          row.ID,
+		CommunityID: row.CommunityID,
+		PromptID:    row.PromptID,
+		Status:      row.Status,
+		RevealBy:    row.RevealBy,
+		CreatedBy:   row.CreatedBy,
+		CreatedAt:   row.CreatedAt,
+	}, nil
+}
+
+func (s *PostgresStore) CreateRound(ctx context.Context, round game.RoundSnapshot) error {
+	return s.queries.CreateRound(ctx, db.CreateRoundParams{
+		ID:          round.ID,
+		CommunityID: round.CommunityID,
+		PromptID:    round.PromptID,
+		Status:      round.Status,
+		RevealBy:    round.RevealBy,
+		CreatedBy:   round.CreatedBy,
+		CreatedAt:   round.CreatedAt,
+	})
+}

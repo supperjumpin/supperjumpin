@@ -32,3 +32,34 @@ type PromptDTO struct {
 type PromptCatalogResponse struct {
 	Packs []PromptPackDTO `json:"packs"`
 }
+
+type RevealTimeframeDTO struct {
+	ID            string `json:"id"`
+	Label         string `json:"label"`
+	DurationHours int    `json:"durationHours"`
+}
+
+type RevealTimeframesResponse struct {
+	Timeframes []RevealTimeframeDTO `json:"timeframes"`
+}
+
+type RoundDTO struct {
+	ID          string      `json:"id"`
+	CommunityID string      `json:"communityId"`
+	PromptID    string      `json:"promptId"`
+	Status      string      `json:"status"`
+	RevealBy    string      `json:"revealBy"`
+	CreatedBy   string      `json:"createdBy"`
+	CreatedAt   string      `json:"createdAt"`
+	Prompt      *PromptDTO  `json:"prompt,omitempty"`
+}
+
+type StartRoundRequest struct {
+	CommunityID       string `json:"communityId"`
+	PromptID          string `json:"promptId,omitempty"`
+	RevealTimeframeID string `json:"revealTimeframeId"`
+}
+
+type StartRoundResponse struct {
+	Round RoundDTO `json:"round"`
+}

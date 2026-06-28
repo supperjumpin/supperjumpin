@@ -58,6 +58,34 @@ CREATE TABLE prompts (
 );
 ALTER TABLE prompts ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE reveal_timeframes (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    duration_hours INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE reveal_timeframes ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE rounds (
+    id TEXT PRIMARY KEY,
+    community_id TEXT NOT NULL REFERENCES communities(id),
+    prompt_id TEXT NOT NULL REFERENCES prompts(id),
+    status TEXT NOT NULL DEFAULT 'active',
+    reveal_by TIMESTAMPTZ NOT NULL,
+    created_by TEXT NOT NULL REFERENCES players(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE rounds ENABLE ROW LEVEL SECURITY;
+CREATE UNIQUE INDEX rounds_one_active_per_community ON rounds (community_id) WHERE status = 'active';
+
+-- Seed reveal timeframes
+INSERT INTO reveal_timeframes (id, label, duration_hours, sort_order) VALUES
+    ('reveal_tf_800ba5b17c98', '24 hours', 24, 1),
+    ('reveal_tf_b7dc9247648a', '3 days', 72, 2),
+    ('reveal_tf_785c3a1ef405', '7 days', 168, 3)
+ON CONFLICT (id) DO NOTHING;
+
 -- Seed platform-authored prompt catalog
 INSERT INTO prompt_packs (id, display_name, description) VALUES
     ('prompt_pack_8c22a060a7c2', 'Kitchen Classics', 'Zero-cost fridge and pantry bits. Use what you already have.'),

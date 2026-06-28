@@ -59,3 +59,21 @@ type PromptPack struct {
 	Description string
 	CreatedAt   time.Time
 }
+
+type RevealTimeframe struct {
+	ID            string
+	Label         string
+	DurationHours int32
+	SortOrder     int32
+	CreatedAt     time.Time
+}
+
+type Round struct {
+	ID          string
+	CommunityID string
+	PromptID    string
+	Status      string
+	RevealBy    time.Time
+	CreatedBy   string
+	CreatedAt   time.Time
+}

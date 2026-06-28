@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -106,6 +107,88 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, PromptCatalogResponse{Packs: packs})
+	})
+	mux.HandleFunc("GET /v1/reveal-timeframes", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /v1/reveal-timeframes", "list_reveal_timeframes")
+		AddRequestLogField(r.Context(), "actor_type", "public")
+
+		result, err := game.ListRevealTimeframes(r.Context(), config.Store)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "list_reveal_timeframes_failed", err)
+			http.Error(w, "list reveal timeframes", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusInternalServerError, "list_reveal_timeframes_failed", result.Err)
+			http.Error(w, "list reveal timeframes", http.StatusInternalServerError)
+			return
+		}
+
+		tfs := make([]RevealTimeframeDTO, 0, len(result.Timeframes))
+		for _, tf := range result.Timeframes {
+			tfs = append(tfs, RevealTimeframeDTO{
+				ID:            tf.ID,
+				Label:         tf.Label,
+				DurationHours: tf.DurationHours,
+			})
+		}
+
+		writeJSON(w, http.StatusOK, RevealTimeframesResponse{Timeframes: tfs})
+	})
+	mux.HandleFunc("POST /v1/rounds", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "POST /v1/rounds", "start_round")
+		profile, ok := signedInProfile(w, r, config)
+		if !ok {
+			return
+		}
+
+		var request StartRoundRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			recordHTTPError(r, http.StatusBadRequest, "invalid_json", nil)
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+
+		if request.CommunityID == "" {
+			recordHTTPError(r, http.StatusBadRequest, "missing_community_id", nil)
+			http.Error(w, "communityId is required", http.StatusBadRequest)
+			return
+		}
+		if request.RevealTimeframeID == "" {
+			recordHTTPError(r, http.StatusBadRequest, "missing_reveal_timeframe_id", nil)
+			http.Error(w, "revealTimeframeId is required", http.StatusBadRequest)
+			return
+		}
+
+		now := config.Now()
+		result, err := game.StartRound(r.Context(), config.Store, game.StartRoundInput{
+			CommunityID:       request.CommunityID,
+			PlayerID:          profile.Player.ID,
+			PromptID:          request.PromptID,
+			RevealTimeframeID: request.RevealTimeframeID,
+		}, now, rand.Intn)
+		if err != nil {
+			recordHTTPError(r, http.StatusInternalServerError, "start_round_failed", err)
+			http.Error(w, "start round", http.StatusInternalServerError)
+			return
+		}
+		if !result.Allowed {
+			recordHTTPError(r, http.StatusForbidden, "start_round_forbidden", result.Err)
+			http.Error(w, result.Err.Error(), http.StatusForbidden)
+			return
+		}
+
+		round := RoundDTO{
+			ID:          result.Round.ID,
+			CommunityID: result.Round.CommunityID,
+			PromptID:    result.Round.PromptID,
+			Status:      result.Round.Status,
+			RevealBy:    result.Round.RevealBy.Format(time.RFC3339),
+			CreatedBy:   result.Round.CreatedBy,
+			CreatedAt:   result.Round.CreatedAt.Format(time.RFC3339),
+		}
+
+		writeJSON(w, http.StatusCreated, StartRoundResponse{Round: round})
 	})
 
 	return requestLoggingMiddleware(mux, config.Logger, config.Now)

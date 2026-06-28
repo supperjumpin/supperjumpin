@@ -15,6 +15,7 @@ HTTP transport layer for the Go API. Handles routing, auth, JSON DTO conversion,
 | Production persistence | `postgres_store.go` (PostgresStore) | sqlc-generated queries implementing per-flow interfaces |
 | External identity resolution | `external_identity.go` | Adapter-owned mapping from platform actors → (player_id, community_id) via game.EnsurePlayer |
 | Prompt catalog HTTP surface | `server.go` (`GET /v1/prompt-catalog`) + `dto.go` (`PromptCatalogResponse`, `PromptPackDTO`, `PromptDTO`) | Public, unauthenticated. Handler must set `actor_type=public` per root AGENTS logging conventions. |
+| Round start HTTP surface | `server.go` (`POST /v1/rounds`, `GET /v1/reveal-timeframes`) + `dto.go` (`StartRoundRequest`, `StartRoundResponse`, `RoundDTO`, `RevealTimeframeDTO`, `RevealTimeframesResponse`) | `POST /v1/rounds` is authenticated (bearerAuth) and maps domain errors to 403; `GET /v1/reveal-timeframes` is public. |
 | Integration tests | `*_test.go` | `httptest` + Postgres-backed fixtures |
 
 ## CONVENTIONS

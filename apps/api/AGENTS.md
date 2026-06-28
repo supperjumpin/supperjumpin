@@ -16,7 +16,8 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | Prompt/Pack catalog | `internal/game/prompts.go` + `db/queries/prompts.sql` | `ListCatalog` (full catalog), `SelectPrompt` (by id), `SelectRandomPrompt` (random pick). Seeded via `0001_accounts_players.up.sql` — platform-authored, global. |
-| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts. Pre-stable: fold schema changes into existing migration files |
+| Round start | `internal/game/round.go` + `db/queries/rounds.sql` + `db/queries/timeframes.sql` | `ListRevealTimeframes` (data-driven menu, seeded), `StartRound` (one-active invariant, explicit or random prompt pick, reveal_by computed from timeframe duration). `POST /v1/rounds` + `GET /v1/reveal-timeframes`. |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, accounts, auth_identities, prompt_packs, prompts, reveal_timeframes, rounds. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 

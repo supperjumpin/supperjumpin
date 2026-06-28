@@ -51,6 +51,30 @@ func (s loggingStore) GetPrompt(_ context.Context, id string) (game.PromptSnapsh
 	return game.PromptSnapshot{}, game.ErrPromptNotFound
 }
 
+func (s loggingStore) ListRevealTimeframes(context.Context) ([]game.RevealTimeframeSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) GetRevealTimeframe(context.Context, string) (game.RevealTimeframeSnapshot, error) {
+	return game.RevealTimeframeSnapshot{}, errors.New("not implemented")
+}
+
+func (s loggingStore) FindPlayer(context.Context, string) (game.PlayerSnapshot, bool, error) {
+	return game.PlayerSnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) FindCommunity(context.Context, string) (game.CommunitySnapshot, bool, error) {
+	return game.CommunitySnapshot{}, false, errors.New("not implemented")
+}
+
+func (s loggingStore) FindActiveRound(context.Context, string) (*game.RoundSnapshot, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s loggingStore) CreateRound(context.Context, game.RoundSnapshot) error {
+	return errors.New("not implemented")
+}
+
 func TestRouteLoggingAddsSuccessOperationAndActorFields(t *testing.T) {
 	server, logs := newRouteLoggingTestServer(ServerConfig{
 		Store: loggingStore{},
