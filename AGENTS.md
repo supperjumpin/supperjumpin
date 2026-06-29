@@ -41,6 +41,7 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, generated TypeS
 - **Feature branches for all changes** — never push to main directly.
 - **Main history should stay clean**: prefer squash merge so each commit on `main` represents one coherent body of work.
 - **PR branches are disposable**: commit freely while iterating; typo fixes and review follow-ups do not need cleanup on the branch.
+- **Squash titles should be outcome-first**: prefer `feat(area): outcome (#issue)`, `fix(area): outcome (#issue)`, `docs(area): outcome (#issue)`, `test(area): outcome (#issue)`, or `chore(area): outcome (#issue)` over slice/process phrasing.
 - **Update from main only when needed**: do it for mergeability, CI, or conflict resolution, not as a routine step before every push.
 - **Use the least painful branch update strategy**: merge, rebase, or recreate from fresh `main` depending on the branch state.
 - **Only push after**: required build/tests pass.
