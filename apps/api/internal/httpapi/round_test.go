@@ -96,6 +96,10 @@ func TestStartRoundCreatesRoundWithRandomPrompt(t *testing.T) {
 		CommunityID string `json:"communityId"`
 		PromptID    string `json:"promptId"`
 		Status      string `json:"status"`
+		Prompt      *struct {
+			ID   string `json:"id"`
+			Copy string `json:"copy"`
+		} `json:"prompt"`
 	}
 	type startResp struct {
 		Round roundDTO `json:"round"`
@@ -114,6 +118,15 @@ func TestStartRoundCreatesRoundWithRandomPrompt(t *testing.T) {
 	}
 	if sr.Round.PromptID == "" {
 		t.Fatal("expected prompt id from random selection")
+	}
+	if sr.Round.Prompt == nil {
+		t.Fatal("expected prompt details in start round response")
+	}
+	if sr.Round.Prompt.ID != sr.Round.PromptID {
+		t.Fatalf("expected prompt.id %s, got %s", sr.Round.PromptID, sr.Round.Prompt.ID)
+	}
+	if sr.Round.Prompt.Copy == "" {
+		t.Fatal("expected prompt copy in start round response")
 	}
 }
 
@@ -294,6 +307,10 @@ func TestStartRoundWithExplicitPrompt(t *testing.T) {
 	type startResp struct {
 		Round struct {
 			PromptID string `json:"promptId"`
+			Prompt   *struct {
+				ID   string `json:"id"`
+				Copy string `json:"copy"`
+			} `json:"prompt"`
 		} `json:"round"`
 	}
 	var sr startResp
@@ -301,5 +318,14 @@ func TestStartRoundWithExplicitPrompt(t *testing.T) {
 
 	if sr.Round.PromptID != promptID {
 		t.Fatalf("expected PromptID %s, got %s", promptID, sr.Round.PromptID)
+	}
+	if sr.Round.Prompt == nil {
+		t.Fatal("expected prompt details in explicit start round response")
+	}
+	if sr.Round.Prompt.ID != promptID {
+		t.Fatalf("expected prompt.id %s, got %s", promptID, sr.Round.Prompt.ID)
+	}
+	if sr.Round.Prompt.Copy == "" {
+		t.Fatal("expected prompt copy in explicit start round response")
 	}
 }

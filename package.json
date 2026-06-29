@@ -20,6 +20,8 @@
     "api:dev": "node ./scripts/api-dev.mjs",
     "api:test": "node ./scripts/api-test.mjs",
     "api:test:coverage": "node ./scripts/api-test.mjs --coverage",
+    "bot:dev": "node ./scripts/bot-dev.mjs",
+    "bot:test": "go test ./apps/bot-discord/...",
     "docs": "node ./scripts/docs-server.mjs"
   }
 }
