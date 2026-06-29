@@ -39,9 +39,11 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, generated TypeS
 ## Git Workflow
 
 - **Feature branches for all changes** — never push to main directly.
-- **Before every push**: `git fetch origin && git rebase origin/main`.
-- **If rebase conflicts**: Stop and report them. Never force-push through conflicts.
-- **Only push after**: rebase resolves cleanly + build/tests pass.
+- **Main history should stay clean**: prefer squash merge so each commit on `main` represents one coherent body of work.
+- **PR branches are disposable**: commit freely while iterating; typo fixes and review follow-ups do not need cleanup on the branch.
+- **Update from main only when needed**: do it for mergeability, CI, or conflict resolution, not as a routine step before every push.
+- **Use the least painful branch update strategy**: merge, rebase, or recreate from fresh `main` depending on the branch state.
+- **Only push after**: required build/tests pass.
 
 ## Maintenance Contract
 
