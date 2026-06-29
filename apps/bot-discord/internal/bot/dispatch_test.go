@@ -82,3 +82,35 @@ func TestBot_DispatchesStampComponentToHandler(t *testing.T) {
 		t.Errorf("path: got %q, want %q", got, want)
 	}
 }
+
+func TestBot_DispatchesJumpCommentCommandToHandler(t *testing.T) {
+	h := newTestHarness(t)
+	h.api.responder = func(path string, _ []byte) (int, []byte) {
+		if path == "/v1/rounds/round-1/jumps/jump-1/comments" {
+			return 201, []byte(`{"comment":{"id":"comment-1"}}`)
+		}
+		return 404, []byte(`{"error":"not_found"}`)
+	}
+	commentHandler := NewCommentHandler(h.client, testActorResolver("discord:guild-1:user-1"))
+
+	responder := &fakeResponder{}
+	b := NewBot(BotConfig{Comment: commentHandler.AsHandlerFunc()})
+
+	interaction := IncomingInteraction{
+		Type:    InteractionApplicationCommand,
+		GuildID: "guild-1",
+		UserID:  "user-1",
+		Command: CommandRoute{Name: "comment", Subcommand: "jump"},
+		Options: map[string]string{"roundId": "round-1", "jumpId": "jump-1", "body": "hello"},
+	}
+
+	if err := b.Dispatch(context.Background(), interaction, responder); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if got, want := len(h.api.received), 1; got != want {
+		t.Fatalf("API calls: got %d, want %d", got, want)
+	}
+	if got, want := h.api.received[0].path, "/v1/rounds/round-1/jumps/jump-1/comments"; got != want {
+		t.Fatalf("path: got %q, want %q", got, want)
+	}
+}

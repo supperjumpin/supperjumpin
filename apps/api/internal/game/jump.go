@@ -10,6 +10,7 @@ var (
 	ErrRoundNotFound     = errors.New("round not found")
 	ErrAlreadyCommitted  = errors.New("player already committed to this round")
 	ErrCannotSubmit      = errors.New("player must commit before submitting")
+	ErrRoundNotActive    = errors.New("round is not active")
 	ErrAlreadySubmitted  = errors.New("player already submitted to this round")
 	ErrJumpNotFound      = errors.New("jump not found")
 )
@@ -158,12 +159,15 @@ func CommitToRound(ctx context.Context, repo CommitRepo, input CommitToRoundInpu
 }
 
 func SubmitJump(ctx context.Context, repo SubmitRepo, input SubmitJumpInput, now time.Time) (SubmitJumpResult, error) {
-	_, roundExists, err := repo.FindRound(ctx, input.RoundID)
+	round, roundExists, err := repo.FindRound(ctx, input.RoundID)
 	if err != nil {
 		return SubmitJumpResult{Allowed: false, Err: err}, nil
 	}
 	if !roundExists {
 		return SubmitJumpResult{Allowed: false, Err: ErrRoundNotFound}, nil
+	}
+	if round.Status != "active" {
+		return SubmitJumpResult{Allowed: false, Err: ErrRoundNotActive}, nil
 	}
 
 	commit, err := repo.FindCommit(ctx, input.RoundID, input.PlayerID)

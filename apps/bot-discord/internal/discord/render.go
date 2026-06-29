@@ -46,7 +46,7 @@ func (r *Renderer) SetStampTemplate(stamps []StampTemplate) {
 
 func (r *Renderer) PostReveal(ctx context.Context, channelID string, recap bot.RecapMessage) error {
 	content := formatReveal(recap)
-	components := r.buildStampButtons(recap.Jumps)
+	components := r.buildStampButtons(recap.RoundID, recap.Jumps)
 	if err := r.poster.PostMessage(ctx, channelID, content, nil, components); err != nil {
 		return fmt.Errorf("renderer: post reveal: %w", err)
 	}
@@ -72,7 +72,7 @@ func (r *Renderer) PostRoundAnnouncement(ctx context.Context, channelID, promptC
 	return r.poster.PostMessage(ctx, channelID, strings.Join(lines, "\n"), nil, components)
 }
 
-func (r *Renderer) buildStampButtons(jumps []bot.RecapJump) []discordgo.MessageComponent {
+func (r *Renderer) buildStampButtons(roundID string, jumps []bot.RecapJump) []discordgo.MessageComponent {
 	if len(r.stampTemplate) == 0 || len(jumps) == 0 {
 		return nil
 	}
@@ -87,7 +87,7 @@ func (r *Renderer) buildStampButtons(jumps []bot.RecapJump) []discordgo.MessageC
 			buttons = append(buttons, &discordgo.Button{
 				Label:    label,
 				Style:    discordgo.SecondaryButton,
-				CustomID: "stamp:" + j.ID + ":" + s.ID,
+				CustomID: "stamp:" + roundID + ":" + j.ID + ":" + s.ID,
 			})
 		}
 		rows = append(rows, discordgo.ActionsRow{Components: buttons})

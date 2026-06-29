@@ -45,6 +45,7 @@ func NewBot(cfg BotConfig) *Bot {
 	}
 	if cfg.Comment != nil {
 		b.commands[CommandRoute{Name: "comment", Subcommand: "round"}] = cfg.Comment
+		b.commands[CommandRoute{Name: "comment", Subcommand: "jump"}] = cfg.Comment
 	}
 	if cfg.Recap != nil {
 		b.commands[CommandRoute{Name: "recap", Subcommand: ""}] = cfg.Recap

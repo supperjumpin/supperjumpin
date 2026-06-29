@@ -40,6 +40,7 @@ func (r *RoundRegistry) Forget(roundID string) {
 }
 
 type RecapMessage struct {
+	RoundID    string
 	PromptCopy string
 	Jumps      []RecapJump
 }

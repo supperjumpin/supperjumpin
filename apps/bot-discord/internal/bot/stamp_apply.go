@@ -3,6 +3,8 @@ package bot
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 )
 
 type StampApplyHandler struct {
@@ -32,10 +34,14 @@ func (h *StampApplyHandler) Handle(ctx context.Context, i IncomingInteraction) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == 403 && strings.Contains(string(body), "already reacted") {
+			return Reply{Body: "Stamp already applied.", Ephemeral: true}, nil
+		}
 		return Reply{}, fmt.Errorf("stamp apply: unexpected status %d", resp.StatusCode)
 	}
 
-	return Reply{}, nil
+	return Reply{Body: "Stamp applied.", Ephemeral: true}, nil
 }
 
 func (h *StampApplyHandler) AsHandlerFunc() HandlerFunc {

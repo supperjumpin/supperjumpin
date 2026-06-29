@@ -185,6 +185,14 @@ func NewServer(config ServerConfig) http.Handler {
 			CreatedBy:   result.Round.CreatedBy,
 			CreatedAt:   result.Round.CreatedAt.Format(time.RFC3339),
 		}
+		if prompt, err := config.Store.GetPrompt(r.Context(), result.Round.PromptID); err == nil {
+			round.Prompt = &PromptDTO{
+				ID:       prompt.ID,
+				Copy:     prompt.Copy,
+				Theme:    prompt.Theme,
+				CostTier: prompt.CostTier,
+			}
+		}
 
 		writeJSON(w, http.StatusCreated, StartRoundResponse{Round: round})
 	})

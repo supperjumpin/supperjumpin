@@ -76,6 +76,7 @@ func (a *RevealActor) FireCtx(ctx context.Context, roundID string) error {
 	}
 
 	return a.Poster.PostReveal(ctx, info.ChannelID, RecapMessage{
+		RoundID:    roundID,
 		PromptCopy: info.PromptCopy,
 		Jumps:      jumps,
 	})

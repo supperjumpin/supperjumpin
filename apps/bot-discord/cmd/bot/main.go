@@ -34,6 +34,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := wired.LoadStampTemplate(ctx); err != nil {
+		logger.Warn("bot: load stamp template", "err", err)
+	}
+
 	go func() {
 		if err := wired.StartEvidenceServer(); err != nil {
 			logger.Error("bot: evidence server", "err", err)

@@ -380,6 +380,31 @@ func TestSubmitJumpFailsWhenRoundNotFound(t *testing.T) {
 	}
 }
 
+func TestSubmitJumpFailsWhenRoundIsNotActive(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakeSubmitRepo()
+	repo.rounds["round-1"] = game.RoundSnapshot{ID: "round-1", Status: "revealed"}
+	repo.commits["round-1"] = map[string]game.CommitSnapshot{
+		"player-a": {ID: "commit-1", RoundID: "round-1", PlayerID: "player-a", CommittedAt: frozenNow},
+	}
+
+	result, err := game.SubmitJump(ctx, repo, game.SubmitJumpInput{
+		RoundID:  "round-1",
+		PlayerID: "player-a",
+		Caption:  "too late",
+	}, frozenNow)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.Allowed {
+		t.Fatal("expected Allowed=false when round is not active")
+	}
+	if !errors.Is(result.Err, game.ErrRoundNotActive) {
+		t.Fatalf("expected ErrRoundNotActive, got %v", result.Err)
+	}
+}
+
 // --- ListJumpsForRound tests ---
 
 func TestListJumpsSealedPreReveal(t *testing.T) {

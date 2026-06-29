@@ -55,3 +55,32 @@ func TestRegisterCommands_PostsAllCommands(t *testing.T) {
 		t.Errorf("commands: missing 'jump'")
 	}
 }
+
+func TestRoundStartCommand_PutsRequiredOptionsBeforeOptional(t *testing.T) {
+	cmd := RoundStartCommand()
+	if got, want := len(cmd.Options), 2; got != want {
+		t.Fatalf("top-level options: got %d, want %d", got, want)
+	}
+	start := cmd.Options[0]
+	if start.Name != "start" {
+		t.Fatalf("first subcommand: got %q, want %q", start.Name, "start")
+	}
+	if got, want := len(start.Options), 3; got != want {
+		t.Fatalf("start options: got %d, want %d", got, want)
+	}
+	if got, want := start.Options[0].Name, "community_id"; got != want {
+		t.Errorf("start.Options[0].Name: got %q, want %q", got, want)
+	}
+	if got, want := start.Options[1].Name, "reveal_timeframe_id"; got != want {
+		t.Errorf("start.Options[1].Name: got %q, want %q", got, want)
+	}
+	if got, want := start.Options[2].Name, "prompt_id"; got != want {
+		t.Errorf("start.Options[2].Name: got %q, want %q", got, want)
+	}
+	if !start.Options[0].Required || !start.Options[1].Required {
+		t.Error("required options must remain required")
+	}
+	if start.Options[2].Required {
+		t.Error("prompt_id: got required=true, want false")
+	}
+}

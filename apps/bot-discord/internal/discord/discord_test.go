@@ -58,6 +58,121 @@ func TestEventToIncoming_ConvertsSlashCommand(t *testing.T) {
 	}
 }
 
+func TestEventToIncoming_ConvertsSubcommandOptionsToCamelCase(t *testing.T) {
+	event := &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:      discordgo.InteractionApplicationCommand,
+			GuildID:   "guild-1",
+			ChannelID: "channel-1",
+			Data: discordgo.ApplicationCommandInteractionData{
+				Name: "round",
+				Options: []*discordgo.ApplicationCommandInteractionDataOption{
+					{
+						Type: discordgo.ApplicationCommandOptionSubCommand,
+						Name: "start",
+						Options: []*discordgo.ApplicationCommandInteractionDataOption{
+							{Name: "community_id", Type: discordgo.ApplicationCommandOptionString, Value: "community-1"},
+							{Name: "prompt_id", Type: discordgo.ApplicationCommandOptionString, Value: "prompt-1"},
+							{Name: "reveal_timeframe_id", Type: discordgo.ApplicationCommandOptionString, Value: "tf-1m"},
+						},
+					},
+				},
+			},
+			User: &discordgo.User{ID: "user-1"},
+		},
+	}
+
+	got, err := EventToIncoming(event)
+	if err != nil {
+		t.Fatalf("EventToIncoming: %v", err)
+	}
+	if got.Command.Subcommand != "start" {
+		t.Fatalf("Command.Subcommand: got %q, want %q", got.Command.Subcommand, "start")
+	}
+	if got, want := got.Options["communityId"], "community-1"; got != want {
+		t.Errorf("Options[communityId]: got %q, want %q", got, want)
+	}
+	if got, want := got.Options["promptId"], "prompt-1"; got != want {
+		t.Errorf("Options[promptId]: got %q, want %q", got, want)
+	}
+	if got, want := got.Options["revealTimeframeId"], "tf-1m"; got != want {
+		t.Errorf("Options[revealTimeframeId]: got %q, want %q", got, want)
+	}
+}
+
+func TestEventToIncoming_UsesMemberUserForGuildSlashCommand(t *testing.T) {
+	event := &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:      discordgo.InteractionApplicationCommand,
+			GuildID:   "guild-1",
+			ChannelID: "channel-1",
+			Data: discordgo.ApplicationCommandInteractionData{
+				Name: "round",
+				Options: []*discordgo.ApplicationCommandInteractionDataOption{
+					{
+						Type: discordgo.ApplicationCommandOptionSubCommand,
+						Name: "start",
+						Options: []*discordgo.ApplicationCommandInteractionDataOption{
+							{Name: "community_id", Type: discordgo.ApplicationCommandOptionString, Value: "community-1"},
+							{Name: "reveal_timeframe_id", Type: discordgo.ApplicationCommandOptionString, Value: "tf-1m"},
+						},
+					},
+				},
+			},
+			Member: &discordgo.Member{User: &discordgo.User{ID: "member-user-1"}},
+		},
+	}
+
+	got, err := EventToIncoming(event)
+	if err != nil {
+		t.Fatalf("EventToIncoming: %v", err)
+	}
+	if got, want := got.UserID, "member-user-1"; got != want {
+		t.Errorf("UserID: got %q, want %q", got, want)
+	}
+}
+
+func TestEventToIncoming_ResolvesAttachmentInsideSubcommand(t *testing.T) {
+	event := &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:      discordgo.InteractionApplicationCommand,
+			GuildID:   "guild-1",
+			ChannelID: "channel-1",
+			Data: discordgo.ApplicationCommandInteractionData{
+				Name: "jump",
+				Options: []*discordgo.ApplicationCommandInteractionDataOption{
+					{
+						Type: discordgo.ApplicationCommandOptionSubCommand,
+						Name: "submit",
+						Options: []*discordgo.ApplicationCommandInteractionDataOption{
+							{Name: "round_id", Type: discordgo.ApplicationCommandOptionString, Value: "round-1"},
+							{Name: "caption", Type: discordgo.ApplicationCommandOptionString, Value: "hello"},
+							{Name: "photo", Type: discordgo.ApplicationCommandOptionAttachment, Value: "attachment-1"},
+						},
+					},
+				},
+				Resolved: &discordgo.ApplicationCommandInteractionDataResolved{
+					Attachments: map[string]*discordgo.MessageAttachment{
+						"attachment-1": {URL: "https://cdn.example/test.jpg"},
+					},
+				},
+			},
+			User: &discordgo.User{ID: "user-1"},
+		},
+	}
+
+	got, err := EventToIncoming(event)
+	if err != nil {
+		t.Fatalf("EventToIncoming: %v", err)
+	}
+	if got, want := got.Options["roundId"], "round-1"; got != want {
+		t.Errorf("Options[roundId]: got %q, want %q", got, want)
+	}
+	if got, want := got.AttachmentURL, "https://cdn.example/test.jpg"; got != want {
+		t.Errorf("AttachmentURL: got %q, want %q", got, want)
+	}
+}
+
 func TestEventToIncoming_ConvertsButtonComponent(t *testing.T) {
 	event := &discordgo.InteractionCreate{
 		Interaction: &discordgo.Interaction{
@@ -80,6 +195,28 @@ func TestEventToIncoming_ConvertsButtonComponent(t *testing.T) {
 	}
 	if got.CustomID != "stamp:round-1:jump-7:stamp-hype" {
 		t.Errorf("CustomID: got %q, want %q", got.CustomID, "stamp:round-1:jump-7:stamp-hype")
+	}
+}
+
+func TestEventToIncoming_UsesMemberUserForGuildButtonComponent(t *testing.T) {
+	event := &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:      discordgo.InteractionMessageComponent,
+			GuildID:   "guild-1",
+			ChannelID: "channel-1",
+			Data: discordgo.MessageComponentInteractionData{
+				CustomID: "commit:round-1",
+			},
+			Member: &discordgo.Member{User: &discordgo.User{ID: "member-user-1"}},
+		},
+	}
+
+	got, err := EventToIncoming(event)
+	if err != nil {
+		t.Fatalf("EventToIncoming: %v", err)
+	}
+	if got, want := got.UserID, "member-user-1"; got != want {
+		t.Errorf("UserID: got %q, want %q", got, want)
 	}
 }
 

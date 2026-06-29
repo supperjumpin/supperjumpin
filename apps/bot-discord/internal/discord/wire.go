@@ -2,7 +2,9 @@ package discord
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -17,6 +19,7 @@ import (
 )
 
 type Wired struct {
+	APIClient    *bot.APIClient
 	Bot         *bot.Bot
 	Dispatcher  *Dispatcher
 	Session     *discordgo.Session
@@ -112,6 +115,7 @@ func NewWired(cfg Config) (*Wired, error) {
 	}
 
 	return &Wired{
+		APIClient:    apiClient,
 		Bot:         b,
 		Dispatcher:  dispatcher,
 		Session:     session,
@@ -121,6 +125,41 @@ func NewWired(cfg Config) (*Wired, error) {
 		Registry:    registry,
 		Renderer:    renderer,
 	}, nil
+}
+
+func (w *Wired) LoadStampTemplate(ctx context.Context) error {
+	if w.APIClient == nil || w.Renderer == nil {
+		return fmt.Errorf("discord: stamp template dependencies not wired")
+	}
+
+	resp, err := w.APIClient.ListStampCatalog(ctx)
+	if err != nil {
+		return fmt.Errorf("discord: list stamp catalog: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("discord: list stamp catalog status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var parsed struct {
+		Stamps []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+			Glyph string `json:"glyph"`
+		} `json:"stamps"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return fmt.Errorf("discord: decode stamp catalog: %w", err)
+	}
+
+	stamps := make([]StampTemplate, 0, len(parsed.Stamps))
+	for _, s := range parsed.Stamps {
+		stamps = append(stamps, StampTemplate{ID: s.ID, Label: s.Label, Glyph: s.Glyph})
+	}
+	w.Renderer.SetStampTemplate(stamps)
+	return nil
 }
 
 func (w *Wired) RegisterCommands(appID, guildID string) error {

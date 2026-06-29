@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	discordgo "github.com/bwmarrin/discordgo"
 
@@ -28,24 +29,16 @@ func EventToIncoming(event *discordgo.InteractionCreate) (bot.IncomingInteractio
 func applicationCommandToIncoming(i *discordgo.Interaction) bot.IncomingInteraction {
 	options := map[string]string{}
 	var attachmentURL string
-	for _, opt := range i.ApplicationCommandData().Options {
-		if opt == nil {
-			continue
-		}
-		if s, ok := opt.Value.(string); ok {
-			options[opt.Name] = s
-		}
-		if opt.Type == discordgo.ApplicationCommandOptionAttachment {
-			if attachment, ok := i.ApplicationCommandData().Resolved.Attachments[opt.Value.(string)]; ok {
-				attachmentURL = attachment.URL
-			}
-		}
+	attachments := map[string]*discordgo.MessageAttachment{}
+	if i.ApplicationCommandData().Resolved != nil {
+		attachments = i.ApplicationCommandData().Resolved.Attachments
 	}
+	collectOptions(i.ApplicationCommandData().Options, attachments, options, &attachmentURL)
 	return bot.IncomingInteraction{
 		Type:          bot.InteractionApplicationCommand,
 		GuildID:       i.GuildID,
 		ChannelID:     i.ChannelID,
-		UserID:        i.User.ID,
+		UserID:        interactionUserID(i),
 		Command: bot.CommandRoute{
 			Name:       i.ApplicationCommandData().Name,
 			Subcommand: extractSubcommand(i),
@@ -55,14 +48,61 @@ func applicationCommandToIncoming(i *discordgo.Interaction) bot.IncomingInteract
 	}
 }
 
+func collectOptions(opts []*discordgo.ApplicationCommandInteractionDataOption, attachments map[string]*discordgo.MessageAttachment, out map[string]string, attachmentURL *string) {
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		switch opt.Type {
+		case discordgo.ApplicationCommandOptionSubCommand, discordgo.ApplicationCommandOptionSubCommandGroup:
+			collectOptions(opt.Options, attachments, out, attachmentURL)
+		case discordgo.ApplicationCommandOptionAttachment:
+			if attachment, ok := attachments[opt.Value.(string)]; ok {
+				*attachmentURL = attachment.URL
+			}
+		default:
+			if s, ok := opt.Value.(string); ok {
+				out[snakeToCamel(opt.Name)] = s
+			}
+		}
+	}
+}
+
+func snakeToCamel(s string) string {
+	parts := strings.Split(s, "_")
+	if len(parts) == 0 {
+		return s
+	}
+	for i := 1; i < len(parts); i++ {
+		if parts[i] == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+	}
+	return strings.Join(parts, "")
+}
+
 func componentToIncoming(i *discordgo.Interaction) bot.IncomingInteraction {
 	return bot.IncomingInteraction{
 		Type:      bot.InteractionMessageComponent,
 		GuildID:   i.GuildID,
 		ChannelID: i.ChannelID,
-		UserID:    i.User.ID,
+		UserID:    interactionUserID(i),
 		CustomID:  i.MessageComponentData().CustomID,
 	}
+}
+
+func interactionUserID(i *discordgo.Interaction) string {
+	if i == nil {
+		return ""
+	}
+	if i.User != nil {
+		return i.User.ID
+	}
+	if i.Member != nil && i.Member.User != nil {
+		return i.Member.User.ID
+	}
+	return ""
 }
 
 func extractSubcommand(i *discordgo.Interaction) string {

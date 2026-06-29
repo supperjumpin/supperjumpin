@@ -24,14 +24,17 @@ func RoundStartCommand() *discordgo.ApplicationCommand {
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Options: []*discordgo.ApplicationCommandOption{
 					{Type: discordgo.ApplicationCommandOptionString, Name: "community_id", Description: "Community ID", Required: true},
-					{Type: discordgo.ApplicationCommandOptionString, Name: "prompt_id", Description: "Prompt ID (omit for random pick)", Required: false},
 					{Type: discordgo.ApplicationCommandOptionString, Name: "reveal_timeframe_id", Description: "Reveal timeframe ID (e.g. tf-1h)", Required: true},
+					{Type: discordgo.ApplicationCommandOptionString, Name: "prompt_id", Description: "Prompt ID (omit for random pick)", Required: false},
 				},
 			},
 			{
 				Name:        "status",
 				Description: "Show the current Round's commit and submission counts.",
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Options: []*discordgo.ApplicationCommandOption{
+					{Type: discordgo.ApplicationCommandOptionString, Name: "round_id", Description: "Round ID", Required: true},
+				},
 			},
 		},
 	}
