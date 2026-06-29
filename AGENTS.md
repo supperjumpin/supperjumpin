@@ -1,31 +1,8 @@
-# PROJECT KNOWLEDGE BASE
+# Project Guide
 
-## OVERVIEW
+Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, generated TypeScript client in `packages/api-client`. `CONTEXT.md` owns domain language; ADRs in `docs/adr/` own architectural decisions.
 
-Go backend (`apps/api`) + Discord bot adapter (`apps/bot-discord`) + generated TypeScript client (`packages/api-client`). Domain language lives in root `CONTEXT.md` and ADRs in `docs/adr/`.
-
-## STRUCTURE
-
-```
-.
-├── apps/
-│   ├── api/              # Go backend (see apps/api/AGENTS.md)
-│   └── bot-discord/      # Discord bot adapter (see apps/bot-discord/AGENTS.md)
-├── packages/
-│   └── api-client/       # Generated TS client
-├── docs/
-│   ├── adr/              # Architecture Decision Records
-│   ├── agents/           # Agent-specific docs (issue tracker, triage labels)
-│   └── design/           # Product/UX/technical design docs
-├── scripts/              # Local dev and code-generation helpers
-├── worktrees/            # In-repo Git worktrees (e.g., issue-<number>)
-├── .agents/ / .claude/   # Agent skills (see skills-lock.json)
-├── .work-issue/          # Work-issue skill operator config
-├── CONTEXT.md            # Authoritative domain language dictionary
-└── AGENTS.md             # This file
-```
-
-## WHERE TO LOOK
+## Where To Look
 
 | Task | Location | Notes |
 |------|----------|-------|
@@ -33,12 +10,12 @@ Go backend (`apps/api`) + Discord bot adapter (`apps/bot-discord`) + generated T
 | Add/modify API endpoint | `apps/api/internal/httpapi/server.go` | Routes + handler closures |
 | Change API contract | `apps/api/openapi.yaml` → regenerate client | CI enforces sync |
 | Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
-| Prompt/Pack catalog | `apps/api/internal/game/prompts.go` + `apps/api/db/queries/prompts.sql` + `GET /v1/prompt-catalog` | `ListCatalog` / `SelectPrompt` / `SelectRandomPrompt`. Copy is data, not contract shape (ADR-0039). |
+| Prompt/Pack catalog | `apps/api/internal/game/prompts.go` + `apps/api/db/queries/prompts.sql` + `GET /v1/prompt-catalog` | Copy is data, not contract shape (ADR-0039) |
 | Discord bot | `apps/bot-discord/cmd/bot/main.go` + `apps/bot-discord/internal/` | Thin HTTP client of the API. Owns `apps/bot-discord/.bot-data/` (evidence, scheduler state). `npm run bot:dev` / `npm run bot:test`. |
 | Check CI pipeline | `.github/workflows/ci.yml` | Go + Node |
 | Domain terminology | `CONTEXT.md` | Authoritative vocabulary |
 
-## CONVENTIONS
+## Core Rules
 
 - **Hexagonal architecture**: Domain logic in `internal/game/` (pure functions, injected repo interfaces). Transport in `internal/httpapi/` (routing, JSON, DTO conversion). Domain must never import `net/http` or `database/sql`.
 - **Repository-per-flow**: Each `game/*.go` defines its own small repository interface. `PostgresStore` implements the composed interface; tests use per-test fakes or Postgres-backed fixtures.
@@ -52,28 +29,31 @@ Go backend (`apps/api`) + Discord bot adapter (`apps/bot-discord`) + generated T
 - **Co-located tests**: `*_test.go` alongside source. Node tests use `node --test` with `*.test.mjs`.
 - **Coverage commands**: `npm run test:coverage` and `npm run api:test:coverage` emit coverage summaries and write files under `coverage/`.
 
-## ANTI-PATTERNS (THIS PROJECT)
+## Avoid
 
 - Putting business logic in HTTP handlers (`server.go`). All rules belong in `internal/game/`.
 - Hand-writing API client types instead of generating from `openapi.yaml`.
 - Creating standalone DB migration files before DB stability.
 - Adding ESLint/Prettier/golangci-lint configs without team discussion.
 
-## GIT WORKFLOW
+## Git Workflow
 
 - **Feature branches for all changes** — never push to main directly.
-- **Before every push**: `git fetch origin && git rebase origin/main`.
-- **If rebase conflicts**: Stop and report them. Never force-push through conflicts.
-- **Only push after**: rebase resolves cleanly + build/tests pass.
+- **Main history should stay clean**: prefer squash merge so each commit on `main` represents one coherent body of work.
+- **PR branches are disposable**: commit freely while iterating; typo fixes and review follow-ups do not need cleanup on the branch.
+- **Squash titles should be outcome-first**: prefer `feat(area): outcome (#issue)`, `fix(area): outcome (#issue)`, `docs(area): outcome (#issue)`, `test(area): outcome (#issue)`, or `chore(area): outcome (#issue)` over slice/process phrasing.
+- **Update from main only when needed**: do it for mergeability, CI, or conflict resolution, not as a routine step before every push.
+- **Use the least painful branch update strategy**: merge, rebase, or recreate from fresh `main` depending on the branch state.
+- **Only push after**: required build/tests pass.
 
-## MAINTENANCE CONTRACT
+## Maintenance Contract
 
 These files are maintained by convention, not automation. Follow these rules in every PR:
 
 - **Update in the same PR**: If your PR changes something documented in any AGENTS.md — a convention, pattern, file location, or transitional state — update that AGENTS.md in the same PR.
 - **Open a new AGENTS.md on new boundaries**: When you add a new package or app, create a corresponding AGENTS.md. 30-80 lines, reference the parent AGENTS.md, never repeat parent content.
 
-## COMMANDS
+## Commands
 
 ```sh
 # Development
@@ -98,7 +78,7 @@ npm run generate:api-client  # openapi-typescript → packages/api-client/src/ge
 npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
 ```
 
-## NOTES
+## Notes
 
 - `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary.
 - Infrastructure is local-first: Docker Postgres, local dev bearer auth. Hosted infrastructure will be additive when introduced.
