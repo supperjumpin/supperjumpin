@@ -1,10 +1,8 @@
-# apps/api KNOWLEDGE BASE
-
-## OVERVIEW
+# apps/api Guide
 
 Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/OpenAPI contract.
 
-## WHERE TO LOOK
+## Where To Look
 
 | Task | Location | Notes |
 |------|----------|-------|
@@ -15,17 +13,13 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | Persistence adapter | `internal/httpapi/postgres_store.go` | sqlc-generated queries via `db.Queries` |
 | External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
-| Prompt/Pack catalog | `internal/game/prompts.go` + `db/queries/prompts.sql` | `ListCatalog` (full catalog), `SelectPrompt` (by id), `SelectRandomPrompt` (random pick). Seeded via `0001_accounts_players.up.sql` — platform-authored, global. |
-| Round start | `internal/game/round.go` + `db/queries/rounds.sql` + `db/queries/timeframes.sql` | `ListRevealTimeframes` (data-driven menu, seeded), `StartRound` (one-active invariant, explicit or random prompt pick, reveal_by computed from timeframe duration). `POST /v1/rounds` + `GET /v1/reveal-timeframes`. |
 | DB schema | `db/migrations/*.sql` | Communities, players, external_identity, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions, comments. Pre-stable: fold schema changes into existing migration files |
 | API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
-| Stamp catalog & reactions | `internal/game/reaction.go` + `db/queries/stamps.sql` + `db/queries/reactions.sql` | `ListStampCatalog` (data-driven, public), `ApplyReaction` (one Stamp to a revealed Jump, repeatable). `GET /v1/stamp-catalog` (public) + `POST /v1/rounds/{roundId}/jumps/{jumpId}/reactions` (bearerAuth). |
-| Comments | `internal/game/comment.go` + `db/queries/comments.sql` | `PostComment` (round-level or jump-level, post-reveal only), `ListComments` (scoped to round, optionally filtered to jump). `POST/GET /v1/rounds/{roundId}/comments` + `POST/GET /v1/rounds/{roundId}/jumps/{jumpId}/comments` (bearerAuth). Free-form channel distinct from Stamps. |
-| Lore derivation | `internal/game/lore.go` + `db/queries/lore.sql` | `DeriveCommunityLore` — pure derivation from Stamp density on revealed Jumps, keyed to moments, never per-Player. `GET /v1/communities/{communityId}/lore` (bearerAuth). No write path; no per-player ranking. |
-| Recap assembly | `internal/game/recap.go` + `db/queries/recap.sql` | `AssembleRecap` — read-only assembly of the Recap artifact for a revealed Round: jumps with stamp counts/evidence, all comments, Ghost Jumpers (committed, never submitted), resurfaced Community Lore. `GET /v1/rounds/{roundId}/recap` (bearerAuth). Format/narrator voice are presentation, not domain. |
 
-## CONVENTIONS
+`internal/game/AGENTS.md` owns domain-flow specifics. `internal/httpapi/AGENTS.md` owns route/DTO/logging specifics.
+
+## Core Rules
 
 - **Standard library HTTP only**: `net/http` + `http.NewServeMux()` with Go 1.22 path patterns. No Gin, Echo, or Fiber.
 - **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` plus `X-Adapter-Actor: discord:<guildID>:<userID>`. MVP development uses `SUPPERJUMPIN_ADAPTER_TOKEN` for local-first adapter auth.
@@ -33,7 +27,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 - **sqlc for queries**: All repository interface methods delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run generate:sqlc`.
 - **Transactions**: Multi-step DB operations use `BeginTx` + `defer tx.Rollback()` + `tx.Commit()` with `qtx := s.queries.WithTx(tx)`.
 
-## LOGGING CONVENTIONS
+## Logging
 
 The API uses `log/slog` structured JSON logs on a **unit-of-work** model. The middleware emits one final log line per request using accumulated metadata and the highest severity raised during the request.
 
@@ -71,14 +65,14 @@ These must **never** appear in log output:
 
 `internal/game/` must remain logger-free. Domain functions return structured errors that the transport layer maps to log fields.
 
-## ANTI-PATTERNS
+## Avoid
 
 - Adding business logic to `server.go` handlers. Keep handlers thin; delegate to transport helpers, which delegate to `internal/game/`.
 - Using an ORM or query builder. sqlc-generated queries is the current pattern.
 - Modifying `openapi.yaml` without regenerating the TypeScript client. CI will fail.
 - Creating new numbered migration files before DB stability. Fold into existing table-creation migrations.
 
-## NOTES
+## Notes
 
 - `PostgresStore` uses `database/sql` with `pgx` driver, not `pgxpool` directly.
 - `stableID(kind, value)` generates deterministic IDs. Never use UUIDs or auto-increment for domain entities.

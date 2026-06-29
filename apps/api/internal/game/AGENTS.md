@@ -1,10 +1,8 @@
-# apps/api/internal/game KNOWLEDGE BASE
-
-## OVERVIEW
+# apps/api/internal/game Guide
 
 Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON tags. Repository interfaces are injected; game rules are expressed as standalone functions.
 
-## MODULES
+## Where To Look
 
 | File | Responsibility |
 |------|---------------|
@@ -17,7 +15,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 | `lore.go` | Lore derivation: `DeriveCommunityLore` derives the Community's Lore from Stamp density on revealed Jumps — pure computation, never written-to directly. Groups reactions by jump, counts stamps by stance, sorts by total stamps descending. Lore is keyed to moments/bits, never to a per-Player tally (ADR-0033). No vote-into-Lore write path; no per-player ranking surface. Custom Lore-collection naming is presentation only, not domain state. |
 | `recap.go` | Recap assembly: `AssembleRecap` assembles the Recap artifact for a revealed Round — a read-only assembly surfacing all jumps with stamp counts and evidence, all comments (round-level and per-jump), Ghost Jumpers (committed but never submitted), resurfaced Community Lore, a `NextRoundHook` slot (whether an active Round already exists for the Community, plus its PromptID — the wording is presentation), `StandoutStamps` (dominant stance per jump with stamps; ties broken alphabetically; sorted by jump TotalStamps desc), and `StandoutComments` (comments on the top-stamped jump(s) of the Round; ties include all top jumps). Validates round exists and is revealed. Format/narrator voice are presentation concerns left to the edge; the domain produces the assembled data artifact. |
 
-## CONVENTIONS
+## Core Rules
 
 - **Repository-per-flow**: Each file defines its own focused repository interface. Interfaces are small and cohesive.
 - **Input/Result structs**: Every operation has explicit `XxxInput` and `XxxResult{Allowed, Created, Err}` structs.
@@ -26,7 +24,7 @@ Pure domain logic for Supperjumpin. No `net/http`, no `database/sql`, no JSON ta
 - **Clock injection**: Time-dependent logic accepts explicit `time.Time` values from callers; adapters own their clocks.
 - **Error naming**: Sentinel errors use `ErrXxx`.
 
-## ANTI-PATTERNS
+## Avoid
 
 - Importing `net/http`, `database/sql`, or any transport/persistence package. `game/` must remain pure.
 - Returning HTTP status codes or JSON shapes from domain functions.
