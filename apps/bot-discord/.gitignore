@@ -1,0 +1,5 @@
+# Discord bot development artifacts
+.bot-data/
+*.test
+*.out
+coverage/

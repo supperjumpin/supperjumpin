@@ -2,14 +2,15 @@
 
 ## OVERVIEW
 
-Go backend (`apps/api`) + generated TypeScript client (`packages/api-client`). Domain language lives in root `CONTEXT.md` and ADRs in `docs/adr/`.
+Go backend (`apps/api`) + Discord bot adapter (`apps/bot-discord`) + generated TypeScript client (`packages/api-client`). Domain language lives in root `CONTEXT.md` and ADRs in `docs/adr/`.
 
 ## STRUCTURE
 
 ```
 .
 ├── apps/
-│   └── api/              # Go backend (see apps/api/AGENTS.md)
+│   ├── api/              # Go backend (see apps/api/AGENTS.md)
+│   └── bot-discord/      # Discord bot adapter (see apps/bot-discord/AGENTS.md)
 ├── packages/
 │   └── api-client/       # Generated TS client
 ├── docs/
@@ -33,6 +34,7 @@ Go backend (`apps/api`) + generated TypeScript client (`packages/api-client`). D
 | Change API contract | `apps/api/openapi.yaml` → regenerate client | CI enforces sync |
 | Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
 | Prompt/Pack catalog | `apps/api/internal/game/prompts.go` + `apps/api/db/queries/prompts.sql` + `GET /v1/prompt-catalog` | `ListCatalog` / `SelectPrompt` / `SelectRandomPrompt`. Copy is data, not contract shape (ADR-0039). |
+| Discord bot | `apps/bot-discord/cmd/bot/main.go` + `apps/bot-discord/internal/` | Thin HTTP client of the API. Owns `apps/bot-discord/.bot-data/` (evidence, scheduler state). `npm run bot:dev` / `npm run bot:test`. |
 | Check CI pipeline | `.github/workflows/ci.yml` | Go + Node |
 | Domain terminology | `CONTEXT.md` | Authoritative vocabulary |
 
@@ -80,10 +82,12 @@ npm run db:down           # Stop Docker Compose Postgres without deleting data
 npm run db:reset          # Recreate local dev DB and reapply migrations
 npm run db:migrate        # Apply migrations to the local Docker Postgres only
 npm run api:dev           # Run API against existing DB
+npm run bot:dev           # Run Discord bot (needs SUPPERJUMPIN_BOT_TOKEN in env)
 
 # Testing
 npm run api:test          # Run Go API tests against Postgres
 npm run api:test:coverage  # Run Go API tests with coverage output
+npm run bot:test          # Run Go bot tests (in-process, no Postgres)
 npm test                  # npm workspace tests (api-client + scripts)
 npm run test:coverage     # npm workspace tests with coverage output
 
