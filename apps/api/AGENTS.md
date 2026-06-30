@@ -9,12 +9,12 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | Entry point / wiring | `cmd/api/main.go` | Env vars: PORT, SUPPERJUMPIN_DATABASE_URL, SUPPERJUMPIN_ADAPTER_TOKEN, SUPPERJUMPIN_LOG_FORMAT, SUPPERJUMPIN_LOG_LEVEL |
 | Add API endpoint | `internal/httpapi/server.go` | Closures over ServerConfig |
 | Change DTO / JSON shape | `internal/httpapi/dto.go` | camelCase JSON tags |
-| Postgres-backed tests | `npm run api:test` | Canonical test path against Postgres |
+| Postgres-backed tests | `mage test` | Canonical test path against Postgres; API prep is built into the root target |
 | Persistence adapter | `internal/httpapi/postgres_store.go` | sqlc-generated queries via `db.Queries` |
 | External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
 | DB schema | `db/migrations/*.sql` | Communities, players, external_identity, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions, comments. Pre-stable: fold schema changes into existing migration files |
-| API contract | `openapi.yaml` | Source of truth for generated TypeScript client |
+| API contract | `openapi.yaml` | Source of truth for the HTTP contract |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 
 `internal/game/AGENTS.md` owns domain-flow specifics. `internal/httpapi/AGENTS.md` owns route/DTO/logging specifics.
@@ -24,7 +24,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 - **Standard library HTTP only**: `net/http` + `http.NewServeMux()` with Go 1.22 path patterns. No Gin, Echo, or Fiber.
 - **Auth middleware pattern**: Every protected route calls `signedInProfile(w, r, config)` first. Bearer token from `Authorization` plus `X-Adapter-Actor: discord:<guildID>:<userID>`. MVP development uses `SUPPERJUMPIN_ADAPTER_TOKEN` for local-first adapter auth.
 - **Error mapping**: Domain errors are mapped to HTTP status codes in transport helpers.
-- **sqlc for queries**: All repository interface methods delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `npm run generate:sqlc`.
+- **sqlc for queries**: All repository interface methods delegate to `s.queries.*` (generated `*db.Queries`). Add/modify a query → edit its `.sql` file in `db/queries/`, run `mage generate:sqlc`.
 - **Transactions**: Multi-step DB operations use `BeginTx` + `defer tx.Rollback()` + `tx.Commit()` with `qtx := s.queries.WithTx(tx)`.
 
 ## Logging
@@ -69,7 +69,7 @@ These must **never** appear in log output:
 
 - Adding business logic to `server.go` handlers. Keep handlers thin; delegate to transport helpers, which delegate to `internal/game/`.
 - Using an ORM or query builder. sqlc-generated queries is the current pattern.
-- Modifying `openapi.yaml` without regenerating the TypeScript client. CI will fail.
+- Modifying `openapi.yaml` without keeping the handlers and DTOs aligned with it.
 - Creating new numbered migration files before DB stability. Fold into existing table-creation migrations.
 
 ## Notes

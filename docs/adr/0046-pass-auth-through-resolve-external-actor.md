@@ -39,9 +39,9 @@ This is explicitly **deferred**, per ADR-0037. The new auth model makes the seam
 This is a real change to `openapi.yaml`:
 - `components.securitySchemes.bearerAuth` stays as `type: http` `scheme: bearer` but the description changes to "adapter authorization" (the bearer is the adapter's credential, not an account's).
 - A new header parameter `X-Adapter-Actor` is declared at the **path-level** (or via a shared component), required on all authenticated routes, not duplicated on each operation. This is the smallest OpenAPI footprint for the contract change.
-- The `GET /v1/me` response shape changes: `account` field removed; `community` field added. The generated TypeScript client regenerates via `npm run generate:api-client` and the sync gate fires.
+- The `GET /v1/me` response shape changes: `account` field removed; `community` field added. (Originally this ADR noted the TypeScript client would regenerate via `npm run generate:api-client` and the OpenAPI sync gate would fire; that pipeline is gone as of ADR-0049, so the only consumer-visible change is the spec itself.)
 
-The OpenAPI sync gate is *expected to fire* on this slice. It is the first intentional contract change since the pivot, and rightly so — the contract is being made internally consistent. CI's `generate:api-client` + `git diff --exit-code` is preserved as the gate.
+This is the first intentional contract change since the pivot. The contract is being made internally consistent with the pivoted domain (ADR-0037).
 
 ## Why not a softer migration
 

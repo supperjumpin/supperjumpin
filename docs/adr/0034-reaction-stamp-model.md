@@ -11,7 +11,7 @@ The on-stage interaction at a **Round** reveal is a **Reaction**: a **Player** a
 
 ## Edge (tunable data, never in `openapi.yaml`)
 
-- The **Stamp** catalog rows — label, glyph/emoji, copy, ordering, active flag, optional lore-weight — live as seeded data, not a Go enum or OpenAPI enum. Labels are expected to churn continuously (slang expiry, seasonal stamps, community in-jokes); that churn must never trip the OpenAPI sync gate.
+- The **Stamp** catalog rows — label, glyph/emoji, copy, ordering, active flag, optional lore-weight — live as seeded data, not a Go enum or OpenAPI enum. Labels are expected to churn continuously (slang expiry, seasonal stamps, community in-jokes); that churn must never require an OpenAPI or Go enum change. (Originally the rationale cited the OpenAPI sync gate; that gate is gone as of ADR-0049, but the structural reason — labels are edge, stance is spine — still holds.)
 
 ## Also decided
 

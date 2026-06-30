@@ -4,7 +4,7 @@ The first front-end adapter — the Discord bot — lives in `apps/bot-discord/`
 
 ## The seam
 
-- **Package:** `apps/bot-discord/` with its own `cmd/bot/main.go`, run via `npm run bot:dev`. The API process and the bot process are independently restartable.
+- **Package:** `apps/bot-discord/` with its own `cmd/bot/main.go`, run via `mage dev:bot` (was `npm run bot:dev` before the build-tooling pivot, ADR-0047). The API process and the bot process are independently restartable.
 - **Transport:** the bot is an HTTP client of `apps/api`. It calls the same OpenAPI-published endpoints any other client would; the core carries no Discord-shaped identifiers in its process memory beyond the `external_identity` rows the bot wrote (ADR-0037).
 - **No core-side code for the adapter.** Adding the bot consumes the contract; it does not extend it. This is the bar every later adapter must clear.
 
@@ -12,7 +12,7 @@ The first front-end adapter — the Discord bot — lives in `apps/bot-discord/`
 
 Two alternatives were considered and rejected:
 
-- **In-process sub-router inside `apps/api/internal/`.** Faster to build (no HTTP hop), but it breaches the #319 thesis the moment Discord identifiers share a binary with the core. It also tempts future adapters to bypass the OpenAPI contract and call `game.*` directly — the exact drift the OpenAPI sync gate is meant to prevent.
+- **In-process sub-router inside `apps/api/internal/`.** Faster to build (no HTTP hop), but it breaches the #319 thesis the moment Discord identifiers share a binary with the core. It also tempts future adapters to bypass the OpenAPI contract and call `game.*` directly — the exact drift a contract-and-typesystem boundary is meant to prevent. (Originally this rationale cited the OpenAPI sync gate; that gate is gone as of ADR-0049, but the structural reason — bypassing the contract and the type system — still holds.)
 - **Shared library with the bot calling `game.*` directly (same process, same binary, separate `cmd`).** Same drift risk, and harder to walk back than the HTTP seam because the call boundary is implicit.
 
 The independent-process, HTTP-client shape makes "swap the front-end" a literal replacement (`rm -rf apps/bot-discord` and write `apps/bot-telegram`), keeps logs separable, and lets the bot migrate to its own host later without touching the core. The HTTP hop is negligible for a chat-rate workload.

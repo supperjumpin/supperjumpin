@@ -8,6 +8,7 @@
 - **Last Updated**: 2026-05-30T20:00:00Z
 
 ## ⏳ Activity Timeline (Current Session)
+- 2026-06-29T22:00:00Z [OpenCode]: Completed issue #349 design via ADR-0047..0050, posted the ready-for-agent brief on #349, and started the Mage migration with TDD-style helper/plan tests.
 - 2026-05-30T20:00:00Z [Sisyphus]: Completed #67 — updated CONTEXT.md and ADRs for accepted decision changes. New ADRs 0025–0027. All five acceptance criteria met.
 - 2026-05-30T14:45:00Z [Sisyphus]: Seven expert agents completed growth loop analysis. Consolidated findings now available for review. Key tensions: Judge→Performer transition, monthly Open cadence, share viral mechanics, Guest conversion path, BeReal reciprocity gate gap.
 - 2026-05-30T14:00:00Z [Sisyphus]: Drafted MVP Roadmap and Sequencing Plan (#65) -> docs/design/04-mvp-roadmap.md with 4 horizons, explicit cuts table, metrics per stage, and decision gates.
@@ -34,7 +35,9 @@
   - The Open: monthly soft-close, always active, no commissioner (ADR-0023).
   - Group Seasons: bounded periods with commissioner, submission window, judging grace period (v2).
   - Open Standings separate from Season Standings.
-- **API Client Sync**: Strictly enforced via CI using `openapi-typescript`. Any divergence between `openapi.yaml` and `packages/api-client/src` results in a hard build failure.
+- **Build Orchestration**: `magefile/` now owns the repo command surface; the old root Node scripts are being deleted.
+- **Bot Client Independence**: `apps/bot-discord` has its own Go API client. Deleting `packages/api-client/` does not remove any runtime consumer.
+- **OpenAPI Drift**: The TypeScript sync gate is intentionally gone. Coverage comments and CI now only compare the Go API and Discord bot reports.
 
 ---
 

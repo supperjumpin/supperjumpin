@@ -20,13 +20,12 @@ Single product context monorepo:
 |   |-- 0001-event-sourced-orders.md
 |   `-- 0002-postgres-for-write-model.md
 |-- apps/
-|   |-- mobile/
-|   `-- api/
-`-- packages/
-    `-- api-client/
+|   |-- api/
+|   `-- bot-discord/
+`-- magefile/
 ```
 
-`apps/mobile` and `apps/api` are implementation boundaries, not separate domain contexts. Use the same root glossary vocabulary in mobile screens, API routes, issues, tests, and architecture notes.
+`apps/api` and `apps/bot-discord` are implementation boundaries, not separate domain contexts. Use the same root glossary vocabulary in API routes, bot interactions, issues, tests, and architecture notes.
 
 Do not create per-app `CONTEXT.md` files unless the product domain genuinely splits later. App-specific or API-specific implementation notes may live under their app directories, but domain language stays rooted here.
 
