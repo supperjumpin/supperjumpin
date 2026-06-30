@@ -1,0 +1,17 @@
+FROM golang:1.26.4 AS build
+
+WORKDIR /src
+
+COPY go.work go.work.sum ./
+COPY apps/api/go.mod apps/api/go.sum ./apps/api/
+COPY apps/bot-discord/go.mod apps/bot-discord/go.sum ./apps/bot-discord/
+RUN go work sync && cd apps/bot-discord && go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/bot ./apps/bot-discord/cmd/bot
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /out/bot /bot
+
+ENTRYPOINT ["/bot"]

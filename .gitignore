@@ -20,6 +20,7 @@ node_modules/
 dist/
 build/
 coverage/
+mage_output/
 
 # Caches
 .cache/
@@ -33,12 +34,11 @@ worktrees/
 # Local tool binaries
 bin/
 
+# Adapter-local state
+.bot-data/
+
 # Local work-issue orchestration state
 .work-issue/
-
-# OpenCode / OMO directories
-.omo/
-.opencode/
 
 # OpenCode / OMO directories
 .omo/
