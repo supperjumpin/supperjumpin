@@ -5,6 +5,7 @@ WORKDIR /src
 COPY go.work go.work.sum ./
 COPY apps/api/go.mod apps/api/go.sum ./apps/api/
 COPY apps/bot-discord/go.mod apps/bot-discord/go.sum ./apps/bot-discord/
+COPY magefile/go.mod magefile/go.sum ./magefile/
 RUN go work sync && cd apps/api && go mod download
 
 COPY . .
