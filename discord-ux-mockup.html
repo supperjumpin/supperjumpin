@@ -18,12 +18,21 @@
         .user-name { color: #f2f3f5; font-weight: 600; margin-right: 8px; }
         .timestamp { color: #80848e; font-size: 12px; }
         .embed { background-color: #2b2d31; border-left: 4px solid #5865f2; padding: 12px; border-radius: 4px; margin-top: 8px; }
+        .embed-results { background-color: #2b2d31; border-left: 4px solid #f04747; padding: 12px; border-radius: 4px; margin-top: 8px; }
+        .embed-leaderboard { background-color: #2b2d31; border-left: 4px solid #faa61a; padding: 16px; border-radius: 4px; margin-top: 8px; }
         .controller { background-color: #1e1f22; border-left: 1px solid #2b2d31; }
         .chatter-msg { font-style: italic; color: #b5bac4; }
+        .gallery-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; display: none; }
+        .gallery-card { background: #2b2d31; border-radius: 8px; padding: 20px; transition: transform 0.2s; }
+        .gallery-card:hover { transform: scale(1.02); }
+        .stamp-btn { background-color: #4e5058; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-right: 4px; cursor: pointer; transition: background 0.2s; }
+        .stamp-btn:hover { background-color: #6d6f75; }
+        .stamp-btn:disabled { background-color: #2b2d31; color: #80848e; cursor: not-allowed; }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden">
 
+    <!-- Discord Sidebar -->
     <div class="discord-sidebar w-64 flex-shrink-0 hidden md:flex flex-col p-4">
         <div class="text-white font-bold mb-8 px-2">Supperjumpin Server</div>
         <div class="space-y-2">
@@ -33,6 +42,7 @@
         </div>
     </div>
 
+    <!-- Main Chat Area -->
     <div class="discord-chat flex-grow flex flex-col relative">
         <div class="h-12 border-b border-black flex items-center px-4 justify-between shadow-sm">
             <div class="font-bold text-white"># ritual-chamber</div>
@@ -54,6 +64,19 @@
         </div>
     </div>
 
+    <!-- Gallery Overlay (Option A) -->
+    <div id="gallery-overlay" class="gallery-overlay" onclick="closeGallery(event)">
+        <div class="max-w-4xl mx-auto mt-8 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-white text-2xl font-bold">🏆 Ritual Results Gallery</h2>
+                <button onclick="closeGallery()" class="discord-btn">✕ Close</button>
+            </div>
+            <p class="text-gray-400 text-sm mb-6">The reveal is live. Review each jump and stamp your judgment.</p>
+            <div id="gallery-cards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+    </div>
+
+    <!-- Scenario Controller -->
     <div class="controller w-80 flex-shrink-0 p-6 overflow-y-auto">
         <h2 class="text-white font-bold mb-4 border-b border-gray-700 pb-2">Scenario Controller</h2>
         <p class="text-gray-400 text-xs mb-6">Trigger events to see the Living Announcement and Ritual Chatter in action.</p>
@@ -78,8 +101,11 @@
             </div>
             <div id="reveal-controls" class="opacity-50 pointer-events-none">
                 <label class="text-xs text-gray-500 uppercase font-bold block mb-2">Step 3: Resolution</label>
-                <button onclick="triggerReveal()" class="w-full text-left px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition">
-                    👁️ Trigger Reveal Phase
+                <button onclick="triggerRevealGallery()" class="w-full text-left px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition mb-2">
+                    👁️ Trigger Reveal (Gallery)
+                </button>
+                <button onclick="triggerRevealSummary()" class="w-full text-left px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition">
+                    📋 Trigger Reveal (Summary)
                 </button>
             </div>
             <div class="pt-10">
@@ -92,8 +118,13 @@
         let announcementId = null;
         let committedPlayers = [];
         let submittedPlayers = [];
+        const jumpData = {
+            'User A': { title: '10lb Burger Challenge', desc: 'Ordered the biggest burger on the menu and finished it in under 10 minutes.', evidence: '🍔🍔🍔' },
+            'User B': { title: 'Wore pajamas to brunch', desc: 'Showed up to a fancy brunch spot in full pajamas and slippers.', evidence: '🛌🥞' },
+            'User C': { title: 'Karaoke-induced hearing damage', desc: 'Sang Bohemian Rhapsody so loud the staff asked us to leave.', evidence: '🎤🎸' }
+        };
 
-        function createMessage(user, content, isBot = true, isChatter = false) {
+        function createMessage(user, content, isBot, isChatter) {
             const chat = document.getElementById('chat-window');
             const div = document.createElement('div');
             div.className = 'discord-message flex items-start';
@@ -138,7 +169,7 @@
             if (commitCount > 0 && submittedCount < commitCount) {
                 actionButton = '<button class="discord-btn" onclick="triggerSubmit(\'You\'); this.disabled=true;">Submit Jump</button>';
             } else if (submittedCount === commitCount && commitCount > 0) {
-                actionButton = '<div class="text-xs text-emerald-400 font-bold">All committed players have submitted!</div%';
+                actionButton = '<div class="text-xs text-emerald-400 font-bold">All committed players have submitted! Awaiting reveal...</div>';
             } else {
                 actionButton = '<button id="btn-im-in" class="discord-btn" onclick="triggerCommit(\'You\')">I\'m In</button>';
             }
@@ -151,11 +182,103 @@
             if (submittedCount >= 3) { document.getElementById('reveal-controls').classList.remove('opacity-50', 'pointer-events-none'); }
         }
 
-        function triggerReveal() {
-            const content = '<div class="embed"><div class="font-bold text-white mb-1">👁️ THE REVEAL</div><div class="text-sm text-gray-400 mb-3">The seals are broken. Behold the jumps!</div><div class="flex gap-2"><button class="discord-btn" onclick="alert(\'Loading Gallery...\')">View Result Gallery</button></div></div>';
+        // Option A: Gallery Overlay
+        function triggerRevealGallery() {
+            const content = '<div class="embed-results"><div class="font-bold text-white mb-1">👁️ THE REVEAL</div><div class="text-sm text-gray-400 mb-3">The seals are broken. Behold the jumps!</div><div class="flex gap-2"><button class="discord-btn" onclick="openGallery()">View Result Gallery</button></div></div>';
             const contentDiv = announcementId.querySelector('div:nth-child(2) div:last-child');
             contentDiv.innerHTML = content;
-            createMessage('Supper Bot', '📢 <b>The Reveal is live!</b> Check the gallery to see who jumped and where they landed.');
+            createMessage('Supper Bot', '📢 <b>The Reveal is live!</b> Click "View Result Gallery" to see who jumped.');
+            // Auto-open the gallery
+            setTimeout(openGallery, 500);
+        }
+
+        function openGallery() {
+            const overlay = document.getElementById('gallery-overlay');
+            const cardsContainer = document.getElementById('gallery-cards');
+            cardsContainer.innerHTML = '';
+            submittedPlayers.forEach(function(player) {
+                const data = jumpData[player] || { title: 'Unknown Jump', desc: 'No description.', evidence: '❓' };
+                const card = document.createElement('div');
+                card.className = 'gallery-card';
+                card.innerHTML = 
+                    '<div class="flex items-center gap-3 mb-3">' +
+                        '<div class="w-10 h-10 rounded-full bg-gray-500"></div>' +
+                        '<span class="text-white font-bold">' + player + '</span>' +
+                    '</div>' +
+                    '<div class="text-2xl mb-2">' + data.evidence + '</div>' +
+                    '<div class="text-white font-semibold mb-1">' + data.title + '</div>' +
+                    '<div class="text-gray-400 text-sm mb-4">' + data.desc + '</div>' +
+                    '<div class="border-t border-gray-600 pt-3">' +
+                        '<div class="text-xs text-gray-500 mb-2">Stamp your judgment:</div>' +
+                        '<button class="stamp-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'">🔥 Wild</button>' +
+                        '<button class="stamp-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'">😅 Mild</button>' +
+                        '<button class="stamp-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'">💯 Legend</button>' +
+                        '<button class="stamp-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'">🤷 Pass</button>' +
+                    '</div>';
+                cardsContainer.appendChild(card);
+            });
+            overlay.style.display = 'block';
+        }
+
+        function closeGallery(e) {
+            if (e && e.target !== document.getElementById('gallery-overlay')) return;
+            document.getElementById('gallery-overlay').style.display = 'none';
+        }
+
+        // Option B: Rich Summary in-channel
+        function triggerRevealSummary() {
+            const content = '<div class="embed-results"><div class="font-bold text-white mb-1">👁️ THE REVEAL</div><div class="text-sm text-gray-400 mb-3">The seals are broken. Results below!</div></div>';
+            const contentDiv = announcementId.querySelector('div:nth-child(2) div:last-child');
+            contentDiv.innerHTML = content;
+            createMessage('Supper Bot', '📢 <b>The Reveal is live!</b> Check out the results below.');
+
+            // Leaderboard summary embed
+            setTimeout(function() {
+                const leaderboardContent = 
+                    '<div class="embed-leaderboard">' +
+                        '<div class="font-bold text-white mb-2">🏆 Ritual Round Summary</div>' +
+                        '<div class="text-sm text-gray-400 mb-3">' + submittedPlayers.length + ' players jumped this round.</div>' +
+                        '<div class="space-y-1">' +
+                            submittedPlayers.map(function(p, i) { 
+                                return '<div class="flex items-center justify-between bg-[#1e1f22] rounded px-3 py-2">' +
+                                    '<span class="text-white text-sm"><b>' + (i+1) + '</b>. ' + p + '</span>' +
+                                    '<span class="text-gray-500 text-xs">' + (jumpData[p] || {}).title + '</span>' +
+                                '</div>';
+                            }).join('') +
+                        '</div>' +
+                    '</div>';
+                createMessage('Supper Bot', leaderboardContent);
+            }, 600);
+
+            // Individual reveal cards
+            submittedPlayers.forEach(function(player, idx) {
+                setTimeout(function() {
+                    const data = jumpData[player] || { title: 'Unknown Jump', desc: 'No description.', evidence: '❓' };
+                    const cardContent = 
+                        '<div class="embed-results">' +
+                            '<div class="flex items-center gap-2 mb-2">' +
+                                '<div class="w-8 h-8 rounded-full bg-gray-500"></div>' +
+                                '<span class="text-white font-bold">' + player + '</span>' +
+                                '<span class="text-xs text-gray-500">just jumped</span>' +
+                            '</div>' +
+                            '<div class="text-xl mb-1">' + data.evidence + '</div>' +
+                            '<div class="text-white font-semibold text-sm mb-1">' + data.title + '</div>' +
+                            '<div class="text-gray-400 text-sm mb-3">' + data.desc + '</div>' +
+                            '<div class="flex gap-2 flex-wrap">' +
+                                '<button class="discord-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'; this.innerText=\'🔥 Wild (1)\'">🔥 Wild</button>' +
+                                '<button class="discord-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'; this.innerText=\'😅 Mild (1)\'">😅 Mild</button>' +
+                                '<button class="discord-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'; this.innerText=\'💯 Legend (1)\'">💯 Legend</button>' +
+                                '<button class="discord-btn" onclick="this.disabled=true; this.style.background=\'#5865f2\'; this.innerText=\'🤷 Pass (1)\'">🤷 Pass</button>' +
+                            '</div>' +
+                        '</div>';
+                    createMessage(player, cardContent, false, false);
+                }, 1200 + idx * 800);
+            });
+
+            // Closing prompt
+            setTimeout(function() {
+                createMessage('Supper Bot', '💬 <b>Round complete!</b> Stamps are tallied. Start a new ritual when you\'re ready.', true, true);
+            }, 1200 + submittedPlayers.length * 800 + 500);
         }
     </script>
 </body>
