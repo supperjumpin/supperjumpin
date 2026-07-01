@@ -181,7 +181,7 @@
 
             let actionButton = '';
             if (commitCount > 0 && submittedCount < commitCount) {
-                actionButton = `<button class="discord-btn" onclick="triggerSubmit('You')">Submit Jump</button>`;
+                actionButton = `<button class="discord-btn" onclick="triggerSubmit('You'); this.disabled=true;">Submit Jump</button>`;
             } else if (submittedCount === commitCount && commitCount > 0) {
                 actionButton = `<div class="text-xs text-emerald-400 font-bold">All committed players have submitted!</div>`;
             } else {
