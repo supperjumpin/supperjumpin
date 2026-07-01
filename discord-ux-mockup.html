@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin Discord UX Mockup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .discord-sidebar { background-color: #1e1f22; }
+        .discord-chat { background-color: #313338; }
+        .discord-message { margin-bottom: 1.2rem; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .discord-btn { background-color: #4e5058; color: white; padding: 4px 12px; border-radius: 3px; font-size: 14px; transition: background 0.2s; }
+        .discord-btn:hover { background-color: #6d6f75; }
+        .discord-btn:disabled { background-color: #2b2d31; color: #80848e; cursor: not-allowed; }
+        .bot-tag { background-color: #5865f2; color: white; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: bold; margin-right: 4px; vertical-align: middle; }
+        .user-name { color: #f2f3f5; font-weight: 600; margin-right: 8px; }
+        .timestamp { color: #80848e; font-size: 12px; }
+        .embed { background-color: #2b2d31; border-left: 4px solid #5865f2; padding: 12px; border-radius: 4px; margin-top: 8px; }
+        .controller { background-color: #1e1f22; border-left: 1px solid #2b2d31; }
+        .chatter-msg { font-style: italic; color: #b5bac4; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <!-- Discord Sidebar Mock -->
+    <div class="discord-sidebar w-64 flex-shrink-0 hidden md:flex flex-col p-4">
+        <div class="text-white font-bold mb-8 px-2">Supperjumpin Server</div>
+        <div class="space-y-2">
+            <div class="text-gray-400 px-2 py-1 hover:bg-gray-700 rounded cursor-pointer"># general</div>
+            <div class="bg-gray-600 text-white px-2 py-1 rounded cursor-pointer"># ritual-chamber</div>
+            <div class="text-gray-400 px-2 py-1 hover:bg-gray-700 rounded cursor-pointer"># food-pics</div>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="discord-chat flex-grow flex flex-col relative">
+        <div class="h-12 border-b border-black flex items-center px-4 justify-between shadow-sm">
+            <div class="font-bold text-white"># ritual-chamber</div>
+        </div>
+
+        <div id="chat-window" class="flex-grow overflow-y-auto p-4 space-y-4">
+            <!-- Initial Welcome Message -->
+            <div class="discord-message flex items-start">
+                <div class="w-10 h-10 rounded-full bg-indigo-500 mr-4"></div>
+                <div>
+                    <span class="user-name">Supper Bot <span class="bot-tag">BOT</span></span>
+                    <span class="timestamp">Today at 6:00 PM</span>
+                    <div class="text-gray-300">Welcome to the ritual chamber. Wait for the host to start the round!</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area (Static) -->
+        <div class="p-4">
+            <div class="bg-[#383a40] rounded-lg p-3 text-gray-500 text-sm">
+                Message #ritual-chamber
+            </div>
+        </div>
+    </div>
+
+    <!-- STATE CONTROLLER (The 'Tweak' Panel) -->
+    <div class="controller w-80 flex-shrink-0 p-6 overflow-y-auto">
+        <h2 class="text-white font-bold mb-4 border-b border-gray-700 pb-2">Scenario Controller</h2>
+        <p class="text-gray-400 text-xs mb-6">Trigger events to see the Living Announcement and Ritual Chatter in action.</p>
+
+        <div class="space-y-6">
+            <!-- Step 1: Start -->
+            <div>
+                <label class="text-xs text-gray-500 uppercase font-bold block mb-2">Step 1: Initiation</label>
+                <button onclick="triggerStart()" class="w-full text-left px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">
+                    🚀 Start Ritual Round
+                </button>
+            </div>
+
+            <!-- Step 2: Interaction -->
+            <div id="interaction-controls" class="opacity-50 pointer-events-none">
+                <label class="text-xs text-gray-500 uppercase font-bold block mb-2">Step 2: Player Actions</label>
+                <div class="grid grid-cols-1 gap-2">
+                    <button onclick="triggerCommit('User A')" class="text-left px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm">
+                        👤 User A clicks 'I'm In'
+                    </button>
+                    <button onclick="triggerCommit('User B')" class="text-left px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm">
+                        👤 User B clicks 'I'm In'
+                    </button>
+                    <button onclick="triggerCommit('User C')" class="text-left px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm">
+                        👤 User C clicks 'I'm In'
+                    </button>
+                    <button onclick="triggerSubmit('User A')" class="text-left px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm">
+                        📦 User A submits jump
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Reveal -->
+            <div id="reveal-controls" class="opacity-50 pointer-events-none">
+                <label class="text-xs text-gray-500 uppercase font-bold block mb-2">Step 3: Resolution</label>
+                <button onclick="triggerReveal()" class="w-full text-left px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition">
+                    👁️ Trigger Reveal Phase
+                </button>
+            </div>
+
+            <div class="pt-10">
+                <button onclick="location.reload()" class="text-gray-500 text-xs hover:underline">Reset Simulation</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let announcementId = null;
+        let committedPlayers = [];
+        let submittedPlayers = [];
+
+        function createMessage(user, content, isBot = true, isChatter = false) {
+            const chat = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            div.className = 'discord-message flex items-start';
+            
+            const avatar = isBot ? 'bg-indigo-500' : 'bg-gray-500';
+            const botTag = isBot ? '<span class="bot-tag">BOT</span>' : '';
+            
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-full ${avatar} mr-4"></div>
+                <div>
+                    <span class="user-name">${user} ${botTag}</span>
+                    <span class="timestamp">Today at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <div class="${isChatter ? 'chatter-msg' : 'text-gray-300'}">${content}</div>
+                </div>
+            `;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+            return div;
+        }
+
+        function triggerStart() {
+            const content = `
+                <div class="embed">
+                    <div class="font-bold text-white mb-1">✨ A New Ritual has Begun!</div>
+                    <div class="text-sm text-gray-400 mb-3">The seals are open. Who is brave enough to jump?</div>
+                    <div class="flex gap-2">
+                        <button id="btn-im-in" class="discord-btn" onclick="triggerCommit('You')">I'm In</button>
+                    </div>
+                </div>
+            `;
+            const msg = createMessage('Supper Bot', content);
+            announcementId = msg;
+            
+            document.getElementById('interaction-controls').classList.remove('opacity-50', 'pointer-events-none');
+        }
+
+        function triggerCommit(user) {
+            if (!committedPlayers.includes(user)) {
+                committedPlayers.push(user);
+            }
+
+            // 1. Ritual Chatter (New Message)
+            createMessage('Supper Bot', `✨ <b>${user}</b> has committed to the ritual!`, true, true);
+
+            // 2. Living Announcement Update (Edit Message)
+            updateAnnouncement();
+        }
+
+        function triggerSubmit(user) {
+            if (!submittedPlayers.includes(user)) {
+                submittedPlayers.push(user);
+            }
+            createMessage('Supper Bot', `📦 <b>${user}</b> has sealed and submitted their jump.`, true, true);
+            updateAnnouncement();
+        }
+
+        function updateAnnouncement() {
+            if (!announcementId) return;
+            
+            const playersList = committedPlayers.length > 0 
+                ? `<div class="text-xs text-gray-400 mt-2">Committed: ${committedPlayers.join(', ')}</div>` 
+                : '';
+            
+            const submittedCount = submittedPlayers.length;
+            const commitCount = committedPlayers.length;
+
+            let actionButton = '';
+            if (commitCount > 0 && submittedCount < commitCount) {
+                actionButton = `<button class="discord-btn" onclick="triggerSubmit('You')">Submit Jump</button>`;
+            } else if (submittedCount === commitCount && commitCount > 0) {
+                actionButton = `<div class="text-xs text-emerald-400 font-bold">All committed players have submitted!</div>`;
+            } else {
+                actionButton = `<button id="btn-im-in" class="discord-btn" onclick="triggerCommit('You')">I'm In</button>`;
+            }
+
+            const content = `
+                <div class="embed">
+                    <div class="font-bold text-white mb-1">✨ Ritual in Progress</div>
+                    <div class="text-sm text-gray-400 mb-2">
+                        ${commitCount}/${committedPlayers.length || 0} players have committed. 
+                        ${submittedCount > 0 ? `<br>📦 ${submittedCount} jumps are sealed.` : ''}
+                    </div>
+                    ${playersList}
+                    <div class="flex gap-2 mt-3">${actionButton}</div>
+                </div>
+            `;
+            
+            // Find the content div in the announcement message and replace it
+            const contentDiv = announcementId.querySelector('div:nth-child(2) div:last-child');
+            contentDiv.innerHTML = content;
+            
+            if (submittedCount >= 3) { // Simulation threshold for reveal
+                document.getElementById('reveal-controls').classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function triggerReveal() {
+            const content = `
+                <div class="embed">
+                    <div class="font-bold text-white mb-1">👁️ THE REVEAL</div>
+                    <div class="text-sm text-gray-400 mb-3">The seals are broken. Behold the jumps!</div>
+                    <div class="flex gap-2">
+                        <button class="discord-btn" onclick="alert('Loading Gallery...')">View Result Gallery</button>
+                    </div>
+                </div>
+            `;
+            const contentDiv = announcementId.querySelector('div:nth-child(2) div:last-child');
+            contentDiv.innerHTML = content;
+            
+            // Final reveal chatter
+            createMessage('Supper Bot', `📢 <b>The Reveal is live!</b> Check the gallery to see who jumped and where they landed.`);
+        }
+    </script>
+</body>
+</html>
