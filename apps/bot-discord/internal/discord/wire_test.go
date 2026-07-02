@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/supperjumpin/supperjumpin/apps/bot-discord/internal/evidence"
 )
 
 func TestConfigFromEnv_RequiresAllFields(t *testing.T) {
@@ -108,6 +110,24 @@ func TestWired_LoadStampTemplateFetchesCatalogIntoRenderer(t *testing.T) {
 	}
 	if got, want := wired.Renderer.stampTemplate[1].Label, "Chaos"; got != want {
 		t.Errorf("stampTemplate[1].Label: got %q, want %q", got, want)
+	}
+}
+
+func TestEvidenceHTTPHandler_LivezReturnsNoContent(t *testing.T) {
+	store, err := evidence.NewStore(evidence.StoreConfig{
+		Dir:     t.TempDir(),
+		BaseURL: "http://localhost:9999",
+	})
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
+	evidenceHTTPHandler(store).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("GET /livez status: got %d, want %d", rec.Code, http.StatusNoContent)
 	}
 }
 

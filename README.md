@@ -76,6 +76,17 @@ mage build:api
 mage build:bot
 ```
 
+## Home-server deployment
+
+Local development keeps `docker-compose.yml` focused on Postgres only. The home-server stack uses `docker-compose.prod.yml` to run Postgres, one-shot migrations, the API, and the Discord bot:
+
+```sh
+cp .env.example .env
+docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+```
+
+The detailed initial setup and deploy runbooks live in `~/src/home-server-setup/initial-setup.md` and `~/src/home-server-setup/deploy-supperjumpin.md`.
+
 ## Current state
 
 Platform-pure core API with identity surface only (`GET /v1/me`, `PATCH /v1/me/display-name`). Downstream slices build on this skeleton.
