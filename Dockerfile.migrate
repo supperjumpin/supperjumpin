@@ -1,6 +1,6 @@
 FROM golang:1.26.4 AS build
 
-RUN go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+RUN CGO_ENABLED=0 go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
