@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Hybrid Loreboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .sidebar { background: #1e1f22; }
+        .message-card { background: #2b2d31; border-left: 4px solid #faa61a; border-radius: 8px; }
+        .activity { background: linear-gradient(160deg, #17171f, #2b1f33 48%, #1e1f22); }
+        .btn { background: #4e5058; border-radius: 4px; padding: 5px 10px; font-size: 13px; font-weight: 700; }
+        .btn.primary { background: #5865f2; }
+        .btn.gold { background: #a66f00; }
+        .signal { background: rgba(250,166,26,.15); border: 1px solid rgba(250,166,26,.35); }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <aside class="sidebar hidden w-60 shrink-0 p-4 md:block">
+            <a href="index.html" class="text-xs text-indigo-300 hover:underline">Back to mockups</a>
+            <div class="mt-5 text-lg font-black text-white">Supperjumpin Server</div>
+            <div class="mt-8 space-y-2 text-sm"><div class="text-gray-400"># general</div><div class="rounded bg-gray-600 px-2 py-1 text-white"># ritual-chamber</div><div class="text-gray-400"># lore</div></div>
+            <div class="mt-10 rounded-xl bg-[#2b2d31] p-3 text-xs leading-5 text-gray-300"><b class="text-amber-300">Variation C</b><br>Chat remains the source of truth; an optional Loreboard gives richer browsing after the Reveal.</div>
+        </aside>
+
+        <main class="grid min-w-0 flex-1 lg:grid-cols-[1fr,420px]">
+            <section class="flex min-w-0 flex-col bg-[#313338]">
+                <header class="flex h-12 items-center justify-between border-b border-black px-4"><b class="text-white"># ritual-chamber</b><span class="text-xs text-gray-400">Midjourney stream + Starboard signal</span></header>
+                <div id="chat" class="flex-1 space-y-5 overflow-y-auto p-4">
+                    <div class="flex gap-3">
+                        <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
+                        <div class="max-w-3xl">
+                            <div><b class="text-white">Supper Bot</b> <span class="rounded bg-indigo-500 px-1 text-[10px] font-bold">BOT</span> <span class="text-xs text-gray-500">6:00 PM</span></div>
+                            <div class="message-card mt-2 p-4">
+                                <div class="text-xs font-bold uppercase tracking-[0.22em] text-amber-300">Round Recap queued</div>
+                                <h1 class="mt-2 text-2xl font-black text-white">Fine dining from your fridge</h1>
+                                <p class="mt-2 text-sm text-gray-300">Reveal is live. Stamp the Jump cards below; hot moments flow into the Loreboard automatically.</p>
+                                <div class="mt-4 flex flex-wrap gap-2"><button class="btn primary" onclick="openBoard()">Open Loreboard</button><button class="btn" onclick="addComment()">Riff in thread</button><button class="btn gold" onclick="recap()">Generate Recap</button></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside id="board" class="activity hidden border-l border-black p-5 text-white lg:block">
+                <div class="flex items-center justify-between"><div><div class="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">Optional Activity</div><h2 class="mt-1 text-3xl font-black">Loreboard</h2></div><button class="btn" onclick="closeBoard()">Hide</button></div>
+                <p class="mt-3 text-sm leading-6 text-gray-300">This is not a leaderboard. It is a living wall of moments getting reaction density, inspired by Starboard mechanics and Midjourney artifact browsing.</p>
+                <div class="mt-5 grid gap-3" id="signals">
+                    <div class="signal rounded-2xl p-4"><div class="text-4xl">🍔</div><h3 class="mt-2 text-xl font-black">Cloche Crunchwrap</h3><p class="mt-1 text-sm text-gray-300">18 Stamps, 7 comments. Quote emerging: “legally a tasting menu.”</p></div>
+                    <div class="rounded-2xl bg-white/5 p-4"><div class="text-4xl">🍣</div><h3 class="mt-2 text-xl font-black">Gas-station sushi</h3><p class="mt-1 text-sm text-gray-300">9 Stamps, 3 comments. Watchlist, not Lore yet.</p></div>
+                    <div class="rounded-2xl bg-white/5 p-4"><div class="text-4xl">🍰</div><h3 class="mt-2 text-xl font-black">Dorm tiramisu flight</h3><p class="mt-1 text-sm text-gray-300">6 Stamps, 5 comments. Strong caption energy.</p></div>
+                </div>
+                <div class="mt-5 rounded-2xl bg-black/25 p-4"><div class="text-xs font-bold uppercase tracking-[0.2em] text-pink-200">Recap draft</div><p id="draft" class="mt-2 text-sm leading-6 text-gray-300">Waiting for the group to finish stamping. The bot should not canonize too early.</p></div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        const jumps = [
+            ['🍔', 'Cloche Crunchwrap', 'The cloche was lifted with reverence. Nobody recovered.', ['🔥 Chaos (12)', '🧠 Lore (6)', '💬 Thread']],
+            ['🍣', 'Gas-station sushi on china', 'A convenience-store tray achieved plate service and immediate legal ambiguity.', ['💎 Certified (8)', '🫡 Respect (4)', '💬 Thread']],
+            ['🍰', 'Dorm tiramisu flight', 'Three mugs and a dusting of cocoa became a dessert program.', ['🔥 Chaos (5)', '🧠 Lore (3)', '💬 Thread']]
+        ];
+        const chat = document.getElementById('chat');
+        jumps.forEach((jump, i) => addJump(jump, i));
+        function addJump(jump, i) {
+            const row = document.createElement('div');
+            row.className = 'flex gap-3';
+            row.innerHTML = '<div class="h-10 w-10 rounded-full bg-gray-500"></div><div class="max-w-3xl"><div><b class="text-white">Supper Bot</b> <span class="rounded bg-indigo-500 px-1 text-[10px] font-bold">BOT</span> <span class="text-xs text-gray-500">Reveal +' + (i + 1) + '</span></div><div class="message-card mt-2 p-4"><div class="grid gap-3 md:grid-cols-[120px,1fr]"><div class="rounded-xl bg-[#1e1f22] p-7 text-center text-5xl">' + jump[0] + '</div><div><div class="text-xs text-gray-400">Jump card</div><h3 class="text-xl font-black text-white">' + jump[1] + '</h3><p class="mt-1 text-sm leading-6 text-gray-300">' + jump[2] + '</p><div class="mt-3 flex flex-wrap gap-2">' + jump[3].map(label => '<button class="btn" onclick="stamp(this)">' + label + '</button>').join('') + '</div></div></div></div></div>';
+            chat.appendChild(row);
+        }
+        function stamp(btn) { btn.classList.add('gold'); btn.textContent = btn.textContent.replace(/\((\d+)\)/, (_, n) => '(' + (Number(n) + 1) + ')'); }
+        function addComment() {
+            const row = document.createElement('div');
+            row.className = 'ml-14 rounded-xl bg-[#2b2d31] p-3 text-sm text-gray-300';
+            row.innerHTML = '<b class="text-white">Ari</b> started a thread: “the cloche changed the law.”';
+            chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
+        }
+        function openBoard() { document.getElementById('board').classList.remove('hidden'); }
+        function closeBoard() { document.getElementById('board').classList.add('hidden'); }
+        function recap() { document.getElementById('draft').textContent = 'Tonight the Community discovered that a Crunchwrap can become fine dining if the room commits hard enough. The cloche line is now resurfacing in Recap copy; Jules is lovingly noted as the Ghost Jumper.'; }
+    </script>
+</body>
+</html>

@@ -1,1 +1,56 @@
-<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=discord-ux-mockup.html"></head><body>Redirecting to mockup...</body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin Discord UX Mockups</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #111214; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .card { background: linear-gradient(145deg, #2b2d31, #1e1f22); border: 1px solid #3f4147; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <main class="mx-auto max-w-6xl px-5 py-10">
+        <div class="mb-10">
+            <div class="text-sm uppercase tracking-[0.28em] text-indigo-300">Supperjumpin</div>
+            <h1 class="mt-3 text-4xl font-black text-white md:text-6xl">Discord UX mockups</h1>
+            <p class="mt-4 max-w-3xl text-lg text-gray-300">
+                Throwaway GitHub Pages prototypes for riffing on the Discord bot/app overhaul. The original mockup is preserved; the new variations explore modern Discord-native components, full Activities, and a hybrid ceremony.
+            </p>
+        </div>
+
+        <section class="grid gap-5 md:grid-cols-2">
+            <a class="card rounded-2xl p-6 transition hover:-translate-y-1 hover:border-indigo-400" href="discord-ux-mockup.html">
+                <div class="text-xs font-bold uppercase tracking-[0.2em] text-gray-500">Original</div>
+                <h2 class="mt-3 text-2xl font-bold text-white">Gallery + Summary Reveal</h2>
+                <p class="mt-3 text-sm leading-6 text-gray-300">The starting point: living announcement, gallery overlay, and rich in-channel summary options.</p>
+            </a>
+            <a class="card rounded-2xl p-6 transition hover:-translate-y-1 hover:border-emerald-400" href="discord-ux-components-v2.html">
+                <div class="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Variation A</div>
+                <h2 class="mt-3 text-2xl font-bold text-white">Native Components V2</h2>
+                <p class="mt-3 text-sm leading-6 text-gray-300">A bot-message-first UX using containers, media galleries, modals, buttons, and public state edits.</p>
+            </a>
+            <a class="card rounded-2xl p-6 transition hover:-translate-y-1 hover:border-pink-400" href="discord-ux-activity-theater.html">
+                <div class="text-xs font-bold uppercase tracking-[0.2em] text-pink-300">Variation B</div>
+                <h2 class="mt-3 text-2xl font-bold text-white">Reveal Theater Activity</h2>
+                <p class="mt-3 text-sm leading-6 text-gray-300">A bolder iframe Activity concept: shared stage, audience rail, live Stamp bursts, and recap composer.</p>
+            </a>
+            <a class="card rounded-2xl p-6 transition hover:-translate-y-1 hover:border-amber-400" href="discord-ux-hybrid-loreboard.html">
+                <div class="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Variation C</div>
+                <h2 class="mt-3 text-2xl font-bold text-white">Hybrid Loreboard</h2>
+                <p class="mt-3 text-sm leading-6 text-gray-300">A Midjourney/Starboard-inspired stream: chat-native Jump cards plus an optional rich Loreboard surface.</p>
+            </a>
+        </section>
+
+        <section class="mt-10 rounded-2xl border border-gray-700 bg-[#1e1f22] p-6">
+            <h2 class="text-xl font-bold text-white">Research notes used for these riffs</h2>
+            <ul class="mt-4 space-y-2 text-sm leading-6 text-gray-300">
+                <li><b>Components V2:</b> Discord now supports richer message layouts: containers, sections, media galleries, thumbnails, files, buttons, selects, and file upload in modals.</li>
+                <li><b>Activities:</b> Discord Activities are iframe web apps using the Embedded App SDK, built for social/multiplayer experiences on desktop, mobile, and web.</li>
+                <li><b>Best-in-class references:</b> Midjourney for public artifact streams, Starboard bots for emergent highlights, event bots for RSVP/reminder ceremony, and Discord Activities case studies for shared play surfaces.</li>
+            </ul>
+        </section>
+    </main>
+</body>
+</html>
