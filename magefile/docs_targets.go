@@ -8,6 +8,7 @@ import (
 	"os"
 )
 
+// Docs serves Swagger UI for apps/api/openapi.yaml.
 func Docs() error {
 	port := valueOrDefault(os.Getenv("DOCS_PORT"), DefaultDocsPort)
 	openAPIPath := repoPath("apps", "api", "openapi.yaml")

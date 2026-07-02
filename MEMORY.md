@@ -38,6 +38,7 @@
 - **Build Orchestration**: `magefile/` now owns the repo command surface; the old root Node scripts are being deleted.
 - **Bot Client Independence**: `apps/bot-discord` has its own Go API client. Deleting `packages/api-client/` does not remove any runtime consumer.
 - **OpenAPI Drift**: The TypeScript sync gate is intentionally gone. Coverage comments and CI now only compare the Go API and Discord bot reports.
+- **Migration Boundary**: Once the home-server deployment holds real group data, stop folding DB changes into existing migrations and switch to append-only numbered migrations.
 
 ---
 

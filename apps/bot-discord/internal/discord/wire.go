@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	discordgo "github.com/bwmarrin/discordgo"
 	"github.com/benbjohnson/clock"
+	discordgo "github.com/bwmarrin/discordgo"
 
 	"github.com/supperjumpin/supperjumpin/apps/bot-discord/internal/bot"
 	"github.com/supperjumpin/supperjumpin/apps/bot-discord/internal/evidence"
@@ -19,7 +19,7 @@ import (
 )
 
 type Wired struct {
-	APIClient    *bot.APIClient
+	APIClient   *bot.APIClient
 	Bot         *bot.Bot
 	Dispatcher  *Dispatcher
 	Session     *discordgo.Session
@@ -111,11 +111,11 @@ func NewWired(cfg Config) (*Wired, error) {
 
 	evidenceSrv := &http.Server{
 		Addr:    cfg.EvidenceAddr,
-		Handler: evidenceStore.FileServer(),
+		Handler: evidenceHTTPHandler(evidenceStore),
 	}
 
 	return &Wired{
-		APIClient:    apiClient,
+		APIClient:   apiClient,
 		Bot:         b,
 		Dispatcher:  dispatcher,
 		Session:     session,
@@ -125,6 +125,15 @@ func NewWired(cfg Config) (*Wired, error) {
 		Registry:    registry,
 		Renderer:    renderer,
 	}, nil
+}
+
+func evidenceHTTPHandler(store *evidence.Store) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.Handle("/evidence/", store.FileServer())
+	return mux
 }
 
 func (w *Wired) LoadStampTemplate(ctx context.Context) error {

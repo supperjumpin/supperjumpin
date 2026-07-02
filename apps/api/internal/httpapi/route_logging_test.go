@@ -20,6 +20,7 @@ type loggingStore struct {
 	prompts    []game.PromptSnapshot
 }
 
+func (s loggingStore) Ping(context.Context) error { return nil }
 
 func (s loggingStore) ResolveExternalActor(context.Context, string, string, string, string, string) (ResolveExternalActorResult, error) {
 	if s.resolveErr != nil {

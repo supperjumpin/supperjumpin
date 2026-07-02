@@ -49,6 +49,10 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
+func (s *PostgresStore) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *PostgresStore) SetClock(now func() time.Time) {
 	s.now = now
 }
@@ -327,10 +331,10 @@ func (s *PostgresStore) GetRoundStatus(ctx context.Context, roundID string) (gam
 		return game.RoundStatus{}, err
 	}
 	return game.RoundStatus{
-		ID:             row.ID,
-		Status:         row.Status,
-		RevealBy:       row.RevealBy,
-		CommitCount:    int(row.CommitCount),
+		ID:              row.ID,
+		Status:          row.Status,
+		RevealBy:        row.RevealBy,
+		CommitCount:     int(row.CommitCount),
 		SubmissionCount: int(row.SubmissionCount),
 	}, nil
 }

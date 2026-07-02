@@ -17,6 +17,7 @@ type suite struct {
 	ReportPath   string
 }
 
+// Test runs API and bot tests; pass -coverage to write coverage artifacts.
 func Test(coverage *bool) error {
 	enabled := coverage != nil && *coverage
 	testDatabaseURL := testDatabaseURLFromEnv(os.Getenv)
