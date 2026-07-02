@@ -24,7 +24,7 @@ The API has **no `GET /v1/rounds` listing** (`apps/api/openapi.yaml` carries `PO
 
 - **If the state file is intact at startup**, recovery is full — every in-flight Round gets re-armed or fired-late.
 - **If the state file is lost** (manual delete, disk error), the bot has no way to discover active Rounds to recover. That round stays unrevealed; the next `/round start` would 409 against the one-active invariant, leaving the Community cold-stuck until someone uses a hypothetical `/reveal-now` slash command (planned, but outside this ADR) or the round is force-completed through admin tooling. This failure mode is **accepted for the MVP / `ready-for-human` verification scope** — the file-backed store is local to the dev machine, near-zero chance of silent loss.
-- **Extending the API with a list endpoint to fix this** is rejected here because it breaks the "consuming, not extending" rule from ADR-0041, drags list-pagination/filter schema decisions into the OpenAPI sync gate, and is sized for a post-MVP slice when the bot is going to need enumerability for other features (status, history) anyway.
+- **Extending the API with a list endpoint to fix this** is rejected here because it breaks the "consuming, not extending" rule from ADR-0041, drags list-pagination/filter schema decisions into the API surface, and is sized for a post-MVP slice when the bot is going to need enumerability for other features (status, history) anyway. (Originally the rationale cited the OpenAPI sync gate; that gate is gone as of ADR-0049, but the structural reason — dragging schema decisions into a slice that doesn't need them — still holds.)
 
 ## Consequences
 

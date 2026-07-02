@@ -12,7 +12,7 @@ Discord bot adapter for Supperjumpin. Talks to `apps/api` over HTTP; the bot own
 | Evidence download + serve | `internal/evidence/` | `Store.Save` downloads from a source URL, content-addresses via SHA256, returns stable `http://localhost:<botPort>/evidence/<hash>.<ext>`. `FileServer` mounted at `/evidence/`. ADR-0044. |
 | Reveal scheduler | `internal/scheduler/` | `time.AfterFunc` per active round; file-backed `JSONStateFile` at `<DataDir>/active-reveals.json`; 1-minute `Watchdog` catches missed fires. ADR-0045. |
 | Wire it all together | `internal/discord/wire.go::NewWired` | Single composition root — main.go calls this. |
-| Bot dev / test commands | `package.json` (root) | `npm run bot:dev` and `npm run bot:test` |
+| Bot dev / test commands | `magefile/` (root) | `mage dev:bot` and `mage test` |
 
 ## Core Rules
 

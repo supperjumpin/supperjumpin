@@ -23,7 +23,7 @@ Migration to hosted infra is additive and is covered by ADR-0036 ("Hosted infras
 ## Consequences
 
 - The Discord bot is no longer *purely* an HTTP client of the API — it also owns an evidence directory and a tiny static file server. This is more adapter infra than the thinest case but is the price of preserving the front-end-agnostic `evidenceUrls` invariant.
-- Persistent adapter state: the evidence directory survives bot restarts. `npm run bot:dev` purges or migrates it; in dev this is a `git clean`-curious directory like `.bot-data/` (gitignore'd, like `.work-issue/`).
+- Persistent adapter state: the evidence directory survives bot restarts. `mage dev:bot` reads and writes it; in dev this is a `git clean`-curious directory like `.bot-data/` (gitignore'd, like `.work-issue/`).
 - The adapter never links Discord's signed URL anywhere persistent. It is consumed once at submit time, downloaded, then discarded.
 - Stale-CDN-URL defense only: at submit time the bot must fetch the bytes before the interaction's signed URL expires (typically sub-minute at the API call). A retry on transient fetch failure is the bot's problem, not the API's.
 - New env vars on the bot, not the core: `SUPPERJUMPIN_BOT_EVIDENCE_DIR` (default `.bot-data/evidence`), `SUPPERJUMPIN_BOT_PORT` (default 9999 or unused if served by the same process as the bot's slash-command listener).

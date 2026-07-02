@@ -1,6 +1,6 @@
 # Project Guide
 
-Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, generated TypeScript client in `packages/api-client`. `CONTEXT.md` owns domain language; ADRs in `docs/adr/` own architectural decisions.
+Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, and Mage build orchestration in `magefile/`. `CONTEXT.md` owns domain language; ADRs in `docs/adr/` own architectural decisions.
 
 ## Where To Look
 
@@ -8,11 +8,12 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, generated TypeS
 |------|----------|-------|
 | Game rules | `apps/api/internal/game/` | Pure functions, no HTTP/DB imports |
 | Add/modify API endpoint | `apps/api/internal/httpapi/server.go` | Routes + handler closures |
-| Change API contract | `apps/api/openapi.yaml` → regenerate client | CI enforces sync |
+| Change API contract | `apps/api/openapi.yaml` | No generated client remains in-repo; keep the spec aligned with handlers and DTOs |
 | Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
 | Prompt/Pack catalog | `apps/api/internal/game/prompts.go` + `apps/api/db/queries/prompts.sql` + `GET /v1/prompt-catalog` | Copy is data, not contract shape (ADR-0039) |
-| Discord bot | `apps/bot-discord/cmd/bot/main.go` + `apps/bot-discord/internal/` | Thin HTTP client of the API. Owns `apps/bot-discord/.bot-data/` (evidence, scheduler state). `npm run bot:dev` / `npm run bot:test`. |
-| Check CI pipeline | `.github/workflows/ci.yml` | Go + Node |
+| Discord bot | `apps/bot-discord/cmd/bot/main.go` + `apps/bot-discord/internal/` | Thin HTTP client of the API. Owns `apps/bot-discord/.bot-data/` (evidence, scheduler state). `mage dev:bot` / `mage test`. |
+| Build/test orchestration | `magefile/` | Pure Go command plans + Mage targets. `mage -l` is the discoverability surface |
+| Check CI pipeline | `.github/workflows/ci.yml` | Go + Mage |
 | Domain terminology | `CONTEXT.md` | Authoritative vocabulary |
 
 ## Core Rules
@@ -24,15 +25,13 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, generated TypeS
 - **Stable IDs**: `stableID(kind, value)` generates SHA256-based deterministic IDs, not UUIDs.
 - **Clock injection**: `func() time.Time` is injected for testability.
 - **Pre-stable migrations**: Fold schema changes into existing migration files. Do not create standalone numbered migrations until DB is declared stable.
-- **OpenAPI sync gate**: CI runs `generate:api-client` then `git diff --exit-code`.
 - **Hand-rolled mocks**: Go tests use inline `mock*Repo` structs with function fields. No testify/mock or gomock.
-- **Co-located tests**: `*_test.go` alongside source. Node tests use `node --test` with `*.test.mjs`.
-- **Coverage commands**: `npm run test:coverage` and `npm run api:test:coverage` emit coverage summaries and write files under `coverage/`.
+- **Co-located tests**: `*_test.go` alongside source. The Mage module follows the same pattern in `magefile/*_test.go`.
+- **Coverage commands**: `mage test -coverage` emits per-service coverage files under `coverage/`, appends to `GITHUB_STEP_SUMMARY`, and feeds the non-blocking PR coverage comment.
 
 ## Avoid
 
 - Putting business logic in HTTP handlers (`server.go`). All rules belong in `internal/game/`.
-- Hand-writing API client types instead of generating from `openapi.yaml`.
 - Creating standalone DB migration files before DB stability.
 - Adding ESLint/Prettier/golangci-lint configs without team discussion.
 
@@ -57,35 +56,40 @@ These files are maintained by convention, not automation. Follow these rules in 
 
 ```sh
 # Development
-npm run db:up             # Start Docker Compose Postgres service
-npm run db:down           # Stop Docker Compose Postgres without deleting data
-npm run db:reset          # Recreate local dev DB and reapply migrations
-npm run db:migrate        # Apply migrations to the local Docker Postgres only
-npm run api:dev           # Run API against existing DB
-npm run bot:dev           # Run Discord bot (needs SUPPERJUMPIN_BOT_TOKEN in env)
+mage db:up                # Start Docker Compose Postgres service
+mage db:down              # Stop Docker Compose Postgres without deleting data
+mage db:reset             # Recreate local dev DB and reapply migrations
+mage db:migrate           # Apply migrations to the local Docker Postgres only
+mage dev:api              # Run API against existing DB
+mage dev:bot              # Run Discord bot (needs SUPPERJUMPIN_BOT_TOKEN in env)
+mage docs                 # Serve Swagger UI for apps/api/openapi.yaml
+mage init:all             # Install local tool binaries and print the common next steps
 
 # Testing
-npm run api:test          # Run Go API tests against Postgres
-npm run api:test:coverage  # Run Go API tests with coverage output
-npm run bot:test          # Run Go bot tests (in-process, no Postgres)
-npm test                  # npm workspace tests (api-client + scripts)
-npm run test:coverage     # npm workspace tests with coverage output
-
-# API client regeneration
-npm run generate:api-client  # openapi-typescript → packages/api-client/src/generated.d.ts
+mage test                 # Run Go API + bot tests (API tests prep Postgres-backed _test DB)
+mage test -coverage       # Same, plus coverage files + summaries
 
 # sqlc query layer
-npm run generate:sqlc        # sqlc generate → apps/api/internal/db/
+mage generate:sqlc        # sqlc generate → apps/api/internal/db/
+
+# CI and images
+mage ci:lint              # Go vet across the app modules
+mage ci:test              # Test path CI uses, with coverage
+mage ci:build             # Docker image builds for API + bot
+mage ci:all               # Sequential lint + test + build
+mage build:api            # Build Dockerfile.api as supperjumpin-api:dev
+mage build:bot            # Build Dockerfile.bot as supperjumpin-bot:dev
 ```
 
 ## Notes
 
 - `SUPPERJUMPIN_DATABASE_URL` is mandatory for the Go binary.
+- Install Mage with `go install github.com/magefile/mage@v1.17.2` and ensure `~/go/bin` is on `PATH` before using the command table below.
 - Infrastructure is local-first: Docker Postgres, local dev bearer auth. Hosted infrastructure will be additive when introduced.
-- Auth is local-first: `SUPPERJUMPIN_ADAPTER_TOKEN` defaults to `dev-token` in `npm run api:dev`.
-- `npm run api:test` resets a `_test`-suffixed database and applies migrations before running Go tests.
-- `npm run api:test:coverage` writes `coverage/api.coverprofile` and appends a summary when `GITHUB_STEP_SUMMARY` is set.
-- `npm run test:coverage` runs workspace test coverage and appends a summary when `GITHUB_STEP_SUMMARY` is set.
+- Auth is local-first: `SUPPERJUMPIN_ADAPTER_TOKEN` defaults to `dev-token` in `mage dev:api` and `mage dev:bot`.
+- `mage test` resets a `_test`-suffixed database and applies migrations before running API tests, then runs the bot tests in-process.
+- `mage test -coverage` writes `coverage/api.coverprofile`, `coverage/bot.coverprofile`, `coverage/api-report.json`, and `coverage/bot-report.json`, and appends summaries when `GITHUB_STEP_SUMMARY` is set.
+- Node is no longer required for this repo. `sqlc`, `migrate`, and `mage` are the only local helper binaries beyond Go and Docker.
 - No production deployment configs exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`).
 - Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`.

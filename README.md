@@ -6,35 +6,39 @@ Platform-pure core API. Identity surface only (`GET /v1/me`, `PATCH /v1/me/displ
 
 Prerequisites:
 
-- Node.js/npm
 - Go
-- sqlc
 - Docker Desktop or Docker Engine with Compose
 
-1. Install JavaScript dependencies from the repo root:
+0. Install Mage and make sure `~/go/bin` is on your `PATH`:
 
 ```sh
-npm install
+go install github.com/magefile/mage@v1.17.2
+export PATH="$HOME/go/bin:$PATH"
+```
+
+1. Install local helper binaries from the repo root:
+
+```sh
+mage init:tools
 ```
 
 2. Start Postgres and reset the local database to a clean migrated baseline:
 
 ```sh
-npm run db:reset
+mage db:reset
 ```
 
 3. Start the API in one terminal:
 
 ```sh
-npm run api:dev
+mage dev:api
 ```
 
-If you already have Postgres running and only want to reapply migrations, use `npm run db:migrate` instead of `npm run db:reset`.
+If you already have Postgres running and only want to reapply migrations, use `mage db:migrate` instead of `mage db:reset`.
 
-`npm run db:migrate` always targets the local Docker Postgres database and ignores both ambient `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
-Other local scripts may still use `SUPPERJUMPIN_DATABASE_URL` where documented.
+`mage db:migrate` always targets the local Docker Postgres database and ignores both ambient `DATABASE_URL` and `SUPPERJUMPIN_DATABASE_URL`.
 
-If you want a fresh local starting point, `npm run db:reset` already starts Postgres, recreates the `supperjumpin` database, reapplies migrations, and leaves Postgres running for `npm run api:dev`.
+If you want a fresh local starting point, `mage db:reset` already starts Postgres, recreates the `supperjumpin` database, reapplies migrations, and leaves Postgres running for `mage dev:api`.
 
 The development bearer token defaults to `dev-token`.
 
@@ -49,27 +53,27 @@ curl -H "Authorization: Bearer dev-token" http://localhost:8080/v1/me
 Run the backend behavior tests against Postgres:
 
 ```sh
-npm run api:test
-npm run api:test:coverage
-npm run test:coverage
-```
-
-Regenerate the TypeScript client types from the OpenAPI contract:
-
-```sh
-npm run generate:api-client
+mage test
+mage test -coverage
 ```
 
 Regenerate the API's Go query layer from the SQL query files:
 
 ```sh
-npm run generate:sqlc
+mage generate:sqlc
 ```
 
 Run the API locally against an already configured database:
 
 ```sh
-npm run api:dev
+mage dev:api
+```
+
+Build the local Docker images:
+
+```sh
+mage build:api
+mage build:bot
 ```
 
 ## Current state

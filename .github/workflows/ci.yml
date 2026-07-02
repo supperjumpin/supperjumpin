@@ -13,23 +13,8 @@ permissions:
   actions: read
 
 jobs:
-  ci:
-    name: ci
+  lint:
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -38,35 +23,43 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: apps/api/go.mod
-          cache-dependency-path: apps/api/go.sum
+          cache-dependency-path: |
+            apps/api/go.sum
+            apps/bot-discord/go.sum
+            magefile/go.sum
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Install mage
+        run: go install github.com/magefile/mage@v1.17.2
+
+      - name: Install local tool binaries
+        run: ~/go/bin/mage init:tools
+
+      - name: Run lint
+        run: ~/go/bin/mage ci:lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: |
+            apps/api/go.sum
+            apps/bot-discord/go.sum
+            magefile/go.sum
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Install mage
+        run: go install github.com/magefile/mage@v1.17.2
 
-      - name: Run setup
-        run: npm run setup
+      - name: Install local tool binaries
+        run: ~/go/bin/mage init:tools
 
-      - name: Verify API client sync
-        run: |
-          npm run generate:api-client
-          git diff --exit-code packages/api-client/src
-
-      - name: Run Node workspace coverage
-        run: npm run test:coverage
-
-      - name: Run API tests (Postgres-backed)
-        run: npm run api:test:coverage
-        env:
-          SUPPERJUMPIN_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/supperjumpin_test?sslmode=disable
-
-      - name: Verify sqlc generated code is fresh
-        run: npm run generate:sqlc && git diff --exit-code
+      - name: Run tests with coverage
+        run: ~/go/bin/mage ci:test
 
       - name: Upload coverage baseline
         if: github.ref == 'refs/heads/main'
@@ -91,6 +84,31 @@ jobs:
             echo "No baseline artifact found; skipping coverage comparison"
             exit 0
           fi
-          node scripts/coverage-diff.mjs coverage coverage/baseline > coverage/comment.md
+          ~/go/bin/mage ci:comment coverage coverage/baseline > coverage/comment.md
           gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file coverage/comment.md --edit-last 2>/dev/null || \
           gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file coverage/comment.md
+
+      - name: Stop local Postgres
+        if: always()
+        run: ~/go/bin/mage db:down
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: |
+            apps/api/go.sum
+            apps/bot-discord/go.sum
+            magefile/go.sum
+
+      - name: Install mage
+        run: go install github.com/magefile/mage@v1.17.2
+
+      - name: Run image builds
+        run: ~/go/bin/mage ci:build
