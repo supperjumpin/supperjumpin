@@ -51,7 +51,7 @@ func psqlCommand(databaseURL, sql string, isLocalDocker bool) CommandSpec {
 }
 
 func postgresReadyProbe() CommandSpec {
-	return CommandSpec{Name: "docker", Args: []string{"compose", "exec", "-T", "postgres", "pg_isready", "-U", "postgres"}}
+	return CommandSpec{Name: "docker", Args: []string{"compose", "exec", "-T", "postgres", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "postgres"}}
 }
 
 func waitForPostgresReady(timeout, interval time.Duration) error {

@@ -143,6 +143,14 @@ func TestPsqlCommand(t *testing.T) {
 	})
 }
 
+func TestPostgresReadyProbeChecksTCPListener(t *testing.T) {
+	got := postgresReadyProbe()
+	want := CommandSpec{Name: "docker", Args: []string{"compose", "exec", "-T", "postgres", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "postgres"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("postgresReadyProbe() = %#v, want %#v", got, want)
+	}
+}
+
 func TestDBMigrateCommand(t *testing.T) {
 	got := dbMigrateCommand("postgres://postgres:postgres@localhost:5432/supperjumpin?sslmode=disable", "bin")
 	want := CommandSpec{
