@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Native Components V2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .sidebar { background: #1e1f22; }
+        .chat { background: #313338; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .bot { background: #5865f2; color: #fff; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
+        .container-v2 { background: #2b2d31; border: 1px solid #3f4147; border-left: 4px solid #23a55a; border-radius: 10px; overflow: hidden; }
+        .section { border-top: 1px solid #3f4147; }
+        .btn { background: #4e5058; color: #fff; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+        .btn.primary { background: #5865f2; }
+        .btn.good { background: #248046; }
+        .btn.warn { background: #c27c0e; }
+        .chip { background: #1e1f22; border: 1px solid #3f4147; border-radius: 999px; padding: 4px 9px; font-size: 12px; }
+        .modal { background: rgba(0,0,0,.72); }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <aside class="sidebar hidden w-64 shrink-0 flex-col p-4 md:flex">
+            <a href="index.html" class="mb-6 text-xs text-indigo-300 hover:underline">Back to mockups</a>
+            <div class="mb-8 text-lg font-black text-white">Supperjumpin Server</div>
+            <div class="space-y-2 text-sm">
+                <div class="rounded px-2 py-1 text-gray-400"># general</div>
+                <div class="rounded bg-gray-600 px-2 py-1 font-bold text-white"># ritual-chamber</div>
+                <div class="rounded px-2 py-1 text-gray-400"># food-pics</div>
+            </div>
+            <div class="mt-auto rounded-xl border border-gray-700 bg-[#2b2d31] p-3 text-xs text-gray-300">
+                <b class="text-emerald-300">Variation A</b><br>
+                What if we stay almost entirely inside native Discord messages, but use the modern Components V2 vocabulary?
+            </div>
+        </aside>
+
+        <main class="chat flex min-w-0 flex-1 flex-col">
+            <header class="flex h-12 items-center justify-between border-b border-black px-4 shadow-sm">
+                <div class="font-bold text-white"># ritual-chamber</div>
+                <div class="text-xs text-gray-400">Native components, no separate app window</div>
+            </header>
+            <section id="chat" class="flex-1 space-y-5 overflow-y-auto p-4">
+                <div class="msg flex items-start gap-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
+                    <div class="max-w-3xl">
+                        <div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">Today at 6:00 PM</span></div>
+                        <div id="round-card" class="container-v2 mt-2">
+                            <div class="p-4">
+                                <div class="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">Round opens</div>
+                                <div class="mt-2 text-2xl font-black text-white">Prompt: Fine dining from your fridge</div>
+                                <p class="mt-2 text-sm leading-6 text-gray-300">Take something humble, serve it somewhere it does not belong, and document the ceremony.</p>
+                                <div class="mt-4 grid gap-2 text-sm md:grid-cols-3">
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white">Reveal</b><br><span class="text-gray-400">Friday 8:00 PM</span></div>
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="commits">0</span> Jumpers</b><br><span class="text-gray-400">committed</span></div>
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="sealed">0</span> sealed</b><br><span class="text-gray-400">content hidden</span></div>
+                                </div>
+                            </div>
+                            <div class="section flex flex-wrap gap-2 p-3">
+                                <button class="btn good" onclick="commit()">I'm In</button>
+                                <button class="btn primary" onclick="openSubmit()">Submit Evidence</button>
+                                <button class="btn" onclick="statusPing()">Round Status</button>
+                                <button class="btn warn" onclick="reveal()">Simulate Reveal</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="submit-modal" class="modal fixed inset-0 z-20 hidden items-center justify-center p-4">
+        <div class="w-full max-w-lg rounded-xl bg-[#313338] p-5 shadow-2xl ring-1 ring-gray-600">
+            <div class="text-xs font-bold uppercase tracking-[0.22em] text-indigo-300">Discord modal concept</div>
+            <h2 class="mt-2 text-2xl font-black text-white">Seal your Jump</h2>
+            <p class="mt-2 text-sm text-gray-300">Modern Discord component research suggests file upload in modals may be possible. This is the ideal one-shot flow: Evidence + Caption together, then an ephemeral receipt.</p>
+            <label class="mt-5 block text-xs font-bold uppercase text-gray-400">Evidence</label>
+            <div class="mt-2 rounded-lg border border-dashed border-gray-500 bg-[#1e1f22] p-5 text-center text-gray-400">Drop photo or video here</div>
+            <label class="mt-4 block text-xs font-bold uppercase text-gray-400">Caption</label>
+            <textarea class="mt-2 h-24 w-full rounded bg-[#1e1f22] p-3 text-sm text-gray-200 outline-none" placeholder="A Crunchwrap arrived under a cloche."></textarea>
+            <div class="mt-5 flex justify-end gap-2">
+                <button class="btn" onclick="closeSubmit()">Cancel</button>
+                <button class="btn good" onclick="sealJump()">Seal until Reveal</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let commits = 0;
+        let sealed = 0;
+        const chat = document.getElementById('chat');
+        function addBot(html, accent) {
+            const msg = document.createElement('div');
+            msg.className = 'msg flex items-start gap-3';
+            msg.innerHTML = '<div class="h-10 w-10 rounded-full bg-indigo-500"></div><div class="max-w-3xl"><div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">now</span></div><div class="container-v2 mt-2" style="border-left-color:' + (accent || '#23a55a') + '">' + html + '</div></div>';
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
+        function commit() { commits += 1; sync(); addBot('<div class="p-4"><b class="text-white">A Jumper steps forward.</b><p class="mt-1 text-sm text-gray-300">' + commits + ' committed, ' + sealed + ' sealed. The table is getting loud.</p></div>', '#23a55a'); }
+        function openSubmit() { document.getElementById('submit-modal').classList.remove('hidden'); document.getElementById('submit-modal').classList.add('flex'); }
+        function closeSubmit() { document.getElementById('submit-modal').classList.add('hidden'); }
+        function sealJump() { if (sealed < Math.max(commits, 1)) sealed += 1; if (commits === 0) commits = 1; sync(); closeSubmit(); addBot('<div class="p-4"><b class="text-white">Your Jump is sealed.</b><p class="mt-1 text-sm text-gray-300">Ephemeral receipt: only you can see the caption and Evidence before Friday.</p></div>', '#5865f2'); }
+        function statusPing() { addBot('<div class="p-4"><div class="flex flex-wrap gap-2"><span class="chip">Prompt locked</span><span class="chip">' + commits + ' committed</span><span class="chip">' + sealed + ' sealed</span><span class="chip">Reveal Friday 8 PM</span></div></div>', '#80848e'); }
+        function reveal() {
+            const cards = ['Crunchwrap under a cloche', 'Gas-station sushi on china', 'Dorm-room tiramisu flight'];
+            addBot('<div class="p-4"><div class="text-xs font-bold uppercase tracking-[0.22em] text-red-300">Reveal</div><h2 class="mt-2 text-xl font-black text-white">The seals are broken.</h2><p class="mt-1 text-sm text-gray-300">Each Jump appears as a native media card with Stamp buttons.</p></div>', '#f23f42');
+            cards.forEach((title, i) => setTimeout(() => addBot('<div class="p-4"><div class="grid gap-3 md:grid-cols-[160px,1fr]"><div class="rounded-lg bg-gradient-to-br from-orange-300 to-pink-500 p-8 text-center text-4xl">' + ['🍔','🍣','🍰'][i] + '</div><div><div class="text-xs text-gray-400">Jump ' + (i + 1) + '</div><h3 class="text-lg font-bold text-white">' + title + '</h3><p class="mt-1 text-sm text-gray-300">Caption goes here. The bot can expose files through a media gallery or attached file component.</p><div class="mt-3 flex flex-wrap gap-2"><button class="btn">🔥 Chaos (0)</button><button class="btn">💎 Certified (0)</button><button class="btn">🧠 Lore (0)</button><button class="btn">💬 Comment</button></div></div></div></div>', '#f23f42'), 300 + i * 450));
+        }
+    </script>
+</body>
+</html>
