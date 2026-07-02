@@ -7,6 +7,7 @@ COPY apps/api/go.mod apps/api/go.sum ./apps/api/
 COPY apps/bot-discord/go.mod apps/bot-discord/go.sum ./apps/bot-discord/
 COPY magefile/go.mod magefile/go.sum ./magefile/
 RUN go work sync && cd apps/bot-discord && go mod download
+RUN mkdir -p /out/bot-data
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/bot ./apps/bot-discord/cmd/bot
@@ -16,5 +17,6 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /out/bot /bot
 COPY --from=build /out/http-healthcheck /http-healthcheck
+COPY --from=build --chown=nonroot:nonroot /out/bot-data /var/lib/supperjumpin-bot
 
 ENTRYPOINT ["/bot"]
