@@ -10,6 +10,7 @@ import (
 
 type DB mg.Namespace
 
+// Up starts the local Docker Compose Postgres service.
 func (DB) Up() error {
 	spec, err := dbLifecycleCommand("up")
 	if err != nil {
@@ -18,6 +19,7 @@ func (DB) Up() error {
 	return runner.Run(spec)
 }
 
+// Down stops the local Docker Compose Postgres service.
 func (DB) Down() error {
 	spec, err := dbLifecycleCommand("down")
 	if err != nil {
@@ -26,10 +28,12 @@ func (DB) Down() error {
 	return runner.Run(spec)
 }
 
+// Migrate applies API migrations to the local development database.
 func (DB) Migrate() error {
 	return runner.Run(dbMigrateCommand(DefaultDevelopmentDatabaseURL, migrateBinDirFromEnv(os.Getenv)))
 }
 
+// Reset recreates the local development database and reapplies migrations.
 func (DB) Reset() error {
 	db := DB{}
 	if err := db.Up(); err != nil {

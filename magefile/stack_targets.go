@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"syscall"
 )
 
+// Up starts Postgres, API, and bot as a local background stack.
 func Up() error {
 	db := DB{}
 	if err := db.Up(); err != nil {
@@ -25,6 +25,7 @@ func Up() error {
 	return nil
 }
 
+// Down stops the local background stack.
 func Down() error {
 	if err := stopBackgroundProcess("bot"); err != nil {
 		return err
@@ -63,24 +64,5 @@ func startBackgroundProcess(name string, spec CommandSpec) error {
 }
 
 func stopBackgroundProcess(name string) error {
-	artifacts := stackProcessArtifacts(name)
-	data, err := os.ReadFile(artifacts.PIDPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	pid, err := strconv.Atoi(string(data))
-	if err != nil {
-		return err
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
-	if err := process.Signal(syscall.SIGTERM); err != nil {
-		return err
-	}
-	return os.Remove(artifacts.PIDPath)
+	return stopProcessArtifacts(stackProcessArtifacts(name), signalProcess)
 }
