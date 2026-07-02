@@ -10,9 +10,11 @@ RUN go work sync && cd apps/api && go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/api ./apps/api/cmd/api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/http-healthcheck ./apps/api/cmd/http-healthcheck
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /out/api /api
+COPY --from=build /out/http-healthcheck /http-healthcheck
 
 ENTRYPOINT ["/api"]

@@ -11,6 +11,7 @@ type UpdateDisplayNameResponse struct {
 }
 
 type Store interface {
+	Ping(ctx context.Context) error
 	ResolveExternalActor(ctx context.Context, platform string, platformServerID string, platformUserID string, playerDisplayName string, communityDisplayName string) (ResolveExternalActorResult, error)
 	FindPlayer(ctx context.Context, id string) (game.PlayerSnapshot, bool, error)
 	FindCommunity(ctx context.Context, id string) (game.CommunitySnapshot, bool, error)

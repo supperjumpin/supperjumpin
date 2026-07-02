@@ -29,6 +29,24 @@ type ServerConfig struct {
 
 func NewServer(config ServerConfig) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /livez", "livez")
+		AddRequestLogField(r.Context(), "actor_type", "public")
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		setRequestOperation(r, "GET /readyz", "readyz")
+		AddRequestLogField(r.Context(), "actor_type", "public")
+
+		if err := config.Store.Ping(r.Context()); err != nil {
+			recordHTTPError(r, http.StatusServiceUnavailable, "database_unavailable", err)
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("GET /v1/me", func(w http.ResponseWriter, r *http.Request) {
 		setRequestOperation(r, "GET /v1/me", "get_me")
 		profile, ok := signedInProfile(w, r, config)
@@ -269,12 +287,12 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		jumpDTO := JumpDTO{
-			ID:          result.Jump.ID,
-			RoundID:     result.Jump.RoundID,
-			PlayerID:    result.Jump.PlayerID,
-			Caption:     result.Jump.Caption,
+			ID:           result.Jump.ID,
+			RoundID:      result.Jump.RoundID,
+			PlayerID:     result.Jump.PlayerID,
+			Caption:      result.Jump.Caption,
 			EvidenceURLs: result.Jump.EvidenceURLs,
-			SubmittedAt: result.Jump.SubmittedAt.Format(time.RFC3339),
+			SubmittedAt:  result.Jump.SubmittedAt.Format(time.RFC3339),
 		}
 
 		writeJSON(w, http.StatusCreated, SubmitJumpResponse{Jump: jumpDTO})
@@ -306,8 +324,8 @@ func NewServer(config ServerConfig) http.Handler {
 				RoundID:            j.RoundID,
 				PlayerID:           j.PlayerID,
 				SealedViewer:       j.SealedViewer,
-				PlayerHasCommitted:  j.PlayerHasCommitted,
-				PlayerHasSubmitted:  j.PlayerHasSubmitted,
+				PlayerHasCommitted: j.PlayerHasCommitted,
+				PlayerHasSubmitted: j.PlayerHasSubmitted,
 			}
 			if j.SubmittedAt.Unix() > 0 {
 				dto.SubmittedAt = j.SubmittedAt.Format(time.RFC3339)
@@ -328,8 +346,8 @@ func NewServer(config ServerConfig) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, ListJumpsResponse{
-			Jumps:          jumps,
-			CommitCount:    status.CommitCount,
+			Jumps:           jumps,
+			CommitCount:     status.CommitCount,
 			SubmissionCount: status.SubmissionCount,
 		})
 	})
@@ -437,7 +455,7 @@ func NewServer(config ServerConfig) http.Handler {
 			})
 		}
 
-standoutStamps := make([]StandoutStampDTO, 0, len(recap.StandoutStamps))
+		standoutStamps := make([]StandoutStampDTO, 0, len(recap.StandoutStamps))
 		for _, s := range recap.StandoutStamps {
 			standoutStamps = append(standoutStamps, StandoutStampDTO{
 				JumpID: s.JumpID,
@@ -459,17 +477,17 @@ standoutStamps := make([]StandoutStampDTO, 0, len(recap.StandoutStamps))
 		}
 
 		writeJSON(w, http.StatusOK, RecapResponse{
-			RoundID:       recap.RoundID,
-			CommunityID:   recap.CommunityID,
-			PromptID:      recap.PromptID,
-			Status:        recap.Status,
-			RevealBy:      recap.RevealBy.Format(time.RFC3339),
-			CreatedBy:     recap.CreatedBy,
-			CreatedAt:     recap.CreatedAt.Format(time.RFC3339),
-			Jumps:         jumps,
-			Comments:      comments,
-			GhostJumpers:  ghostJumpers,
-			Lore:          lore,
+			RoundID:      recap.RoundID,
+			CommunityID:  recap.CommunityID,
+			PromptID:     recap.PromptID,
+			Status:       recap.Status,
+			RevealBy:     recap.RevealBy.Format(time.RFC3339),
+			CreatedBy:    recap.CreatedBy,
+			CreatedAt:    recap.CreatedAt.Format(time.RFC3339),
+			Jumps:        jumps,
+			Comments:     comments,
+			GhostJumpers: ghostJumpers,
+			Lore:         lore,
 			NextRoundHook: NextRoundHookDTO{
 				ActiveRoundID: recap.NextRoundHook.ActiveRoundID,
 				PromptID:      recap.NextRoundHook.PromptID,
@@ -503,8 +521,8 @@ standoutStamps := make([]StandoutStampDTO, 0, len(recap.StandoutStamps))
 			RoundID:            result.Jump.RoundID,
 			PlayerID:           result.Jump.PlayerID,
 			SealedViewer:       result.Jump.SealedViewer,
-			PlayerHasCommitted:  result.Jump.PlayerHasCommitted,
-			PlayerHasSubmitted:  result.Jump.PlayerHasSubmitted,
+			PlayerHasCommitted: result.Jump.PlayerHasCommitted,
+			PlayerHasSubmitted: result.Jump.PlayerHasSubmitted,
 		}
 		if result.Jump.SubmittedAt.Unix() > 0 {
 			dto.SubmittedAt = result.Jump.SubmittedAt.Format(time.RFC3339)

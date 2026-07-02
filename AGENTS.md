@@ -9,7 +9,7 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, and Mage build 
 | Game rules | `apps/api/internal/game/` | Pure functions, no HTTP/DB imports |
 | Add/modify API endpoint | `apps/api/internal/httpapi/server.go` | Routes + handler closures |
 | Change API contract | `apps/api/openapi.yaml` | No generated client remains in-repo; keep the spec aligned with handlers and DTOs |
-| Modify DB schema | `apps/api/db/migrations/*.sql` | Pre-stable: fold into existing |
+| Modify DB schema | `apps/api/db/migrations/*.sql` | Fold into existing until home-server deployment holds real group data; after that, append numbered migrations |
 | Prompt/Pack catalog | `apps/api/internal/game/prompts.go` + `apps/api/db/queries/prompts.sql` + `GET /v1/prompt-catalog` | Copy is data, not contract shape (ADR-0039) |
 | Discord bot | `apps/bot-discord/cmd/bot/main.go` + `apps/bot-discord/internal/` | Thin HTTP client of the API. Owns `apps/bot-discord/.bot-data/` (evidence, scheduler state). `mage dev:bot` / `mage test`. |
 | Build/test orchestration | `magefile/` | Pure Go command plans + Mage targets. `mage -l` is the discoverability surface |
@@ -24,7 +24,7 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, and Mage build 
 - **Snapshot pattern**: Read-only views use `XxxSnapshot` structs.
 - **Stable IDs**: `stableID(kind, value)` generates SHA256-based deterministic IDs, not UUIDs.
 - **Clock injection**: `func() time.Time` is injected for testability.
-- **Pre-stable migrations**: Fold schema changes into existing migration files. Do not create standalone numbered migrations until DB is declared stable.
+- **Pre-stable migrations**: Fold schema changes into existing migration files until the home-server deployment holds real group data. After real home-server data exists, never rewrite an applied migration; add a new numbered migration for every schema change.
 - **Hand-rolled mocks**: Go tests use inline `mock*Repo` structs with function fields. No testify/mock or gomock.
 - **Co-located tests**: `*_test.go` alongside source. The Mage module follows the same pattern in `magefile/*_test.go`.
 - **Coverage commands**: `mage test -coverage` emits per-service coverage files under `coverage/`, appends to `GITHUB_STEP_SUMMARY`, and feeds the non-blocking PR coverage comment.
@@ -32,7 +32,7 @@ Go backend in `apps/api`, Discord adapter in `apps/bot-discord`, and Mage build 
 ## Avoid
 
 - Putting business logic in HTTP handlers (`server.go`). All rules belong in `internal/game/`.
-- Creating standalone DB migration files before DB stability.
+- Creating standalone DB migration files before DB stability, unless the home-server deployment already holds real group data.
 - Adding ESLint/Prettier/golangci-lint configs without team discussion.
 
 ## Git Workflow

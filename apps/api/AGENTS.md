@@ -13,7 +13,7 @@ Go backend API for Supperjumpin. Owns domain logic, durable state, and the REST/
 | Persistence adapter | `internal/httpapi/postgres_store.go` | sqlc-generated queries via `db.Queries` |
 | External identity resolution | `internal/httpapi/external_identity.go` | Adapter-owned mapping from platform actors to (player, community) |
 | Game rules / domain logic | `internal/game/*.go` | Pure functions, repository interfaces, no HTTP/DB imports |
-| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions, comments. Pre-stable: fold schema changes into existing migration files |
+| DB schema | `db/migrations/*.sql` | Communities, players, external_identity, prompt_packs, prompts, reveal_timeframes, rounds, commits, jumps, jump_evidence, stamps, reactions, comments. Fold schema changes only until the home-server deployment holds real group data; after that, add append-only numbered migrations |
 | API contract | `openapi.yaml` | Source of truth for the HTTP contract |
 | sqlc config & generation | `db/queries/*.sql` → `sqlc.yaml` → `internal/db/` | Source `.sql` files; generated Go in `internal/db/` |
 
@@ -70,7 +70,7 @@ These must **never** appear in log output:
 - Adding business logic to `server.go` handlers. Keep handlers thin; delegate to transport helpers, which delegate to `internal/game/`.
 - Using an ORM or query builder. sqlc-generated queries is the current pattern.
 - Modifying `openapi.yaml` without keeping the handlers and DTOs aligned with it.
-- Creating new numbered migration files before DB stability. Fold into existing table-creation migrations.
+- Creating new numbered migration files before DB stability, unless the home-server deployment already holds real group data. Before that boundary, fold into existing table-creation migrations.
 
 ## Notes
 
