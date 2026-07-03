@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 11: Theme Engine — pick a skin, run the ceremony</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;700&family=Shrikhand&family=Anton&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #111214; --surface: #1e1f22; --card: #2b2d31; --text: #dbdee1; --muted: #949ba4;
+            --accent: #5865f2; --accent-2: #f04747; --good: #3ba55d; --warn: #faa61a;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", sans-serif; }
+        .font-mono { font-family: "IBM Plex Mono", monospace; }
+        .font-bungee { font-family: "Bungee", display; }
+        .font-anton { font-family: "Anton", sans-serif; }
+        .font-shrik { font-family: "Shrikhand", serif; }
+
+        /* --- theme tokens applied to root class --- */
+        .theme-default .btn-primary { background: var(--accent); color: white; }
+        .theme-arcade { --bg:#0d0b14; --surface:#181423; --card:#231d33; --text:#e7e2f0; --muted:#8f88a8; --accent:#00A6A6; --accent-2:#FFC928; --good:#7AC943; }
+        .theme-arcade .btn-primary { background: #00A6A6; color: #0d0b14; font-family: "Bungee"; letter-spacing: 1px; text-transform: uppercase; }
+        .theme-arcade .panel { border: 1px solid rgba(255,255,255,.12); border-radius: 14px; }
+        .theme-diner { --bg:#5b4a3a; --surface:#FFF4DA; --card:#efe9da; --text:#2a2620; --muted:#6B5F50; --accent:#D72638; --accent-2:#F6C945; --good:#4C9A2A; }
+        .theme-diner .btn-primary { background: #F6C945; color: #2a2620; font-family: "Shrikhand"; border: 2px solid #2a2620; }
+        .theme-diner .panel { border: 2px solid #2a2620; background: #FFF4DA; border-radius: 10px; transform: rotate(-.5deg); }
+        .theme-extreme { --bg:#08090d; --surface:#0f1014; --card:#15171c; --text:#fff; --muted:#8e9199; --accent:#FFC928; --accent-2:#E13A2D; --good:#7AC943; }
+        .theme-extreme .btn-primary { background: #FFC928; color: #08090d; font-family: "Anton"; text-transform: uppercase; transform: skewX(-6deg); }
+        .theme-extreme .btn-primary span { display: inline-block; transform: skewX(6deg); }
+        .theme-extreme .panel { border: 1px solid rgba(255,255,255,.12); border-radius: 8px; }
+        .theme-lux { --bg:#0a0a0c; --surface:#141216; --card:#1b191f; --text:#f3eef7; --muted:#8b8692; --accent:#d4af37; --accent-2:#ff4ecd; --good:#7AC943; }
+        .theme-lux .btn-primary { background: linear-gradient(90deg,#d4af37,#ff4ecd); color: #0a0a0c; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+        .theme-lux .panel { border: 1px solid rgba(212,175,55,.35); border-radius: 18px; box-shadow: 0 0 40px rgba(212,175,55,.12); }
+
+        .panel { background: var(--card); transition: all .25s ease; }
+        .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 8px; border: 0; font-weight: 700; cursor: pointer; transition: transform .1s, filter .2s; }
+        .btn-primary:active { transform: scale(.98); }
+        .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+        .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--surface); border: 1px solid rgba(255,255,255,.1); font-size: 12px; }
+        .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--surface); color: var(--text); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+        .step-num.done { background: var(--good); color: white; }
+
+        .theme-card { cursor: pointer; border: 2px solid transparent; transition: transform .15s, border-color .15s; }
+        .theme-card:hover { transform: translateY(-3px); }
+        .theme-card.selected { border-color: var(--accent); }
+
+        .fade { animation: fadeIn .25s ease-out; }
+        @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="theme-default min-h-screen">
+    <div id="app" class="min-h-screen p-4 md:p-6">
+        <header class="mx-auto mb-6 flex max-w-6xl items-center justify-between">
+            <a href="index.html" class="text-xs font-bold hover:underline text-[#949ba4]">← BACK TO MOCKUPS</a>
+            <div class="font-mono text-[10px] tracking-[0.25em] uppercase text-[#949ba4]">Round 11 · Theme Engine</div>
+        </header>
+
+        <main class="mx-auto max-w-6xl">
+
+            <!-- STEP 1: THEME PICKER -->
+            <section id="step-picker" class="fade">
+                <div class="text-center mb-6">
+                    <div class="font-mono text-xs tracking-[0.2em] uppercase text-[#949ba4]">Creator step 1 of 3</div>
+                    <h1 class="mt-2 text-3xl md:text-5xl font-black text-[#dbdee1]">Pick a ceremony skin</h1>
+                    <p class="mt-2 text-sm md:text-base text-[#949ba4] max-w-xl mx-auto">Choose the visual template for this round. Everyone in the Activity sees the same theme.</p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+                    <button class="theme-card panel p-4 text-left selected" data-theme="theme-arcade" onclick="pickTheme('theme-arcade')">
+                        <div class="text-2xl mb-2">🕹️</div>
+                        <div class="font-bungee text-sm uppercase">Arcade Stage</div>
+                        <p class="text-xs mt-1 opacity-70">Neon scoreboard, CRT scanlines, coin-in lobby.</p>
+                    </button>
+                    <button class="theme-card panel p-4 text-left" data-theme="theme-diner" onclick="pickTheme('theme-diner')">
+                        <div class="text-2xl mb-2">🍔</div>
+                        <div class="font-shrik text-sm">50s Diner</div>
+                        <p class="text-xs mt-1 opacity-70">Receipt check, torn perforations, line-item totals.</p>
+                    </button>
+                    <button class="theme-card panel p-4 text-left" data-theme="theme-extreme" onclick="pickTheme('theme-extreme')">
+                        <div class="text-2xl mb-2">🏂</div>
+                        <div class="font-anton text-sm uppercase">Extreme Sports</div>
+                        <p class="text-xs mt-1 opacity-70">Full-bleed hero, skewed score stat, sponsor CTA.</p>
+                    </button>
+                    <button class="theme-card panel p-4 text-left" data-theme="theme-lux" onclick="pickTheme('theme-lux')">
+                        <div class="text-2xl mb-2">🎭</div>
+                        <div class="font-mono text-sm uppercase tracking-widest">Lux Theater</div>
+                        <p class="text-xs mt-1 opacity-70">Spotlights, gold trim, velvet curtains, curtain call.</p>
+                    </button>
+                </div>
+
+                <div id="preview" class="panel p-5 mb-6">
+                    <div class="flex flex-col md:flex-row gap-4 items-center">
+                        <div class="w-full md:w-1/3 rounded-lg overflow-hidden h-32 bg-[#111]">
+                            <img id="preview-img" src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Live preview</div>
+                            <h2 id="preview-title" class="mt-1 text-2xl font-black">Arcade Stage</h2>
+                            <p id="preview-desc" class="mt-1 text-sm opacity-70">Jumpers drop coins, the scoreboard fills, and the reveal hits in a synced neon stage.</p>
+                            <div class="mt-3 flex flex-wrap gap-2"><span class="chip">🎨 #00A6A6</span><span class="chip">✨ #FFC928</span><span class="chip">🖥 CRT scanlines</span><span class="chip">🔤 Bungee</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="toEntry()" class="btn-primary text-sm"><span>Confirm theme & open lobby →</span></button>
+                </div>
+            </section>
+
+            <!-- STEP 2: LOBBY / ENTRY -->
+            <section id="step-lobby" class="hidden fade">
+                <div class="text-center mb-6">
+                    <div class="font-mono text-xs tracking-[0.2em] uppercase text-[#949ba4]">Creator step 2 of 3 · now open to jumpers</div>
+                    <h1 class="mt-2 text-3xl md:text-5xl font-black">Fine dining from your fridge</h1>
+                    <p class="mt-2 text-sm text-[#949ba4]">The chosen theme is locked in. Jumpers enter, commit their evidence, then seal their score.</p>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-[260px,1fr,280px]">
+                    <aside class="panel p-4 self-start">
+                        <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Jumpers in</div>
+                        <div id="audience" class="mt-3 space-y-2">
+                            <div class="flex items-center gap-2 p-2 rounded" style="background:var(--surface)"><div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">B</div><div class="text-sm"><b>Ben</b> · <span class="text-xs opacity-60">waiting</span></div></div>
+                            <div class="flex items-center gap-2 p-2 rounded" style="background:var(--surface)"><div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">A</div><div class="text-sm"><b>Ari</b> · <span class="text-xs opacity-60">waiting</span></div></div>
+                            <div class="flex items-center gap-2 p-2 rounded" style="background:var(--surface)"><div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">J</div><div class="text-sm"><b>Jules</b> · <span class="text-xs opacity-60">waiting</span></div></div>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs font-bold"><span id="count">0 / 4</span><span id="pct">0%</span></div>
+                            <div class="h-2 rounded-full mt-2" style="background:var(--surface)"><div id="bar" class="h-2 rounded-full transition-all" style="width:0%; background:var(--good)"></div></div>
+                        </div>
+                    </aside>
+
+                    <section class="panel p-5 self-start">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Open call</div>
+                            <span class="chip" id="theme-badge">🕹️ Arcade Stage</span>
+                        </div>
+
+                        <div class="rounded-lg overflow-hidden h-40 mb-4">
+                            <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=70" class="w-full h-full object-cover">
+                        </div>
+
+                        <div class="space-y-2 mb-4">
+                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num">1</span> Join the round</div>
+                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num">2</span> Seal your score</div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button id="join-btn" onclick="join()" class="btn-primary text-sm">Join round</button>
+                            <button id="seal-btn" onclick="seal()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Seal score</button>
+                        </div>
+
+                        <div id="bot-chat" class="mt-5 space-y-2">
+                            <div class="p-3 rounded" style="background:var(--surface)">
+                                <span class="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded" style="background:var(--accent);color:var(--card)">SUPPER BOT</span>
+                                <span class="text-sm ml-2">The lobby is open.</span>
+                                <p class="text-xs opacity-70 mt-1">Theme locked: Arcade Stage. Join, then seal your score.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <aside class="panel p-4 self-start">
+                        <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Live riff rail</div>
+                        <div id="riff" class="mt-3 space-y-2 text-xs opacity-80">
+                            <div class="p-2 rounded" style="background:var(--surface)"><b>Ari</b> The cloche reveal is hostile architecture.</div>
+                        </div>
+                        <div class="mt-4"><button onclick="postRecap()" class="btn-primary text-sm w-full" style="background:var(--good);color:white">Post recap</button></div>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- STEP 3: REVEAL -->
+            <section id="step-reveal" class="hidden fade">
+                <div class="text-center mb-6">
+                    <div class="font-mono text-xs tracking-[0.2em] uppercase opacity-60">Creator step 3 of 3 · reveal live</div>
+                    <h1 class="mt-2 text-3xl md:text-5xl font-black">The reveal is live</h1>
+                    <p class="mt-2 text-sm opacity-70">The room is full. Everyone sees the same themed reveal stage.</p>
+                </div>
+
+                <div class="panel p-5 max-w-3xl mx-auto">
+                    <div class="rounded-lg overflow-hidden h-56 mb-4">
+                        <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=70" class="w-full h-full object-cover">
+                    </div>
+
+                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                        <div>
+                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Jump 1 of 3</div>
+                            <h2 class="text-2xl md:text-3xl font-black mt-1">Crunchwrap under a cloche</h2>
+                            <p class="text-sm opacity-70 mt-1">The source was Taco Bell. The destination was a candlelit dining room.</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Running avg / 4</div>
+                            <div id="score" class="text-5xl font-black" style="color:var(--accent-2)">3.4</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Commitment</div><div class="text-xl font-black">3.8</div></div>
+                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Transgression</div><div class="text-xl font-black">3.1</div></div>
+                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Creativity</div><div class="text-xl font-black">3.5</div></div>
+                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Presentation</div><div class="text-xl font-black">2.9</div></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <button onclick="stamp('🔥')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🔥</div><div class="text-xs font-bold">Chaos</div></div>
+                        <button onclick="stamp('💎')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">💎</div><div class="text-xs font-bold">Certified</div></div>
+                        <button onclick="stamp('🧠')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🧠</div><div class="text-xs font-bold">Lore</div></div>
+                        <button onclick="stamp('🫡')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🫡</div><div class="text-xs font-bold">Respect</div></div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        const themes = {
+            'theme-arcade': {
+                name: 'Arcade Stage', emoji: '🕹️',
+                desc: 'Jumpers drop coins, the scoreboard fills, and the reveal hits in a synced neon stage.',
+                chips: ['🎨 #00A6A6', '✨ #FFC928', '🖥 CRT scanlines', '🔤 Bungee']
+            },
+            'theme-diner': {
+                name: '50s Diner', emoji: '🍔',
+                desc: 'A printed receipt check: order up, ring dares, serve the reveal once the check is closed.',
+                chips: ['🎨 #D72638', '✨ #F6C945', '🧾 Torn receipt', '🔤 Shrikhand']
+            },
+            'theme-extreme': {
+                name: 'Extreme Sports', emoji: '🏂',
+                desc: 'Cinematic full-bleed attempt with skewed score stat and a locked-in sponsor CTA.',
+                chips: ['🎨 #FFC928', '✨ #E13A2D', '📐 Skewed type', '🔤 Anton']
+            },
+            'theme-lux': {
+                name: 'Lux Theater', emoji: '🎭',
+                desc: 'Spotlit stage, velvet curtains, and a gold-trimmed curtain-call reveal.',
+                chips: ['🎨 #d4af37', '✨ #ff4ecd', '🎭 Velvet stage', '🔤 Inter + gold']
+            }
+        };
+        let currentTheme = 'theme-arcade';
+        let joined = 0, sealed = 0, threshold = 4;
+
+        function pickTheme(key) {
+            currentTheme = key;
+            document.body.className = key + ' min-h-screen';
+            document.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('selected', c.dataset.theme === key));
+            const t = themes[key];
+            document.getElementById('preview-title').textContent = t.name;
+            document.getElementById('preview-desc').textContent = t.desc;
+            const chipWrap = document.getElementById('preview').querySelector('.flex.flex-wrap');
+            chipWrap.innerHTML = t.chips.map(c => `<span class="chip">${c}</span>`).join('');
+            document.getElementById('theme-badge').textContent = t.emoji + ' ' + t.name;
+        }
+
+        function toEntry() {
+            document.getElementById('step-picker').classList.add('hidden');
+            document.getElementById('step-lobby').classList.remove('hidden');
+            bot('Theme locked: ' + themes[currentTheme].name + '. Join the round, then seal your score.');
+        }
+
+        function sync() {
+            document.getElementById('count').textContent = joined + ' / ' + threshold;
+            const pct = Math.min(100, Math.round((joined / threshold) * 100));
+            document.getElementById('pct').textContent = pct + '%';
+            document.getElementById('bar').style.width = pct + '%';
+            document.getElementById('seal-btn').disabled = joined === 0;
+            if (joined >= threshold) {
+                document.getElementById('step-lobby').classList.add('hidden');
+                document.getElementById('step-reveal').classList.remove('hidden');
+                bot('Room full. Reveal going live in ' + themes[currentTheme].name + '.');
+            }
+        }
+
+        function join() {
+            if (joined >= threshold) return;
+            joined++;
+            const items = document.querySelectorAll('#audience > div');
+            if (joined <= items.length) items[joined - 1].querySelector('span').textContent = 'joined';
+            else {
+                const extra = document.createElement('div');
+                extra.className = 'flex items-center gap-2 p-2 rounded';
+                extra.style.background = 'var(--surface)';
+                extra.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">G</div>
+                    <div class="text-sm"><b>Guest ${joined}</b> · <span class="text-xs opacity-60">joined</span></div>`;
+                document.getElementById('audience').appendChild(extra);
+            }
+            document.querySelectorAll('#step-lobby .step-num')[0].textContent = '✓';
+            document.querySelectorAll('#step-lobby .step-num')[0].classList.add('done');
+            bot('Jumper ' + joined + ' joined the round.');
+            sync();
+        }
+
+        function seal() {
+            if (sealed < joined) sealed++;
+            document.querySelectorAll('#step-lobby .step-num')[1].textContent = '✓';
+            document.querySelectorAll('#step-lobby .step-num')[1].classList.add('done');
+            bot('Score ' + sealed + ' sealed. Locked until reveal.');
+            sync();
+        }
+
+        function bot(text) {
+            const d = document.createElement('div');
+            d.className = 'p-3 rounded';
+            d.style.background = 'var(--surface)';
+            d.innerHTML = `<span class="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded" style="background:var(--accent);color:var(--card)">SUPPER BOT</span>
+                <span class="text-sm ml-2">${text}</span>`;
+            document.getElementById('bot-chat').appendChild(d);
+            d.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function stamp(emoji) {
+            const d = document.createElement('div');
+            d.className = 'p-2 rounded';
+            d.style.background = 'var(--surface)';
+            d.innerHTML = `<b>Supper Bot</b> ${emoji} stamp wave detected. This moment is getting loud.`;
+            document.getElementById('riff').prepend(d);
+        }
+
+        function postRecap() {
+            const d = document.createElement('div');
+            d.className = 'p-2 rounded';
+            d.style.background = 'var(--good)';
+            d.style.color = 'white';
+            d.innerHTML = `<b>Posted to #ritual-chamber</b><br>
+                <span class="text-xs opacity-90">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>`;
+            document.getElementById('riff').prepend(d);
+        }
+    </script>
+</body>
+</html>
