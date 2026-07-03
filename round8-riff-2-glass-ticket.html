@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 8 Riff 2: Glass Ticket</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .sidebar { background: #1e1f22; }
+        .chat { background: #313338; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .bot { background: #5865f2; color: #fff; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
+        .btn { background: #4e5058; color: #fff; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+        .btn:hover { background: #6d6f75; }
+        .btn.primary { background: #5865f2; }
+        .btn.good { background: #248046; }
+        .threshold { background: linear-gradient(135deg, #5865f2, #eb459e); color: #fff; border-radius: 12px; text-align: center; }
+        .theater-btn { background: #fff; color: #111214; padding: 12px 24px; border-radius: 24px; font-weight: 900; font-size: 15px; }
+        .theater-btn:hover { transform: scale(1.05); }
+        .glass { background: rgba(30,31,34,.72); border: 1px solid rgba(255,255,255,.10); backdrop-filter: blur(18px); }
+        .stage { background: radial-gradient(circle at 50% 20%, rgba(250,166,26,.32), transparent 28%), radial-gradient(circle at 20% 80%, rgba(235,69,158,.24), transparent 30%), #111214; }
+        .lore-card { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.10); }
+        .trending { border-left: 3px solid #faa61a; }
+        .branch-badge { display: inline-flex; align-items: center; gap: 8px; background: #1e1f22; border: 1px solid #3f4147; border-radius: 999px; padding: 6px 14px; font-size: 11px; font-weight: 800; color: #b5bac4; }
+        .branch-dot { width: 8px; height: 8px; border-radius: 50%; background: #23a55a; }
+        .parent-link { color: #8b9eff; text-decoration: none; font-weight: 700; }
+        .parent-link:hover { text-decoration: underline; }
+        .family-tag { display: inline-block; background: rgba(88,101,242,.15); color: #8b9eff; border: 1px solid rgba(88,101,242,.35); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 900; }
+        .msg-card { background: #1e1f22; border: 1px solid #2b2d31; border-left: 4px solid #5865f2; border-radius: 8px; padding: 16px; }
+        .msg-card-indigo { border-left-color: #5865f2; }
+        .msg-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.22em; text-transform: uppercase; color: #949ba4; }
+        .msg-eyebrow-indigo { color: #8b9eff; }
+        .msg-title { font-size: 18px; font-weight: 900; color: #fff; margin-top: 6px; }
+        .msg-body { font-size: 13px; color: #b5bac4; line-height: 1.5; margin-top: 6px; }
+
+        /* R8 Riff 2: Glass Ticket hero card */
+        .hero-card {
+            position: relative;
+            background: rgba(30,31,34,.55);
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 20px;
+            padding: 0;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 20px 60px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.10);
+            overflow: hidden;
+        }
+        .ticket-stub {
+            background: rgba(88,101,242,.20);
+            border-right: 2px dashed rgba(255,255,255,.15);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            min-width: 120px;
+        }
+        .ticket-notch { position: absolute; left: 138px; top: -10px; width: 20px; height: 20px; background: #313338; border-radius: 50%; }
+        .ticket-notch-bottom { top: auto; bottom: -10px; }
+        .ticket-body { padding: 24px; flex: 1; }
+        .hero-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; color: #8b9eff; }
+        .hero-title { font-size: 30px; font-weight: 900; color: #fff; line-height: 1.15; margin-top: 10px; }
+        .hero-desc { font-size: 14px; color: #b5bac4; line-height: 1.6; margin-top: 12px; }
+        .hero-stat-row { display: flex; gap: 16px; margin-top: 16px; }
+        .hero-stat { display: flex; align-items: baseline; gap: 6px; }
+        .hero-stat-value { font-size: 18px; font-weight: 900; color: #fff; }
+        .hero-stat-label { font-size: 11px; color: #949ba4; text-transform: uppercase; letter-spacing: 0.05em; }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+        .ticket-code { font-family: monospace; font-size: 11px; color: #949ba4; letter-spacing: 0.1em; margin-top: 8px; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full" id="pre-stage">
+        <aside class="sidebar hidden w-64 shrink-0 flex-col p-4 md:flex">
+            <a href="index.html" class="mb-6 text-xs text-indigo-300 hover:underline">Back to mockups</a>
+            <div class="mb-8 text-lg font-black text-white">Supperjumpin Server</div>
+            <div class="space-y-2 text-sm">
+                <div class="rounded px-2 py-1 text-gray-400"># general</div>
+                <div class="rounded bg-gray-600 px-2 py-1 font-bold text-white"># ritual-chamber</div>
+                <div class="rounded px-2 py-1 text-gray-400"># food-pics</div>
+            </div>
+            <div class="mt-auto rounded-xl border border-gray-700 bg-[#2b2d31] p-3 text-xs text-gray-300">
+                <b class="text-cyan-300">Round 8 Riff 2: Glass Ticket</b><br>
+                Entry card shaped like a frosted-glass event ticket.
+            </div>
+        </aside>
+
+        <main class="chat flex min-w-0 flex-1 flex-col">
+            <header class="flex h-12 items-center justify-between border-b border-black px-4 shadow-sm">
+                <div class="font-bold text-white"># ritual-chamber</div>
+                <div class="branch-badge"><span class="branch-dot"></span><a class="parent-link" href="round6-riff-4-hybrid-loreboard.html">Parent: Round 6 Riff 4 · Hybrid Loreboard</a></div>
+            </header>
+            <section id="chat" class="flex-1 space-y-5 overflow-y-auto p-4">
+                <div class="msg flex items-start gap-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
+                    <div class="max-w-3xl">
+                        <div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">Today at 6:00 PM</span></div>
+                        <div id="round-card" class="hero-card mt-2">
+                            <div class="flex flex-col md:flex-row">
+                                <div class="ticket-stub relative">
+                                    <div class="ticket-notch"></div>
+                                    <div class="ticket-notch ticket-notch-bottom"></div>
+                                    <div class="text-4xl">🎟️</div>
+                                    <div class="mt-3 text-xs font-black uppercase tracking-widest text-indigo-300">Admit One</div>
+                                    <div class="ticket-code">R8-R2-GLASS</div>
+                                </div>
+                                <div class="ticket-body">
+                                    <div class="hero-eyebrow">Variation C · Hybrid Stream</div>
+                                    <div class="hero-title">Hybrid Loreboard</div>
+                                    <p class="hero-desc">Chat-native Jump cards flow like a gallery stream. Open the Loreboard surface for the full composition.</p>
+                                    <div class="hero-stat-row">
+                                        <div class="hero-stat"><div class="hero-stat-value" id="commits">0</div><div class="hero-stat-label">Jumpers</div></div>
+                                        <div class="hero-stat"><div class="hero-stat-value" id="sealed">0</div><div class="hero-stat-label">Sealed</div></div>
+                                        <div class="hero-stat"><div class="hero-stat-value">Fri 8PM</div><div class="hero-stat-label">Reveal</div></div>
+                                    </div>
+                                    <div class="hero-actions">
+                                        <button class="btn good" onclick="commit()">I'm In</button>
+                                        <button class="btn primary" onclick="submit()">Submit Evidence</button>
+                                        <button class="btn" onclick="reveal()">Simulate Reveal Timer</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="activity-stage" class="hidden min-h-screen">
+        <div class="stage min-h-screen p-4 md:p-6">
+            <header class="mx-auto mb-4 flex max-w-7xl items-center justify-between">
+                <a href="index.html" class="text-xs text-indigo-200 hover:underline">Back to mockups</a>
+                <div class="rounded-full bg-[#5865f2] px-3 py-1 text-xs font-bold">Discord Activity: Loreboard-First Reveal</div>
+            </header>
+
+            <main class="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[1fr,320px]">
+                <section class="glass overflow-hidden rounded-3xl">
+                    <div class="border-b border-white/10 p-5">
+                        <div class="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">Prompt</div>
+                        <div class="mt-1 text-3xl font-black md:text-5xl">Fine dining from your fridge</div>
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-300">
+                            <span class="rounded-full bg-white/10 px-3 py-1">4 Jumpers</span>
+                            <span class="rounded-full bg-white/10 px-3 py-1">3 sealed</span>
+                            <span class="rounded-full bg-white/10 px-3 py-1">Reveal live</span>
+                        </div>
+                    </div>
+                    <div class="p-5 md:p-8">
+                        <div id="hero" class="grid gap-5 md:grid-cols-[1.1fr,.9fr]">
+                            <div class="pulse flex min-h-[320px] items-center justify-center rounded-3xl bg-gradient-to-br from-orange-300 via-red-400 to-pink-600 text-9xl shadow-2xl">🍔</div>
+                            <div class="flex flex-col justify-center">
+                                <div class="text-sm uppercase tracking-[0.24em] text-gray-400">Jump 1 of 3 — on stage</div>
+                                <h2 id="jump-title" class="mt-3 text-4xl font-black">Crunchwrap under a cloche</h2>
+                                <p id="jump-caption" class="mt-4 text-lg leading-8 text-gray-300">The source was Taco Bell. The destination was a candlelit dining room. The cloche was borrowed from a cake stand and treated with full institutional seriousness.</p>
+                                <div class="mt-6 grid grid-cols-2 gap-3">
+                                    <button onclick="stamp('🔥','Chaos')" class="stamp rounded-2xl p-4 text-left bg-white/10 border border-white/10"><div class="text-3xl">🔥</div><b>Chaos</b><br><span class="text-xs text-gray-400">12 stamps</span></button>
+                                    <button onclick="stamp('💎','Certified')" class="stamp rounded-2xl p-4 text-left bg-white/10 border border-white/10"><div class="text-3xl">💎</div><b>Certified</b><br><span class="text-xs text-gray-400">8 stamps</span></button>
+                                    <button onclick="stamp('🧠','Lore')" class="stamp rounded-2xl p-4 text-left bg-white/10 border border-white/10"><div class="text-3xl">🧠</div><b>Lore</b><br><span class="text-xs text-gray-400">5 stamps</span></button>
+                                    <button onclick="stamp('🫡','Respect')" class="stamp rounded-2xl p-4 text-left bg-white/10 border border-white/10"><div class="text-3xl">🫡</div><b>Respect</b><br><span class="text-xs text-gray-400">4 stamps</span></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-center"><button onclick="nextJump()" class="rounded-xl bg-pink-500 px-6 py-3 font-black text-white">Advance Reveal →</button></div>
+                    </div>
+                </section>
+
+                <aside class="glass rounded-3xl p-4">
+                    <div class="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">Loreboard</div>
+                    <h2 class="mt-2 text-xl font-black">Emerging highlights</h2>
+                    <p class="mt-2 text-sm leading-6 text-gray-300">The wall updates live as Stamps land.</p>
+                    <div id="loreboard" class="mt-5 space-y-3">
+                        <div class="lore-card trending rounded-xl p-3"><div class="flex items-center gap-3"><div class="text-3xl">🍔</div><div class="flex-1"><div class="font-bold">Cloche Crunchwrap</div><div class="text-xs text-gray-400">29 Stamps · “legally a tasting menu”</div></div></div></div>
+                        <div class="lore-card rounded-xl p-3"><div class="flex items-center gap-3"><div class="text-3xl">🍣</div><div class="flex-1"><div class="font-bold">Gas-station sushi on china</div><div class="text-xs text-gray-400">12 Stamps · “hostile architecture”</div></div></div></div>
+                        <div class="lore-card rounded-xl p-3"><div class="flex items-center gap-3"><div class="text-3xl">🍰</div><div class="flex-1"><div class="font-bold">Dorm-room tiramisu flight</div><div class="text-xs text-gray-400">8 Stamps · “three mugs, one dream”</div></div></div></div>
+                    </div>
+                    <button onclick="postRecap()" class="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">Post Recap to chat</button>
+                </aside>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0;
+        const chat = document.getElementById('chat');
+        function addBot(html) {
+            const msg = document.createElement('div');
+            msg.className = 'msg flex items-start gap-3';
+            msg.innerHTML = '<div class="h-10 w-10 rounded-full bg-indigo-500"></div><div class="max-w-3xl"><div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">now</span></div><div class="msg-card msg-card-indigo mt-2">' + html + '</div></div>';
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
+        function commit() { commits += 1; sync(); addBot('<div class="family-tag mb-2">R6R4 GRANDCHILD · GLASS</div><div class="msg-eyebrow msg-eyebrow-indigo">Ticket holder ' + commits + '</div><div class="msg-title">🎟️ Another seat filled</div><div class="msg-body">The glass ticket is getting crowded. The Loreboard will remember this.</div>'); }
+        function submit() { if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) commits = 1; } sync(); addBot('<div class="family-tag mb-2">R6R4 GRANDCHILD · GLASS</div><div class="msg-eyebrow msg-eyebrow-indigo">Sealed exhibit ' + sealed + '</div><div class="msg-title">🔒 A Jump goes into the archive</div><div class="msg-body">Protected under frosted glass until the bell rings.</div>'); }
+        function reveal() { addBot('<div class="threshold p-5"><div class="text-lg font-black">✨ THE REVEAL IS LIVE ✨</div><p class="text-sm opacity-90 mt-2 mb-4">Enter the Loreboard Theater to see the synchronized reveal and live highlights.</p><button class="theater-btn" onclick="enterLoreboard()">🚀 Enter Loreboard Theater</button></div>'); }
+        function enterLoreboard() { document.getElementById('pre-stage').classList.add('hidden'); document.getElementById('activity-stage').classList.remove('hidden'); }
+
+        const jumps = [
+            ['🍔','Crunchwrap under a cloche','The source was Taco Bell. The destination was a candlelit dining room. The cloche was borrowed from a cake stand and treated with full institutional seriousness.'],
+            ['🍣','Gas-station sushi on china','A tray of convenience-store sushi received white tablecloth treatment and one tiny fork no one asked for.'],
+            ['🍰','Dorm-room tiramisu flight','Three mugs, one dusting of cocoa, and the confidence of a dessert cart.']
+        ];
+        const quotes = ['legally a tasting menu','hostile architecture','three mugs, one dream'];
+        let idx = 0;
+        function nextJump() { idx = (idx + 1) % jumps.length; document.querySelector('#hero .pulse').textContent = jumps[idx][0]; document.getElementById('jump-title').textContent = jumps[idx][1]; document.getElementById('jump-caption').textContent = jumps[idx][2]; document.querySelector('#hero .text-sm').textContent = 'Jump ' + (idx + 1) + ' of ' + jumps.length + ' — on stage'; updateLoreboard(jumps[idx][0], jumps[idx][1], quotes[idx]); }
+        function stamp(emoji, name) { const note = document.createElement('div'); note.className = 'text-xs text-gray-400'; note.textContent = emoji + ' ' + name + ' wave on ' + jumps[idx][1]; document.getElementById('loreboard').prepend(note); }
+        function updateLoreboard(emoji, title, quote) { const card = document.createElement('div'); card.className = 'lore-card trending rounded-xl p-3'; card.innerHTML = '<div class="flex items-center gap-3"><div class="text-3xl">' + emoji + '</div><div class="flex-1"><div class="font-bold">' + title + '</div><div class="text-xs text-gray-400">Now on stage · “' + quote + '”</div></div></div>'; document.getElementById('loreboard').prepend(card); }
+        function postRecap() { const note = document.createElement('div'); note.className = 'rounded-xl bg-emerald-500/20 p-3 ring-1 ring-emerald-400/40 text-sm'; note.innerHTML = '<b>Posted to #ritual-chamber</b><br>Top highlight: Cloche Crunchwrap (29 Stamps).'; document.getElementById('loreboard').prepend(note); }
+    </script>
+</body>
+</html>
