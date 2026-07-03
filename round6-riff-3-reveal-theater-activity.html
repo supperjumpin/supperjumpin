@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 6 Riff 3: Reveal Theater Activity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .sidebar { background: #1e1f22; }
+        .chat { background: #313338; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .bot { background: #5865f2; color: #fff; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
+        .container-v2 { background: #2b2d31; border: 1px solid #3f4147; border-left: 4px solid #23a55a; border-radius: 10px; overflow: hidden; }
+        .section { border-top: 1px solid #3f4147; }
+        .btn { background: #4e5058; color: #fff; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+        .btn:hover { background: #6d6f75; }
+        .btn.primary { background: #5865f2; }
+        .btn.good { background: #248046; }
+        .threshold { background: linear-gradient(135deg, #5865f2, #eb459e); color: #fff; border-radius: 12px; text-align: center; }
+        .theater-btn { background: #fff; color: #111214; padding: 12px 24px; border-radius: 24px; font-weight: 900; font-size: 15px; }
+        .theater-btn:hover { transform: scale(1.05); }
+        .activity-frame { background: #0b0b12; border: 2px solid #3f4147; border-radius: 16px; min-height: 320px; display: none; }
+        .stage { background: radial-gradient(circle at 50% 20%, rgba(250,166,26,.32), transparent 28%), radial-gradient(circle at 20% 80%, rgba(235,69,158,.24), transparent 30%), #111214; }
+        .event-card { background: #2b2d31; border: 1px solid #3f4147; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+        .event-hero { background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 50%, #313338 100%); padding: 24px; position: relative; overflow: hidden; }
+        .event-hero::before { content: ''; position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(88,101,242,.18) 0%, transparent 70%); border-radius: 50%; }
+        .event-hero::after { content: ''; position: absolute; bottom: -50%; left: -10%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(235,69,158,.12) 0%, transparent 70%); border-radius: 50%; }
+        .event-badge { position: relative; display: inline-block; background: #23a55a; color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; margin-bottom: 12px; }
+        .event-prompt { position: relative; font-size: 28px; font-weight: 900; color: #fff; line-height: 1.2; }
+        .event-instruction { position: relative; margin-top: 10px; color: #b5bac4; font-size: 14px; line-height: 1.6; }
+        .event-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px 24px; background: #1e1f22; border-top: 1px solid #3f4147; border-bottom: 1px solid #3f4147; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 20px; font-weight: 900; color: #fff; }
+        .stat-label { font-size: 11px; color: #949ba4; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+        .notice { background: #1e1f22; border-left: 4px solid #23a55a; border-radius: 8px; padding: 12px 16px; }
+        .notice-title { font-weight: 800; color: #fff; font-size: 14px; }
+        .notice-body { color: #b5bac4; font-size: 13px; margin-top: 4px; }
+        .status-pill { display: inline-block; background: rgba(255,255,255,.08); border-radius: 12px; padding: 3px 10px; font-size: 11px; font-weight: 700; color: #dbdee1; }
+        .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+        .gallery-item { aspect-ratio: 1; border-radius: 8px; background: #313338; display: flex; align-items: center; justify-content: center; font-size: 32px; border: 1px solid #3f4147; }
+        .roast-card { background: #2b2d31; border: 1px solid #3f4147; border-left: 4px solid #f23f42; border-radius: 10px; padding: 12px; }
+        .roast-quote { font-style: italic; color: #faa61a; font-size: 14px; margin-top: 6px; }
+        .commit-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #5865f2, #eb459e); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: #fff; margin-right: -8px; border: 2px solid #1e1f22; }
+        .commit-stack { display: flex; padding-left: 8px; margin: 8px 0; }
+        .vault-card { background: #1e1f22; border: 2px dashed #5865f2; border-radius: 16px; padding: 24px; text-align: center; }
+        .vault-number { font-size: 56px; font-weight: 900; color: #5865f2; line-height: 1; }
+        .ritual-panel { background: linear-gradient(145deg, #1e1f22, #2b2d31); border: 1px solid #3f4147; border-radius: 16px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,.25); }
+        .ritual-title { font-size: 18px; font-weight: 900; color: #fff; text-align: center; }
+        .ritual-subtitle { font-size: 12px; color: #949ba4; text-align: center; margin-top: 6px; }
+        .sparkle { color: #faa61a; }
+        .big-card { background: #18181b; border: 1px solid #3f4147; border-radius: 28px; padding: 28px; box-shadow: 0 16px 48px rgba(0,0,0,.35); }
+        .big-card-pink { border-color: rgba(235,69,158,.45); }
+        .big-card-yellow { border-color: rgba(250,166,26,.45); }
+        .big-card-indigo { border-color: rgba(88,101,242,.55); }
+        .eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; }
+        .eyebrow-pink { color: #eb459e; }
+        .eyebrow-yellow { color: #faa61a; }
+        .eyebrow-indigo { color: #8b9eff; }
+        .big-title { font-size: 32px; font-weight: 900; color: #fff; line-height: 1.15; margin-top: 12px; }
+        .big-desc { font-size: 15px; color: #b5bac4; line-height: 1.6; margin-top: 14px; }
+        .glow-orb { position: absolute; border-radius: 50%; filter: blur(40px); opacity: .35; }
+        .neon-number { font-size: 72px; font-weight: 900; color: #5865f2; text-shadow: 0 0 32px rgba(88,101,242,.55); line-height: 1; }
+        .neon-dashed { border: 2px dashed #5865f2; border-radius: 28px; background: rgba(88,101,242,.08); }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <aside class="sidebar hidden w-64 shrink-0 flex-col p-4 md:flex">
+            <a href="index.html" class="mb-6 text-xs text-indigo-300 hover:underline">Back to mockups</a>
+            <div class="mb-8 text-lg font-black text-white">Supperjumpin Server</div>
+            <div class="space-y-2 text-sm">
+                <div class="rounded px-2 py-1 text-gray-400"># general</div>
+                <div class="rounded bg-gray-600 px-2 py-1 font-bold text-white"># ritual-chamber</div>
+                <div class="rounded px-2 py-1 text-gray-400"># food-pics</div>
+            </div>
+            <div class="mt-auto rounded-xl border border-gray-700 bg-[#2b2d31] p-3 text-xs text-gray-300">
+                <b class="text-cyan-300">Round 6 Riff 3: Reveal Theater Activity</b><br>
+                A bolder shared-stage Activity with audience rail, live Stamp bursts, and recap composer.
+            </div>
+        </aside>
+
+        <main class="chat flex min-w-0 flex-1 flex-col">
+            <header class="flex h-12 items-center justify-between border-b border-black px-4 shadow-sm">
+                <div class="font-bold text-white"># ritual-chamber</div>
+                <div class="text-xs text-gray-400">Bright artistic Activity reveal</div>
+            </header>
+            <section id="chat" class="flex-1 space-y-5 overflow-y-auto p-4">
+                <div class="msg flex items-start gap-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
+                    <div class="max-w-3xl">
+                        <div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">Today at 6:00 PM</span></div>
+                        <div id="round-card" class="big-card big-card-pink mt-2 relative overflow-hidden">
+                            <div class="glow-orb" style="width:200px;height:200px;background:#eb459e;top:-60px;right:-40px;"></div>
+                            <div class="relative">
+                                <div class="eyebrow eyebrow-pink">Variation B · Activity Reveal</div>
+                                <div class="big-title">Reveal Theater Activity</div>
+                                <p class="big-desc">Take something humble. Serve it somewhere it does not belong. Then step onto the shared stage.</p>
+                                <div class="mt-5 grid grid-cols-3 gap-3 text-center">
+                                    <div><div class="text-xl font-black text-white">Friday 8PM</div><div class="text-[11px] uppercase tracking-wider text-gray-500 mt-1">Reveal</div></div>
+                                    <div><div class="text-xl font-black text-white" id="commits">0</div><div class="text-[11px] uppercase tracking-wider text-gray-500 mt-1">Jumpers</div></div>
+                                    <div><div class="text-xl font-black text-white" id="sealed">0</div><div class="text-[11px] uppercase tracking-wider text-gray-500 mt-1">Sealed</div></div>
+                                </div>
+                                <div class="mt-6 flex flex-wrap gap-2">
+                                    <button class="btn good" onclick="commit()">I'm In</button>
+                                    <button class="btn primary" onclick="submit()">Submit Evidence</button>
+                                    <button class="btn" onclick="reveal()">Simulate Reveal Timer</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0;
+        const chat = document.getElementById('chat');
+        function addBot(html, accent) {
+            const msg = document.createElement('div');
+            msg.className = 'msg flex items-start gap-3';
+            msg.innerHTML = '<div class="h-10 w-10 rounded-full bg-indigo-500"></div><div class="max-w-3xl"><div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">now</span></div><div class="container-v2 mt-2" style="border-left-color:' + (accent || '#23a55a') + '">' + html + '</div></div>';
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
+        function commit() { commits += 1; sync(); addBot('<div class="big-card big-card-pink"><div class="eyebrow eyebrow-pink">Player ' + commits + ' joins the stage</div><div class="big-title" style="font-size:22px;">🎭 A seat fills in the audience rail</div><div class="big-desc">The shared stage gets louder. The Jumper is in.</div></div>', '#eb459e'); }
+        function submit() { if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) commits = 1; } sync(); addBot('<div class="big-card big-card-pink"><div class="eyebrow eyebrow-pink">Backstage ' + sealed + ' sealed</div><div class="big-title" style="font-size:22px;">🎬 Evidence is in the wings</div><div class="big-desc">The stage manager mutters. Nothing goes on until the curtain rises.</div></div>', '#5865f2'); }
+        function reveal() {
+            addBot('<div class="big-card big-card-pink relative overflow-hidden"><div class="glow-orb" style="width:180px;height:180px;background:#eb459e;top:-50px;left:-40px;"></div><div class="relative"><div class="eyebrow eyebrow-pink">The curtain rises</div><div class="big-title" style="font-size:26px;">✨ THE REVEAL THEATER IS LIVE ✨</div><div class="big-desc">Shared stage, live Stamp bursts, and a recap composer. Everyone sees the same Jump at the same time.</div><button class="theater-btn" onclick="launchTheater()">🚀 Enter the Reveal Theater</button></div></div>', '#eb459e');
+        }
+        function launchTheater() {
+            addBot('<div class="big-card big-card-pink relative overflow-hidden"><div class="glow-orb" style="width:220px;height:220px;background:#eb459e;bottom:-60px;right:-50px;"></div><div class="relative"><div class="eyebrow eyebrow-pink">Now playing on the shared stage</div><div class="flex gap-4 items-center"><div class="text-6xl">🍔</div><div class="flex-1"><div class="text-xl font-black text-white">Crunchwrap under a cloche</div><div class="text-sm text-gray-400 mt-1">Audience rail reacts in real time · Recap composer ready</div></div></div><div class="mt-4 flex justify-center gap-2"><button class="btn">🔥 Chaos 12</button><button class="btn">💎 Certified 8</button><button class="btn">🧠 Lore 5</button></div></div></div>', '#f23f42');
+            document.getElementById('theater').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
