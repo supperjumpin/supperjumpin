@@ -137,7 +137,7 @@
                 <div class="text-center mb-6">
                     <div class="font-mono text-xs tracking-[0.2em] uppercase text-[#949ba4]">Creator step 2 of 3 · now open to jumpers</div>
                     <h1 class="mt-2 text-3xl md:text-5xl font-black">Fine dining from your fridge</h1>
-                    <p class="mt-2 text-sm text-[#949ba4]">The chosen theme is locked in. Jumpers enter, commit their evidence, then seal their score.</p>
+                    <p class="mt-2 text-sm text-[#949ba4]">The chosen theme is locked in. Jumpers enter, submit their scores, then the host seals.</p>
                 </div>
 
                 <div class="grid gap-4 lg:grid-cols-[260px,1fr,280px]">
@@ -166,21 +166,24 @@
                         </div>
 
                         <div class="space-y-2 mb-4">
-                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num">1</span> Join the round</div>
-                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num">2</span> Seal your score</div>
+                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-join-num">1</span> Join the round</div>
+                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-submit-num">2</span> Submit scores</div>
+                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-seal-num">3</span> Seal scores</div>
                         </div>
 
                         <div class="flex flex-wrap gap-2">
                             <button id="join-btn" onclick="join()" class="btn-primary text-sm">Join round</button>
-                            <button id="seal-btn" onclick="seal()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Seal score</button>
+                            <button id="submit-btn" onclick="submitAll()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Submit scores</button>
+                            <button id="seal-btn" onclick="seal()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Seal scores</button>
                             <button id="reveal-btn" onclick="manualReveal()" class="btn-primary text-sm hidden">🚀 Reveal now</button>
+                            <button id="undo-seal-btn" onclick="undoSeal()" class="btn-primary text-sm hidden" title="Undo seal before reveal" style="background:var(--surface);color:var(--text)">↩️ Undo seal</button>
                         </div>
 
                         <div id="bot-chat" class="mt-5 space-y-2">
                             <div class="p-3 rounded" style="background:var(--surface)">
                                 <span class="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded" style="background:var(--accent);color:var(--card)">SUPPER BOT</span>
                                 <span class="text-sm ml-2">The lobby is open.</span>
-                                <p class="text-xs opacity-70 mt-1">Theme locked: Arcade Stage. Join, then seal your score.</p>
+                                <p class="text-xs opacity-70 mt-1">Theme locked: Arcade Stage. Join, submit scores, then seal.</p>
                             </div>
                         </div>
                     </section>
@@ -200,7 +203,7 @@
                 <div class="text-center mb-6">
                     <div class="font-mono text-xs tracking-[0.2em] uppercase opacity-60">Creator step 3 of 3 · reveal live</div>
                     <h1 class="mt-2 text-3xl md:text-5xl font-black">The reveal is live</h1>
-                    <p class="mt-2 text-sm opacity-70">The room is full. Everyone sees the same themed reveal stage.</p>
+                    <p class="mt-2 text-sm opacity-70">The room is full and scores are sealed. Everyone sees the same themed reveal stage.</p>
                 </div>
 
                 <div class="panel p-5 max-w-3xl mx-auto">
@@ -228,10 +231,10 @@
                     </div>
 
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <button onclick="stamp('🔥')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🔥</div><div class="text-xs font-bold">Chaos</div></div>
-                        <button onclick="stamp('💎')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">💎</div><div class="text-xs font-bold">Certified</div></div>
-                        <button onclick="stamp('🧠')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🧠</div><div class="text-xs font-bold">Lore</div></div>
-                        <button onclick="stamp('🫡')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🫡</div><div class="text-xs font-bold">Respect</div></div>
+                        <button onclick="stamp('🔥')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🔥</div><div class="text-xs font-bold">Chaos</div></button>
+                        <button onclick="stamp('💎')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">💎</div><div class="text-xs font-bold">Certified</div></button>
+                        <button onclick="stamp('🧠')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🧠</div><div class="text-xs font-bold">Lore</div></button>
+                        <button onclick="stamp('🫡')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🫡</div><div class="text-xs font-bold">Respect</div></button>
                     </div>
                 </div>
             </section>
@@ -278,7 +281,7 @@
             }
         };
         let currentTheme = 'theme-arcade';
-        let joined = 0, sealed = 0, threshold = 4;
+        let joined = 0, submitted = 0, sealed = 0, threshold = 4, revealed = false;
 
         function pickTheme(key) {
             currentTheme = key;
@@ -295,7 +298,7 @@
         function toEntry() {
             document.getElementById('step-picker').classList.add('hidden');
             document.getElementById('step-lobby').classList.remove('hidden');
-            bot('Theme locked: ' + themes[currentTheme].name + '. Join the round, then seal your score.');
+            bot('Theme locked: ' + themes[currentTheme].name + '. Join, submit scores, then seal.');
         }
 
         function sync() {
@@ -303,26 +306,31 @@
             const pct = Math.min(100, Math.round((joined / threshold) * 100));
             document.getElementById('pct').textContent = pct + '%';
             document.getElementById('bar').style.width = pct + '%';
-            document.getElementById('seal-btn').disabled = joined === 0;
+
+            // Step 1: join — enabled until room full
+            document.getElementById('join-btn').disabled = joined >= threshold || sealed > 0;
+
+            // Step 2: submit — enabled once at least one joined and not all submitted
+            document.getElementById('submit-btn').disabled = joined === 0 || submitted >= joined || sealed > 0;
+
+            // Step 3: seal — enabled only when all joined have submitted and not already sealed
+            document.getElementById('seal-btn').disabled = submitted < joined || submitted === 0 || sealed > 0;
+
+            // Undo seal — visible only when sealed but not revealed
+            const undoBtn = document.getElementById('undo-seal-btn');
+            undoBtn.classList.toggle('hidden', !(sealed > 0 && !revealed));
+
+            // Reveal — only when room is full AND scores are sealed
             const revealBtn = document.getElementById('reveal-btn');
-            if (joined >= threshold && sealed >= joined) {
+            if (joined >= threshold && sealed > 0 && !revealed) {
                 revealBtn.classList.remove('hidden');
-                document.getElementById('join-btn').disabled = true;
-                document.getElementById('seal-btn').disabled = true;
             } else {
                 revealBtn.classList.add('hidden');
-                document.getElementById('join-btn').disabled = joined >= threshold;
             }
         }
 
-        function manualReveal() {
-            document.getElementById('step-lobby').classList.add('hidden');
-            document.getElementById('step-reveal').classList.remove('hidden');
-            bot('🚀 Reveal triggered by the host.');
-        }
-
         function join() {
-            if (joined >= threshold) return;
+            if (joined >= threshold || sealed > 0) return;
             joined++;
             const items = document.querySelectorAll('#audience > div');
             if (joined <= items.length) items[joined - 1].querySelector('span').textContent = 'joined';
@@ -334,18 +342,46 @@
                     <div class="text-sm"><b>Guest ${joined}</b> · <span class="text-xs opacity-60">joined</span></div>`;
                 document.getElementById('audience').appendChild(extra);
             }
-            document.querySelectorAll('#step-lobby .step-num')[0].textContent = '✓';
-            document.querySelectorAll('#step-lobby .step-num')[0].classList.add('done');
+            document.getElementById('step-join-num').textContent = '✓';
+            document.getElementById('step-join-num').classList.add('done');
             bot('Jumper ' + joined + ' joined the round.');
             sync();
         }
 
-        function seal() {
-            sealed = joined;
-            document.querySelectorAll('#step-lobby .step-num')[1].textContent = '✓';
-            document.querySelectorAll('#step-lobby .step-num')[1].classList.add('done');
-            bot('All ' + sealed + ' scores sealed. Click Reveal now when ready.');
+        function submitAll() {
+            if (joined === 0 || submitted >= joined || sealed > 0) return;
+            submitted = joined;
+            document.getElementById('step-submit-num').textContent = '✓';
+            document.getElementById('step-submit-num').classList.add('done');
+            bot('All ' + submitted + ' scorecards submitted. Ready to seal.');
             sync();
+        }
+
+        function seal() {
+            if (submitted === 0 || submitted < joined || sealed > 0 || revealed) return;
+            sealed = submitted;
+            document.getElementById('step-seal-num').textContent = '✓';
+            document.getElementById('step-seal-num').classList.add('done');
+            bot('All ' + sealed + ' scores sealed. Click Reveal now when ready, or Undo seal if you need to change something.');
+            sync();
+        }
+
+        function undoSeal() {
+            if (revealed || sealed === 0) return;
+            sealed = 0;
+            document.getElementById('step-seal-num').textContent = '3';
+            document.getElementById('step-seal-num').classList.remove('done');
+            bot('Seal undone. Scorecards are unsealed and can be edited.');
+            sync();
+        }
+
+        function manualReveal() {
+            if (revealed) return;
+            revealed = true;
+            document.getElementById('step-lobby').classList.add('hidden');
+            document.getElementById('step-reveal').classList.remove('hidden');
+            document.getElementById('undo-seal-btn').classList.add('hidden');
+            bot('🚀 Reveal triggered by the host.');
         }
 
         function bot(text) {
