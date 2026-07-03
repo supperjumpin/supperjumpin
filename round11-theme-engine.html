@@ -173,6 +173,7 @@
                         <div class="flex flex-wrap gap-2">
                             <button id="join-btn" onclick="join()" class="btn-primary text-sm">Join round</button>
                             <button id="seal-btn" onclick="seal()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Seal score</button>
+                            <button id="reveal-btn" onclick="manualReveal()" class="btn-primary text-sm hidden">🚀 Reveal now</button>
                         </div>
 
                         <div id="bot-chat" class="mt-5 space-y-2">
@@ -303,11 +304,21 @@
             document.getElementById('pct').textContent = pct + '%';
             document.getElementById('bar').style.width = pct + '%';
             document.getElementById('seal-btn').disabled = joined === 0;
-            if (joined >= threshold) {
-                document.getElementById('step-lobby').classList.add('hidden');
-                document.getElementById('step-reveal').classList.remove('hidden');
-                bot('Room full. Reveal going live in ' + themes[currentTheme].name + '.');
+            const revealBtn = document.getElementById('reveal-btn');
+            if (joined >= threshold && sealed >= joined) {
+                revealBtn.classList.remove('hidden');
+                document.getElementById('join-btn').disabled = true;
+                document.getElementById('seal-btn').disabled = true;
+            } else {
+                revealBtn.classList.add('hidden');
+                document.getElementById('join-btn').disabled = joined >= threshold;
             }
+        }
+
+        function manualReveal() {
+            document.getElementById('step-lobby').classList.add('hidden');
+            document.getElementById('step-reveal').classList.remove('hidden');
+            bot('🚀 Reveal triggered by the host.');
         }
 
         function join() {
@@ -330,10 +341,10 @@
         }
 
         function seal() {
-            if (sealed < joined) sealed++;
+            sealed = joined;
             document.querySelectorAll('#step-lobby .step-num')[1].textContent = '✓';
             document.querySelectorAll('#step-lobby .step-num')[1].classList.add('done');
-            bot('Score ' + sealed + ' sealed. Locked until reveal.');
+            bot('All ' + sealed + ' scores sealed. Click Reveal now when ready.');
             sync();
         }
 
