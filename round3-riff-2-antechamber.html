@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 3 Riff 2: The Antechamber</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .sidebar { background: #1e1f22; }
+        .chat { background: #313338; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .bot { background: #5865f2; color: #fff; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
+        .container-v2 { background: #2b2d31; border: 1px solid #3f4147; border-left: 4px solid #23a55a; border-radius: 10px; overflow: hidden; }
+        .section { border-top: 1px solid #3f4147; }
+        .btn { background: #4e5058; color: #fff; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+        .btn:hover { background: #6d6f75; }
+        .btn.primary { background: #5865f2; }
+        .btn.good { background: #248046; }
+        .vault { background: #1e1f22; border: 2px dashed #5865f2; border-radius: 12px; text-align: center; padding: 24px; }
+        .sealed-count { font-size: 48px; font-weight: 900; color: #5865f2; }
+        .threshold { background: linear-gradient(135deg, #5865f2, #eb459e); color: #fff; border-radius: 12px; text-align: center; }
+        .theater-btn { background: #fff; color: #111214; padding: 12px 24px; border-radius: 24px; font-weight: 900; font-size: 15px; }
+        .activity-frame { background: #0b0b12; border: 2px solid #3f4147; border-radius: 16px; min-height: 320px; display: none; }
+        .stage { background: radial-gradient(circle at 50% 20%, rgba(250,166,26,.32), transparent 28%), radial-gradient(circle at 20% 80%, rgba(235,69,158,.24), transparent 30%), #111214; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <aside class="sidebar hidden w-64 shrink-0 flex-col p-4 md:flex">
+            <a href="index.html" class="mb-6 text-xs text-indigo-300 hover:underline">Back to mockups</a>
+            <div class="mb-8 text-lg font-black text-white">Supperjumpin Server</div>
+            <div class="space-y-2 text-sm">
+                <div class="rounded px-2 py-1 text-gray-400"># general</div>
+                <div class="rounded bg-gray-600 px-2 py-1 font-bold text-white"># ritual-chamber</div>
+                <div class="rounded px-2 py-1 text-gray-400"># food-pics</div>
+            </div>
+            <div class="mt-auto rounded-xl border border-gray-700 bg-[#2b2d31] p-3 text-xs text-gray-300">
+                <b class="text-cyan-300">Round 3 Riff 2: The Antechamber</b><br>
+                Native entry → sealed vault teaser → Activity reveal.
+            </div>
+        </aside>
+
+        <main class="chat flex min-w-0 flex-1 flex-col">
+            <header class="flex h-12 items-center justify-between border-b border-black px-4 shadow-sm">
+                <div class="font-bold text-white"># ritual-chamber</div>
+                <div class="text-xs text-gray-400">Antechamber build-up, then Activity reveal</div>
+            </header>
+            <section id="chat" class="flex-1 space-y-5 overflow-y-auto p-4">
+                <div class="msg flex items-start gap-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
+                    <div class="max-w-3xl">
+                        <div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">Today at 6:00 PM</span></div>
+                        <div id="round-card" class="container-v2 mt-2">
+                            <div class="p-4">
+                                <div class="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">Round opens</div>
+                                <div class="mt-2 text-2xl font-black text-white">Prompt: Fine dining from your fridge</div>
+                                <p class="mt-2 text-sm leading-6 text-gray-300">Take something humble, serve it somewhere it does not belong.</p>
+                                <div class="mt-4 grid gap-2 text-sm md:grid-cols-3">
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white">Reveal</b><br><span class="text-gray-400">Friday 8:00 PM</span></div>
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="commits">0</span> Jumpers</b><br><span class="text-gray-400">committed</span></div>
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="sealed">0</span> sealed</b><br><span class="text-gray-400">content hidden</span></div>
+                                </div>
+                            </div>
+                            <div class="section flex flex-wrap gap-2 p-3">
+                                <button class="btn good" onclick="commit()">I'm In</button>
+                                <button class="btn primary" onclick="submit()">Submit Evidence</button>
+                                <button class="btn" onclick="buildAntechamber()">Build Antechamber</button>
+                                <button class="btn warn" onclick="reveal()">Reveal Timer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0;
+        const chat = document.getElementById('chat');
+        function addBot(html, accent) {
+            const msg = document.createElement('div');
+            msg.className = 'msg flex items-start gap-3';
+            msg.innerHTML = '<div class="h-10 w-10 rounded-full bg-indigo-500"></div><div class="max-w-3xl"><div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">now</span></div><div class="container-v2 mt-2" style="border-left-color:' + (accent || '#23a55a') + '">' + html + '</div></div>';
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
+        function commit() { commits += 1; sync(); addBot('<div class="p-4"><b class="text-white">A Jumper steps forward.</b><p class="mt-1 text-sm text-gray-300">' + commits + ' committed.</p></div>', '#23a55a'); }
+        function submit() { if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) commits = 1; } sync(); addBot('<div class="p-4"><b class="text-white">Your Jump is sealed.</b><p class="mt-1 text-sm text-gray-300">Evidence is hidden until reveal.</p></div>', '#5865f2'); }
+        function buildAntechamber() {
+            addBot('<div class="vault"><div class="text-xs font-bold uppercase tracking-[0.22em] text-indigo-300">The Antechamber</div><div class="sealed-count">' + sealed + '</div><div class="text-sm text-gray-300">Jumps sealed behind the vault.<br>The ritual begins Friday 8:00 PM.</div></div>', '#5865f2');
+        }
+        function reveal() {
+            addBot('<div class="threshold p-5"><div class="text-lg font-black">🔓 THE VAULT IS OPEN 🔓</div><p class="text-sm opacity-90 mt-2 mb-4">Step through. The reveal is synchronized inside the Theater.</p><button class="theater-btn" onclick="launchTheater()">🚀 Enter the Reveal Theater</button></div>', '#eb459e');
+        }
+        function launchTheater() {
+            addBot('<div class="p-4"><b class="text-white">Theater opening...</b><div class="activity-frame mt-3 p-4 stage" id="theater"><div class="text-center"><div class="text-6xl mb-4">🍣</div><div class="text-xl font-black text-white">Gas-station sushi on china</div><div class="mt-4 flex justify-center gap-2"><button class="btn">🔥 Chaos 12</button><button class="btn">💎 Certified 8</button><button class="btn">🧠 Lore 5</button></div></div></div></div>', '#f23f42');
+            document.getElementById('theater').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>

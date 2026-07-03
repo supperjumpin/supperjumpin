@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 3 Riff 4: The Slow Reveal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #313338; color: #dbdee1; font-family: 'gg sans', 'Noto Sans', sans-serif; }
+        .sidebar { background: #1e1f22; }
+        .chat { background: #313338; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .bot { background: #5865f2; color: #fff; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
+        .container-v2 { background: #2b2d31; border: 1px solid #3f4147; border-left: 4px solid #23a55a; border-radius: 10px; overflow: hidden; }
+        .section { border-top: 1px solid #3f4147; }
+        .btn { background: #4e5058; color: #fff; border-radius: 4px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+        .btn:hover { background: #6d6f75; }
+        .btn.primary { background: #5865f2; }
+        .btn.good { background: #248046; }
+        .jump-card { background: #2b2d31; border: 1px solid #3f4147; border-left: 4px solid #f23f42; border-radius: 10px; overflow: hidden; }
+        .activity-frame { background: #0b0b12; border: 2px solid #3f4147; border-radius: 16px; min-height: 260px; display: none; }
+        .stage { background: radial-gradient(circle at 50% 20%, rgba(250,166,26,.32), transparent 28%), radial-gradient(circle at 20% 80%, rgba(235,69,158,.24), transparent 30%), #111214; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <aside class="sidebar hidden w-64 shrink-0 flex-col p-4 md:flex">
+            <a href="index.html" class="mb-6 text-xs text-indigo-300 hover:underline">Back to mockups</a>
+            <div class="mb-8 text-lg font-black text-white">Supperjumpin Server</div>
+            <div class="space-y-2 text-sm">
+                <div class="rounded px-2 py-1 text-gray-400"># general</div>
+                <div class="rounded bg-gray-600 px-2 py-1 font-bold text-white"># ritual-chamber</div>
+                <div class="rounded px-2 py-1 text-gray-400"># food-pics</div>
+            </div>
+            <div class="mt-auto rounded-xl border border-gray-700 bg-[#2b2d31] p-3 text-xs text-gray-300">
+                <b class="text-cyan-300">Round 3 Riff 4: The Slow Reveal</b><br>
+                Activity is premium; chat gets a staggered native fallback.
+            </div>
+        </aside>
+
+        <main class="chat flex min-w-0 flex-1 flex-col">
+            <header class="flex h-12 items-center justify-between border-b border-black px-4 shadow-sm">
+                <div class="font-bold text-white"># ritual-chamber</div>
+                <div class="text-xs text-gray-400">Premium Activity + chat fallback</div>
+            </header>
+            <section id="chat" class="flex-1 space-y-5 overflow-y-auto p-4">
+                <div class="msg flex items-start gap-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
+                    <div class="max-w-3xl">
+                        <div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">Today at 6:00 PM</span></div>
+                        <div id="round-card" class="container-v2 mt-2">
+                            <div class="p-4">
+                                <div class="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">Round opens</div>
+                                <div class="mt-2 text-2xl font-black text-white">Prompt: Fine dining from your fridge</div>
+                                <p class="mt-2 text-sm leading-6 text-gray-300">Take something humble, serve it somewhere it does not belong.</p>
+                                <div class="mt-4 grid gap-2 text-sm md:grid-cols-3">
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white">Reveal</b><br><span class="text-gray-400">Friday 8:00 PM</span></div>
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="commits">0</span> Jumpers</b><br><span class="text-gray-400">committed</span></div>
+                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="sealed">0</span> sealed</b><br><span class="text-gray-400">content hidden</span></div>
+                                </div>
+                            </div>
+                            <div class="section flex flex-wrap gap-2 p-3">
+                                <button class="btn good" onclick="commit()">I'm In</button>
+                                <button class="btn primary" onclick="submit()">Submit Evidence</button>
+                                <button class="btn" onclick="reveal()">Reveal Timer Expires</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0;
+        const cards = [
+            ['🍔', 'Crunchwrap under a cloche', 'Taco Bell source, candlelit dining room destination. The cloche was borrowed from a cake stand.'],
+            ['🍣', 'Gas-station sushi on china', 'Convenience-store sushi received white tablecloth treatment.'],
+            ['🍰', 'Dorm-room tiramisu flight', 'Three mugs, one dusting of cocoa, and the confidence of a dessert cart.']
+        ];
+        const chat = document.getElementById('chat');
+        function addBot(html, accent) {
+            const msg = document.createElement('div');
+            msg.className = 'msg flex items-start gap-3';
+            msg.innerHTML = '<div class="h-10 w-10 rounded-full bg-indigo-500"></div><div class="max-w-3xl"><div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">now</span></div><div class="container-v2 mt-2" style="border-left-color:' + (accent || '#23a55a') + '">' + html + '</div></div>';
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
+        function commit() { commits += 1; sync(); addBot('<div class="p-4"><b class="text-white">A Jumper steps forward.</b><p class="mt-1 text-sm text-gray-300">' + commits + ' committed.</p></div>', '#23a55a'); }
+        function submit() { if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) commits = 1; } sync(); addBot('<div class="p-4"><b class="text-white">Your Jump is sealed.</b><p class="mt-1 text-sm text-gray-300">Evidence is hidden until reveal.</p></div>', '#5865f2'); }
+        function reveal() {
+            addBot('<div class="p-5 text-center" style="background:linear-gradient(135deg,#5865f2,#eb459e);border-radius:12px;color:#fff"><div class="text-lg font-black">✨ THE REVEAL IS LIVE ✨</div><p class="text-sm opacity-90 mt-2 mb-4">Enter the Theater for the synchronized experience, or watch the slow reveal unfold here in chat.</p><button class="bg-white text-[#111214] px-5 py-3 rounded-full font-black text-sm" onclick="launchTheater()">🚀 Enter Theater (Premium)</button></div>', '#eb459e');
+            launchTheater();
+            cards.forEach((c, i) => setTimeout(() => {
+                addBot('<div class="jump-card p-4"><div class="flex gap-4"><div class="w-24 h-24 rounded-lg bg-gradient-to-br from-orange-300 to-pink-500 flex items-center justify-center text-4xl">' + c[0] + '</div><div class="flex-1"><div class="font-bold text-white text-lg">' + c[1] + '</div><p class="text-sm text-gray-300 mt-1">' + c[2] + '</p><div class="mt-3 flex gap-2"><button class="btn">🔥 Chaos</button><button class="btn">💎 Certified</button><button class="btn">🧠 Lore</button></div></div></div></div>', '#f23f42');
+            }, 800 + i * 1800));
+        }
+        function launchTheater() {
+            const last = chat.lastElementChild;
+            const frame = document.createElement('div');
+            frame.className = 'msg flex items-start gap-3';
+            frame.innerHTML = '<div class="h-10 w-10 rounded-full bg-indigo-500"></div><div class="max-w-3xl w-full"><div class="text-xs text-gray-500 mb-1">Shared Theater Activity (premium)</div><div class="activity-frame p-4 stage" style="display:flex"><div class="text-center w-full"><div class="text-5xl mb-3">🍔🍣🍰</div><div class="text-lg font-black text-white">Synchronized Reveal in Progress</div><div class="mt-3 text-sm text-gray-300">Everyone sees the same Jump at the same moment.</div></div></div></div>';
+            chat.appendChild(frame);
+            chat.scrollTop = chat.scrollHeight;
+        }
+    </script>
+</body>
+</html>
