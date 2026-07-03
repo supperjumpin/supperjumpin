@@ -23,6 +23,18 @@
         .theater-btn:hover { transform: scale(1.05); }
         .glass { background: rgba(30,31,34,.72); border: 1px solid rgba(255,255,255,.10); backdrop-filter: blur(18px); }
         .stage { background: radial-gradient(circle at 50% 20%, rgba(250,166,26,.32), transparent 28%), radial-gradient(circle at 20% 80%, rgba(235,69,158,.24), transparent 30%), #111214; }
+        .event-card { background: #2b2d31; border: 1px solid #3f4147; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+        .event-hero { background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 50%, #313338 100%); padding: 24px; position: relative; overflow: hidden; }
+        .event-hero::before { content: ''; position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(88,101,242,.18) 0%, transparent 70%); border-radius: 50%; }
+        .event-hero::after { content: ''; position: absolute; bottom: -50%; left: -10%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(235,69,158,.12) 0%, transparent 70%); border-radius: 50%; }
+        .event-badge { position: relative; display: inline-block; background: #23a55a; color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; margin-bottom: 12px; }
+        .event-prompt { position: relative; font-size: 28px; font-weight: 900; color: #fff; line-height: 1.2; }
+        .event-instruction { position: relative; margin-top: 10px; color: #b5bac4; font-size: 14px; line-height: 1.6; }
+        .event-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px 24px; background: #1e1f22; border-top: 1px solid #3f4147; border-bottom: 1px solid #3f4147; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 20px; font-weight: 900; color: #fff; }
+        .stat-label { font-size: 11px; color: #949ba4; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
         .stamp { background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.12); }
         .pulse { animation: pulse 1.6s infinite; }
         @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.04); opacity: .84; } }
@@ -56,16 +68,16 @@
                     <div class="h-10 w-10 rounded-full bg-indigo-500"></div>
                     <div class="max-w-3xl">
                         <div><span class="font-bold text-white">Supper Bot</span> <span class="bot">BOT</span> <span class="text-xs text-gray-500">Today at 6:00 PM</span></div>
-                        <div id="round-card" class="container-v2 mt-2">
-                            <div class="p-4">
-                                <div class="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">Round opens</div>
-                                <div class="mt-2 text-2xl font-black text-white">Prompt: Fine dining from your fridge</div>
-                                <p class="mt-2 text-sm leading-6 text-gray-300">Take something humble, serve it somewhere it does not belong.</p>
-                                <div class="mt-4 grid gap-2 text-sm md:grid-cols-3">
-                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white">Reveal</b><br><span class="text-gray-400">Friday 8:00 PM</span></div>
-                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="commits">0</span> Jumpers</b><br><span class="text-gray-400">committed</span></div>
-                                    <div class="rounded-lg bg-[#1e1f22] p-3"><b class="text-white"><span id="sealed">0</span> sealed</b><br><span class="text-gray-400">content hidden</span></div>
-                                </div>
+                        <div id="round-card" class="event-card mt-2">
+                            <div class="event-hero">
+                                <span class="event-badge">🍽️ Round Opens</span>
+                                <div class="event-prompt">Fine dining from your fridge</div>
+                                <p class="event-instruction">Take something humble. Serve it somewhere it does not belong. Document the ceremony.</p>
+                            </div>
+                            <div class="event-stats">
+                                <div class="stat"><div class="stat-value">Friday 8PM</div><div class="stat-label">Reveal</div></div>
+                                <div class="stat"><div class="stat-value" id="commits">0</div><div class="stat-label">Jumpers committed</div></div>
+                                <div class="stat"><div class="stat-value" id="sealed">0</div><div class="stat-label">Evidence sealed</div></div>
                             </div>
                             <div class="section flex flex-wrap gap-2 p-3">
                                 <button class="btn good" onclick="commit()">I'm In</button>
