@@ -69,6 +69,18 @@
         .hero-stat-label { font-size: 11px; color: #949ba4; text-transform: uppercase; letter-spacing: 0.05em; }
         .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
         .ticket-code { font-family: monospace; font-size: 11px; color: #949ba4; letter-spacing: 0.1em; margin-top: 8px; }
+
+        /* Reveal card: event-style, shares glass ticket visual language */
+        .reveal-card { position: relative; display: flex; background: rgba(30,31,34,.55); border: 1px solid rgba(255,255,255,.18); border-radius: 20px; overflow: hidden; backdrop-filter: blur(16px); box-shadow: 0 20px 60px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.10); }
+        .reveal-stub { background: rgba(235,69,158,.20); border-right: 2px dashed rgba(255,255,255,.15); padding: 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-width: 110px; }
+        .reveal-stub .emoji { font-size: 32px; }
+        .reveal-stub .label { margin-top: 8px; font-size: 10px; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; color: #eb459e; }
+        .reveal-body { padding: 24px; flex: 1; }
+        .reveal-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; color: #eb459e; }
+        .reveal-title { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.2; margin-top: 8px; }
+        .reveal-desc { font-size: 13px; color: #b5bac4; line-height: 1.5; margin-top: 8px; }
+        .reveal-btn { margin-top: 16px; background: #fff; color: #111214; padding: 12px 22px; border-radius: 24px; font-weight: 900; font-size: 14px; transition: transform .12s ease; }
+        .reveal-btn:hover { transform: scale(1.05); }
     </style>
 </head>
 <body class="h-screen overflow-hidden">
@@ -194,7 +206,7 @@
         function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
         function commit() { commits += 1; sync(); addBot('<div class="family-tag mb-2">R6R4 GRANDCHILD · GLASS</div><div class="msg-eyebrow msg-eyebrow-indigo">Ticket holder ' + commits + '</div><div class="msg-title">🎟️ Another seat filled</div><div class="msg-body">The glass ticket is getting crowded. The Loreboard will remember this.</div>'); }
         function submit() { if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) commits = 1; } sync(); addBot('<div class="family-tag mb-2">R6R4 GRANDCHILD · GLASS</div><div class="msg-eyebrow msg-eyebrow-indigo">Sealed exhibit ' + sealed + '</div><div class="msg-title">🔒 A Jump goes into the archive</div><div class="msg-body">Protected under frosted glass until the bell rings.</div>'); }
-        function reveal() { addBot('<div class="threshold p-5"><div class="text-lg font-black">✨ THE REVEAL IS LIVE ✨</div><p class="text-sm opacity-90 mt-2 mb-4">Enter the Loreboard Theater to see the synchronized reveal and live highlights.</p><button class="theater-btn" onclick="enterLoreboard()">🚀 Enter Loreboard Theater</button></div>'); }
+        function reveal() { addBot('<div class="reveal-card"><div class="reveal-stub"><div class="emoji">🎟️</div><div class="label">Live</div></div><div class="reveal-body"><div class="reveal-eyebrow">Featured Event</div><div class="reveal-title">✨ The reveal is starting now</div><div class="reveal-desc">Enter the Loreboard Theater for the synchronized reveal and live highlights.</div><button class="reveal-btn" onclick="enterLoreboard()">🚀 Enter Loreboard Theater</button></div></div>'); }
         function enterLoreboard() { document.getElementById('pre-stage').classList.add('hidden'); document.getElementById('activity-stage').classList.remove('hidden'); }
 
         const jumps = [

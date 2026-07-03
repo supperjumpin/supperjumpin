@@ -78,6 +78,16 @@
         .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
         .hero-subline { margin-top: 10px; font-size: 12px; color: #949ba4; }
         .star-burst { color: #faa61a; }
+
+        /* Reveal card: event-style, shares marquee poster visual language */
+        .reveal-card { position: relative; background: linear-gradient(180deg, #1a1a1e 0%, #111214 100%); border: 2px solid #eb459e; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.50), 0 0 0 4px rgba(235,69,158,.10); }
+        .reveal-marquee { background: #eb459e; color: #111214; font-size: 11px; font-weight: 900; letter-spacing: 0.25em; text-transform: uppercase; text-align: center; padding: 8px; }
+        .reveal-body { padding: 24px; }
+        .reveal-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; color: #eb459e; }
+        .reveal-title { font-size: 28px; font-weight: 900; color: #fff; line-height: 1.15; margin-top: 8px; }
+        .reveal-desc { font-size: 13px; color: #b5bac4; line-height: 1.5; margin-top: 8px; }
+        .reveal-btn { margin-top: 16px; background: #fff; color: #111214; padding: 12px 22px; border-radius: 24px; font-weight: 900; font-size: 14px; transition: transform .12s ease; }
+        .reveal-btn:hover { transform: scale(1.05); }
     </style>
 </head>
 <body class="h-screen overflow-hidden">
@@ -196,7 +206,7 @@
         function sync() { document.getElementById('commits').textContent = commits; document.getElementById('sealed').textContent = sealed; }
         function commit() { commits += 1; sync(); addBot('<div class="family-tag mb-2">R6R4 GRANDCHILD · MARQUEE</div><div class="msg-eyebrow msg-eyebrow-yellow">Headliner ' + commits + '</div><div class="msg-title">🎭 Another performer joins the bill</div><div class="msg-body">The marquee flickers. The crowd pretends not to notice.</div>'); }
         function submit() { if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) commits = 1; } sync(); addBot('<div class="family-tag mb-2">R6R4 GRANDCHILD · MARQUEE</div><div class="msg-eyebrow msg-eyebrow-yellow">Act ' + sealed + ' in rehearsal</div><div class="msg-title">🎟️ A sealed Jump waits backstage</div><div class="msg-body">No previews. No leaks. The bulbs stay dark until curtain.</div>'); }
-        function reveal() { addBot('<div class="threshold p-5"><div class="text-lg font-black">✨ THE REVEAL IS LIVE ✨</div><p class="text-sm opacity-90 mt-2 mb-4">Enter the Loreboard Theater to see the synchronized reveal and live highlights.</p><button class="theater-btn" onclick="enterLoreboard()">🚀 Enter Loreboard Theater</button></div>'); }
+        function reveal() { addBot('<div class="reveal-card"><div class="reveal-marquee">Now Showing — Live Reveal</div><div class="reveal-body"><div class="reveal-eyebrow">Special Presentation</div><div class="reveal-title">✨ The reveal is starting now</div><div class="reveal-desc">Enter the Loreboard Theater for the synchronized reveal and live highlights.</div><button class="reveal-btn" onclick="enterLoreboard()">🚀 Enter Loreboard Theater</button></div></div>'); }
         function enterLoreboard() { document.getElementById('pre-stage').classList.add('hidden'); document.getElementById('activity-stage').classList.remove('hidden'); }
 
         const jumps = [
