@@ -22,11 +22,16 @@
         @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         .bot-label { background: #5865f2; color: #fff; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
         .event-card { background: #18181b; border: 1px solid rgba(235,69,158,.45); border-radius: 24px; box-shadow: 0 12px 40px rgba(0,0,0,.40), inset 0 0 40px rgba(235,69,158,.10); }
+        .event-card.active { box-shadow: 0 0 0 2px rgba(235,69,158,.8), 0 12px 40px rgba(0,0,0,.40), inset 0 0 40px rgba(235,69,158,.15); }
         .event-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; color: #eb459e; }
         .event-title { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.2; }
         .event-desc { font-size: 13px; color: #b5bac4; line-height: 1.5; }
-        .cta { background: #fff; color: #111214; padding: 12px 22px; border-radius: 24px; font-weight: 900; font-size: 14px; }
+        .cta { background: #fff; color: #111214; padding: 12px 22px; border-radius: 24px; font-weight: 900; font-size: 14px; transition: transform .12s ease; }
         .cta:hover { transform: scale(1.05); }
+        .step { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #949ba4; }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font-size: 11px; font-weight: 900; }
+        .step-num.done { background: #248046; }
+        .hint { display: inline-flex; align-items: center; gap: 6px; background: rgba(235,69,158,.15); border: 1px solid rgba(235,69,158,.30); border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #eb459e; }
         .progress-bg { background: rgba(255,255,255,.08); border-radius: 999px; height: 8px; }
         .progress-fill { background: linear-gradient(90deg, #5865f2, #eb459e); height: 8px; border-radius: 999px; transition: width .4s ease; }
         .stat { background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.08); }
@@ -64,13 +69,20 @@
                     <h2 class="mt-3 text-4xl font-black md:text-5xl">Fine dining from your fridge</h2>
                     <p class="mt-3 max-w-2xl text-lg leading-8 text-gray-300">The ceremony begins in the Theater. Commit when you’re in, submit your evidence, and once everyone crosses the threshold the Reveal goes live.</p>
 
-                    <div id="hero-card" class="event-card mt-8 max-w-2xl p-6">
+                    <div id="hero-card" class="event-card active mt-8 max-w-2xl p-6">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="hint"><span>👇</span> Your turn — do this next</div>
+                            <div class="event-eyebrow">Open call</div>
+                        </div>
                         <div class="flex flex-col gap-5 md:flex-row">
                             <div class="pulse flex h-32 w-32 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-200 via-orange-400 to-pink-600 text-6xl shadow-2xl shadow-pink-500/25">🍔</div>
                             <div class="flex-1">
-                                <div class="event-eyebrow">Open call</div>
                                 <div class="event-title mt-1">Jumpers wanted</div>
                                 <div class="event-desc mt-2">4 seats at the table. Seal your evidence before the cloche lifts. Late arrivals are seated in the balcony.</div>
+                                <div class="mt-5 space-y-2">
+                                    <div id="step1" class="step"><span class="step-num">1</span><span>Commit your seat</span></div>
+                                    <div id="step2" class="step"><span class="step-num">2</span><span>Submit your evidence</span></div>
+                                </div>
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     <button onclick="commit()" class="cta">I’m In</button>
                                     <button onclick="submit()" class="rounded-full border border-white/20 px-5 py-3 text-sm font-bold text-white hover:bg-white/10">Submit Evidence</button>
@@ -160,6 +172,8 @@
                 extra.innerHTML = '<div class="h-9 w-9 rounded-full bg-indigo-500"></div><div><b>Guest ' + commits + '</b><br><span class="text-xs text-gray-400">committed</span></div>';
                 document.getElementById('audience').appendChild(extra);
             }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
             bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2">A new Jumper takes a seat.</b><p class="mt-1 text-sm text-gray-300">Seat ' + commits + ' of ' + threshold + ' is filled. The cloche waits.</p>');
             sync();
         }
@@ -168,6 +182,8 @@
                 sealed += 1;
                 if (commits === 0) { commits = 1; sync(); }
             }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
             bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2">Evidence sealed.</b><p class="mt-1 text-sm text-gray-300">Submission ' + sealed + ' is locked in the cellar. No peeking until reveal.</p>');
         }
         function enterTheater() {

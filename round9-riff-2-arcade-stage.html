@@ -21,12 +21,16 @@
         @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         .bot-label { background: #00ffaa; color: #050510; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
         .event-card { background: rgba(16,17,28,.88); border: 2px solid #ff0088; border-radius: 16px; box-shadow: 0 0 30px rgba(255,0,136,.25), inset 0 0 30px rgba(255,0,136,.08); }
+        .event-card.active { box-shadow: 0 0 0 3px #00ffaa, 0 0 30px rgba(255,0,136,.25), inset 0 0 30px rgba(255,0,136,.12); }
         .event-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; color: #00ffaa; }
         .event-title { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.2; text-shadow: 0 0 10px rgba(255,255,255,.3); }
         .event-desc { font-size: 13px; color: #b5bac4; line-height: 1.5; }
-        .cta { background: #ff0088; color: #fff; padding: 12px 22px; border-radius: 8px; font-weight: 900; font-size: 14px; box-shadow: 0 0 16px rgba(255,0,136,.4); }
+        .cta { background: #ff0088; color: #fff; padding: 12px 22px; border-radius: 8px; font-weight: 900; font-size: 14px; box-shadow: 0 0 16px rgba(255,0,136,.4); transition: transform .12s ease; }
         .cta:hover { transform: scale(1.05); }
-        .progress-bg { background: rgba(255,255,255,.08); border-radius: 4px; height: 12px; }
+        .step { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #949ba4; }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: rgba(255,255,255,.12); color: #fff; font-size: 11px; font-weight: 900; }
+        .step-num.done { background: #00ffaa; color: #050510; }
+        .hint { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,255,170,.12); border: 1px solid rgba(0,255,170,.35); border-radius: 4px; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #00ffaa; }
         .progress-fill { background: repeating-linear-gradient(90deg, #00ffaa, #8800ff 50%, #ff0088); height: 12px; border-radius: 4px; transition: width .4s ease; }
         .score { font-family: 'Courier New', monospace; }
     </style>
@@ -61,13 +65,20 @@
                     <h2 class="mt-3 text-4xl font-black md:text-5xl neon-text text-white">Fine dining from your fridge</h2>
                     <p class="mt-3 max-w-2xl text-lg leading-8 text-gray-300">Insert coin to play. Commit your seat, drop your evidence, and when all credits are in the machine fires the reveal.</p>
 
-                    <div id="hero-card" class="event-card mt-8 max-w-2xl p-6">
+                    <div id="hero-card" class="event-card active mt-8 max-w-2xl p-6">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="hint"><span>👇</span> Player 1 — press start</div>
+                            <div class="event-eyebrow">Player Select</div>
+                        </div>
                         <div class="flex flex-col gap-5 md:flex-row">
                             <div class="crt pulse flex h-32 w-32 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 via-fuchsia-500 to-violet-600 text-6xl shadow-lg shadow-fuchsia-500/30">🍔</div>
                             <div class="flex-1">
-                                <div class="event-eyebrow">Player Select</div>
                                 <div class="event-title mt-1">4-Player Co-op</div>
                                 <div class="event-desc mt-2">All Jumpers must insert a coin and seal their run. The boss reveal starts once the lobby is full.</div>
+                                <div class="mt-5 space-y-2">
+                                    <div id="step1" class="step"><span class="step-num">1</span><span>Insert your coin</span></div>
+                                    <div id="step2" class="step"><span class="step-num">2</span><span>Seal your run</span></div>
+                                </div>
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     <button onclick="commit()" class="cta">INSERT COIN</button>
                                     <button onclick="submit()" class="rounded-lg border border-fuchsia-500/60 px-5 py-3 text-sm font-bold text-fuchsia-300 hover:bg-fuchsia-500/10">Seal Run</button>
@@ -156,6 +167,8 @@
                 extra.innerHTML = '<div class="h-9 w-9 rounded-full bg-indigo-500"></div><div><b>P' + commits + '</b><br><span class="score text-xs text-gray-400">' + ('' + (commits * 1250)).padStart(4, '0') + ' pts</span></div>';
                 document.getElementById('audience').appendChild(extra);
             }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
             bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2">Player ' + commits + ' joined.</b><p class="mt-1 text-sm text-gray-300">Lobby: ' + commits + '/' + threshold + '. Waiting for the rest of the cabinet.</p>');
             sync();
         }
@@ -164,6 +177,8 @@
                 sealed += 1;
                 if (commits === 0) { commits = 1; sync(); }
             }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
             bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2">Run sealed.</b><p class="mt-1 text-sm text-gray-300">Evidence ' + sealed + ' saved to memory card. No continues until reveal.</p>');
         }
         function enterTheater() {

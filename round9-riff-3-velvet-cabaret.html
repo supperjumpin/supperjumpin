@@ -22,11 +22,16 @@
         @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         .bot-label { background: #ffd78c; color: #2a0f12; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: 800; }
         .event-card { background: linear-gradient(180deg, #2a0f12 0%, #17080c 100%); border: 2px solid #ffd78c; border-radius: 12px; box-shadow: 0 0 30px rgba(255,80,80,.25), 0 0 0 4px rgba(255,215,140,.08); }
+        .event-card.active { box-shadow: 0 0 0 3px #ffd78c, 0 0 30px rgba(255,80,80,.25), 0 0 0 4px rgba(255,215,140,.12); }
         .event-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: 0.28em; text-transform: uppercase; color: #ffd78c; }
         .event-title { font-size: 28px; font-weight: 900; color: #fff; line-height: 1.15; }
         .event-desc { font-size: 13px; color: #d4c5b0; line-height: 1.5; }
-        .cta { background: #ffd78c; color: #2a0f12; padding: 12px 22px; border-radius: 24px; font-weight: 900; font-size: 14px; }
+        .cta { background: #ffd78c; color: #2a0f12; padding: 12px 22px; border-radius: 24px; font-weight: 900; font-size: 14px; transition: transform .12s ease; }
         .cta:hover { transform: scale(1.05); }
+        .step { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #d4c5b0; }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,215,140,.15); color: #fff; font-size: 11px; font-weight: 900; }
+        .step-num.done { background: #ffd78c; color: #2a0f12; }
+        .hint { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,215,140,.12); border: 1px solid rgba(255,215,140,.35); border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #ffd78c; }
         .progress-bg { background: rgba(255,215,140,.15); border-radius: 999px; height: 8px; }
         .progress-fill { background: linear-gradient(90deg, #8c1a2b, #ffd78c); height: 8px; border-radius: 999px; transition: width .4s ease; }
     </style>
@@ -64,13 +69,20 @@
                     <h2 class="mt-3 text-4xl font-black md:text-5xl gold">Fine dining from your fridge</h2>
                     <p class="mt-3 max-w-2xl text-lg leading-8 text-gray-300">Tonight’s show runs inside the Theater. Take your seat, hand in your act, and when the house is full the curtain rises on the Reveal.</p>
 
-                    <div id="hero-card" class="event-card mt-8 max-w-2xl p-6">
+                    <div id="hero-card" class="event-card active mt-8 max-w-2xl p-6">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="hint"><span>👇</span> Headliner — you’re on deck</div>
+                            <div class="event-eyebrow">House Opening</div>
+                        </div>
                         <div class="flex flex-col gap-5 md:flex-row">
                             <div class="pulse flex h-32 w-32 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-200 via-red-500 to-rose-800 text-6xl shadow-2xl shadow-red-500/25">🍔</div>
                             <div class="flex-1">
-                                <div class="event-eyebrow">House Opening</div>
                                 <div class="event-title mt-1">The floor is yours</div>
                                 <div class="event-desc mt-2">Four seats, four sealed acts. The cloche lifts once the curtain call is complete.</div>
+                                <div class="mt-5 space-y-2">
+                                    <div id="step1" class="step"><span class="step-num">1</span><span>Take your seat</span></div>
+                                    <div id="step2" class="step"><span class="step-num">2</span><span>Hand in your act</span></div>
+                                </div>
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     <button onclick="commit()" class="cta">Take My Seat</button>
                                     <button onclick="submit()" class="rounded-full border border-amber-200/40 px-5 py-3 text-sm font-bold text-amber-200 hover:bg-amber-200/10">Hand In Act</button>
@@ -159,6 +171,8 @@
                 extra.innerHTML = '<div class="h-9 w-9 rounded-full bg-indigo-500"></div><div><b>Guest ' + commits + '</b><br><span class="text-xs text-gray-400">seated</span></div>';
                 document.getElementById('audience').appendChild(extra);
             }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
             bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2">Patron ' + commits + ' is seated.</b><p class="mt-1 text-sm text-gray-300">Row ' + commits + ', seat ' + threshold + '. The program will begin shortly.</p>');
             sync();
         }
@@ -167,6 +181,8 @@
                 sealed += 1;
                 if (commits === 0) { commits = 1; sync(); }
             }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
             bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2">Act ' + sealed + ' received.</b><p class="mt-1 text-sm text-gray-300">Sealed backstage. No spoilers until curtain.</p>');
         }
         function enterTheater() {
