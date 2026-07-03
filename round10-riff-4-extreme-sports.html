@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 10 Riff 4: The OGs — Extreme Sports, But Dumb</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;700&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,700&family=Bungee&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sj-nacho-yellow: #FFC928;
+            --sj-pizza-red: #E13A2D;
+            --sj-baja-teal: #00A6A6;
+            --sj-hot-pink: #F15BB5;
+            --sj-taco-purple: #5B2A86;
+        }
+        body { margin: 0; background: #08090d; color: #fff; font-family: "Nunito Sans", sans-serif; }
+        .font-anton { font-family: "Anton", sans-serif; }
+        .font-bungee { font-family: "Bungee", display; }
+        .font-mono { font-family: "IBM Plex Mono", monospace; }
+        .hero-grad::after {
+            content: ""; position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(8,9,13,.6) 0%, transparent 25%, transparent 40%, rgba(8,9,13,.95) 100%);
+        }
+        .stat-card { background: rgba(255,255,255,.05); border-radius: 8px; padding: 12px; border-left: 3px solid var(--sj-hot-pink); }
+        .sponsor-cta {
+            display: block; width: 100%; border: 0; cursor: pointer; font-family: "Anton", sans-serif; font-size: 22px;
+            letter-spacing: 2px; text-transform: uppercase; padding: 16px; color: #08090d; background: var(--sj-nacho-yellow);
+            transform: skewX(-6deg); box-shadow: 0 10px 30px rgba(255,201,40,.3); transition: transform .1s;
+        }
+        .sponsor-cta span { display: inline-block; transform: skewX(6deg); }
+        .sponsor-cta:active { transform: skewX(-6deg) scale(.98); }
+        .sponsor-cta.off { background: rgba(255,255,255,.08); color: rgba(255,255,255,.5); box-shadow: none; cursor: default; }
+        .bot-label { background: var(--sj-pizza-red); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: 800; letter-spacing: 1px; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sj-nacho-yellow); color: #08090d; font-family: "Bungee"; font-size: 11px; }
+        .step-num.done { background: var(--sj-baja-teal); }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="min-h-screen relative">
+        <header class="absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex items-center justify-between">
+            <a href="index.html" class="text-xs font-bold hover:underline text-white/70 font-mono">← BACK TO MOCKUPS</a>
+            <div class="text-[10px] tracking-[0.3em] font-bold text-[#FFC928] font-mono">ROUND 10 · EXTREME SPORTS, BUT DUMB</div>
+        </header>
+
+        <!-- HERO -->
+        <div class="relative h-[420px] overflow-hidden hero-grad">
+            <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=70" alt="Crunchwrap" class="absolute inset-0 w-full h-full object-cover contrast-110 saturate-115">
+            <div class="absolute top-[70px] left-5 z-10 font-mono text-[10px] tracking-[0.3em] text-[#FFC928] border-l-4 border-[#E13A2D] pl-3">JUMP #42 · LIVE</div>
+            <div class="absolute top-[66px] right-4 z-10 font-anton text-xs bg-[#E13A2D] text-white px-3 py-1.5 tracking-[0.15em] transform -skew-x-8">OFFICIAL ATTEMPT</div>
+
+            <div class="absolute right-4 bottom-[100px] z-10 text-right">
+                <div class="font-anton text-[88px] leading-[.8] text-[#FFC928] transform -skew-x-8" style="text-shadow:0 0 30px rgba(255,201,40,.5)">0.0</div>
+                <div class="font-mono text-[9px] tracking-[0.3em] text-white/70">RUNNING AVG / 4</div>
+            </div>
+
+            <div class="absolute left-5 right-5 bottom-5 z-10">
+                <div class="font-mono text-xs tracking-[0.2em] text-[#00A6A6]">TACO BELL ⟶ HOTEL LOBBY BAR</div>
+                <div class="font-anton text-[46px] leading-[.92] uppercase transform -skew-x-6" style="text-shadow:0 4px 20px rgba(0,0,0,.6)">CRUNCHWRAP <em class="text-[#FFC928] not-italic">SUPREME</em></div>
+            </div>
+        </div>
+
+        <main class="mx-auto max-w-7xl p-4 md:p-6">
+            <div class="grid gap-4 lg:grid-cols-[260px,1fr,300px]">
+                <aside class="self-start">
+                    <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+                        <div class="font-mono text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">ATHLETE ROSTER</div>
+                        <div id="audience" class="mt-3 space-y-2">
+                            <div class="flex items-center gap-3 p-2 rounded bg-white/5"><div class="h-9 w-9 rounded-full bg-gradient-to-br from-[#F15BB5] to-[#5B2A86] font-anton flex items-center justify-center text-sm">B</div><div class="text-sm"><b>Ben</b> · <span class="text-xs text-white/50">at the gate</span></div></div>
+                            <div class="flex items-center gap-3 p-2 rounded bg-white/5"><div class="h-9 w-9 rounded-full bg-gradient-to-br from-[#F15BB5] to-[#5B2A86] font-anton flex items-center justify-center text-sm">A</div><div class="text-sm"><b>Ari</b> · <span class="text-xs text-white/50">at the gate</span></div></div>
+                            <div class="flex items-center gap-3 p-2 rounded bg-white/5"><div class="h-9 w-9 rounded-full bg-gradient-to-br from-[#F15BB5] to-[#5B2A86] font-anton flex items-center justify-center text-sm">J</div><div class="text-sm"><b>Jules</b> · <span class="text-xs text-white/50">at the gate</span></div></div>
+                        </div>
+
+                        <div class="mt-4 border-t border-white/10 pt-3">
+                            <div class="font-mono text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">RIDERS IN</div>
+                            <div class="mt-1 flex justify-between text-sm font-black"><span id="count">0 / 4</span><span class="font-anton text-[#E13A2D]">●</span></div>
+                            <div class="h-2 bg-white/10 rounded-full mt-2"><div id="bar" class="h-2 rounded-full bg-[#E13A2D] transition-all" style="width:0%"></div></div>
+                        </div>
+                    </div>
+                </aside>
+
+                <section id="stage" class="self-start bg-white/5 border border-white/10 rounded-lg">
+                    <div id="entry" class="p-5">
+                        <div class="text-[10px] tracking-[0.3em] text-[#FFC928] font-bold font-mono">ROUND 10 · EXTREME SPORTS, BUT DUMB</div>
+                        <h2 class="font-anton text-3xl md:text-4xl mt-2 leading-tight uppercase transform -skew-x-3">Fine dining from your fridge</h2>
+                        <p class="mt-2 text-sm text-white/70 leading-relaxed">The official attempt is live. Drop in, lock your score, and once the squad is full the reveal drops.</p>
+
+                        <div id="hero-card" class="mt-5 rounded-lg bg-[#08090d] border border-white/10 p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="font-anton text-sm text-[#FFC928] transform -skew-x-6 uppercase">Add to the attempt</div>
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFC928] text-black px-2 py-1 transform -skew-x-6"><span class="transform skew-x-6">👇</span> YOU'RE UP</span>
+                            </div>
+
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <div class="shrink-0 w-28 h-28 rounded bg-[#111] overflow-hidden border-2 border-[#FFC928]">
+                                    <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" class="w-full h-full object-cover contrast-110 saturate-125">
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm text-white/90"><b>@marcus_t</b> · 4 riders · 1 official attempt</div>
+                                    <p class="text-xs text-white/50 mt-1">4 riders needed. Drop your evidence before the broadcast goes live.</p>
+                                    <div class="mt-3 space-y-1">
+                                        <div id="step1" class="flex items-center gap-2 text-xs text-white/50"><span class="step-num">1</span> Drop into the attempt</div>
+                                        <div id="step2" class="flex items-center gap-2 text-xs text-white/50"><span class="step-num">2</span> Lock your score</div>
+                                    </div>
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <button onclick="commit()" class="sponsor-cta text-sm py-3 px-5"><span>DROP IN ▸</span></button>
+                                        <button onclick="submit()" class="rounded border border-white/20 px-4 py-2 text-xs font-bold text-white hover:bg-white/5 transform -skew-x-6"><span class="inline-block transform skew-x-6">LOCK SCORE</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="chat" class="mt-5 space-y-3 max-w-2xl">
+                            <div class="msg rounded-lg bg-white/5 border border-white/10 p-3">
+                                <span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-white">The official attempt is open.</b>
+                                <p class="mt-1 text-xs text-white/50">Drop in to claim your lane, then lock your score. No spoilers until the broadcast.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="reveal" class="hidden p-5">
+                        <div class="text-center border-2 border-[#E13A2D] p-6 transform -skew-x-3">
+                            <div class="font-anton text-3xl text-[#E13A2D] transform skew-x-3 uppercase">✨ Squad full ✨</div>
+                            <p class="text-xs text-white/60 mt-2 transform skew-x-3">All scores are locked. Roll the broadcast for the synchronized reveal.</p>
+                            <button onclick="enterTheater()" class="sponsor-cta mt-4"><span>🚀 ROLL THE BROADCAST</span></button>
+                        </div>
+                    </div>
+
+                    <div id="theater" class="hidden">
+                        <div class="p-5 border-b border-white/10">
+                            <div class="font-mono text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">NOW BROADCASTING</div>
+                            <div class="font-anton text-3xl md:text-4xl mt-1 uppercase transform -skew-x-3">Fine dining from your fridge</div>
+                            <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-mono"><span class="bg-white/10 px-2 py-1 rounded">4 JUMPERS</span><span class="bg-white/10 px-2 py-1 rounded">3 SEALED</span><span class="bg-[#E13A2D] text-white px-2 py-1 rounded font-bold">REVEAL LIVE</span></div>
+                        </div>
+                        <div class="p-5">
+                            <div class="rounded-lg overflow-hidden mb-4 h-[220px] relative">
+                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=70" class="w-full h-full object-cover contrast-110 saturate-125">
+                                <div class="absolute inset-0 bg-gradient-to-t from-[#08090d] via-transparent to-transparent"></div>
+                                <div class="absolute bottom-3 left-3">
+                                    <div class="font-mono text-[10px] tracking-[0.2em] text-[#FFC928]">JUMP 1 OF 3</div>
+                                    <div class="font-anton text-2xl uppercase">Crunchwrap under a cloche</div>
+                                </div>
+                            </div>
+
+                            <p class="text-sm text-white/80 leading-relaxed">The source was Taco Bell. The destination was a candlelit dining room. The cloche was borrowed from a cake stand and treated with full institutional seriousness.</p>
+
+                            <div class="grid grid-cols-2 gap-2 mt-4">
+                                <div class="stat-card"><div class="font-mono text-[9px] tracking-wider text-white/50">COMMITMENT</div><div class="font-anton text-2xl">3.8<span class="text-sm text-white/40">/4</span></div></div>
+                                <div class="stat-card"><div class="font-mono text-[9px] tracking-wider text-white/50">TRANSGRESSION</div><div class="font-anton text-2xl">3.1<span class="text-sm text-white/40">/4</span></div></div>
+                                <div class="stat-card"><div class="font-mono text-[9px] tracking-wider text-white/50">CREATIVITY</div><div class="font-anton text-2xl">3.5<span class="text-sm text-white/40">/4</span></div></div>
+                                <div class="stat-card"><div class="font-mono text-[9px] tracking-wider text-white/50">PRESENTATION</div><div class="font-anton text-2xl">2.9<span class="text-sm text-white/40">/4</span></div></div>
+                            </div>
+
+                            <div class="mt-4 grid grid-cols-2 gap-2">
+                                <button onclick="stamp('🔥')" class="rounded bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">🔥</div><div class="font-anton text-xs uppercase">Chaos</div><div class="text-[9px] text-white/50">12 stamps</div></button>
+                                <button onclick="stamp('💎')" class="rounded bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">💎</div><div class="font-anton text-xs uppercase">Certified</div><div class="text-[9px] text-white/50">8 stamps</div></button>
+                                <button onclick="stamp('🧠')" class="rounded bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">🧠</div><div class="font-anton text-xs uppercase">Lore</div><div class="text-[9px] text-white/50">5 stamps</div></button>
+                                <button onclick="stamp('🫡')" class="rounded bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">🫡</div><div class="font-anton text-xs uppercase">Respect</div><div class="text-[9px] text-white/50">4 stamps</div></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="self-start">
+                    <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+                        <div class="font-mono text-[10px] tracking-[0.2em] text-[#7AC943] font-bold">LIVE RIFF RAIL</div>
+                        <div id="riff" class="mt-3 space-y-2 text-xs leading-relaxed text-white/70">
+                            <div class="rounded bg-white/5 p-2"><b>Ari</b> The cloche reveal is hostile architecture.</div>
+                            <div class="rounded bg-white/5 p-2"><b>Ben</b> This is legally a tasting menu.</div>
+                        </div>
+                        <div class="mt-4 rounded border border-[#FFC928]/40 bg-[#FFC928]/10 p-3">
+                            <div class="font-mono text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">RECAP SEED</div>
+                            <p class="mt-1 text-xs text-white/70">The app drafts the Recap from Stamp density and comments, then posts a native artifact back into the channel.</p>
+                        </div>
+                        <button onclick="postRecap()" class="sponsor-cta mt-3 w-full text-sm py-3" style="background:#7AC943;box-shadow:0 6px 20px rgba(122,201,67,.3)"><span>POST RECAP TO CHAT</span></button>
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0, threshold = 4;
+        function sync() {
+            document.getElementById('count').textContent = commits + ' / ' + threshold;
+            document.getElementById('bar').style.width = Math.min(100, (commits / threshold) * 100) + '%';
+            if (commits >= threshold) { document.getElementById('entry').classList.add('hidden'); document.getElementById('reveal').classList.remove('hidden'); }
+        }
+        function bot(html) {
+            const d = document.createElement('div');
+            d.className = 'msg rounded-lg bg-white/5 border border-white/10 p-3';
+            d.innerHTML = html;
+            document.getElementById('chat').appendChild(d);
+        }
+        function commit() {
+            commits += 1;
+            const items = document.querySelectorAll('#audience > div');
+            if (commits <= items.length) items[commits - 1].querySelector('span').textContent = 'dropped in';
+            else {
+                const extra = document.createElement('div');
+                extra.className = 'flex items-center gap-3 p-2 rounded bg-white/5 msg';
+                extra.innerHTML = '<div class="h-9 w-9 rounded-full bg-gradient-to-br from-[#F15BB5] to-[#5B2A86] font-anton flex items-center justify-center text-sm">G</div><div class="text-sm"><b>Guest ' + commits + '</b> · <span class="text-xs text-white/50">dropped in</span></div>';
+                document.getElementById('audience').appendChild(extra);
+            }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-white">Rider ' + commits + ' dropped in.</b><p class="mt-1 text-xs text-white/50">Gate ' + commits + ' of ' + threshold + ' is claimed. The broadcast waits.</p>');
+            sync();
+        }
+        function submit() {
+            if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) { commits = 1; sync(); } }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-white">Score ' + sealed + ' locked.</b><p class="mt-1 text-xs text-white/50">Sealed for broadcast. No spoilers until the squad is full.</p>');
+        }
+        function enterTheater() {
+            document.getElementById('entry').classList.add('hidden');
+            document.getElementById('reveal').classList.add('hidden');
+            document.getElementById('theater').classList.remove('hidden');
+        }
+        function stamp(emoji) {
+            const riff = document.createElement('div');
+            riff.className = 'rounded bg-white/5 p-2 msg';
+            riff.innerHTML = '<b>Supper Bot</b> ' + emoji + ' stamp wave detected. This moment is getting loud.';
+            document.getElementById('riff').prepend(riff);
+        }
+        function postRecap() {
+            const riff = document.createElement('div');
+            riff.className = 'rounded bg-[#7AC943]/20 border border-[#7AC943] p-2 msg';
+            riff.innerHTML = '<b>Posted to #ritual-chamber</b><br><span class="text-xs text-white/70">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>';
+            document.getElementById('riff').prepend(riff);
+        }
+    </script>
+</body>
+</html>

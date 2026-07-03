@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 10 Riff 1: The OGs — Food Court Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=IBM+Plex+Mono:wght@400;500;600;700&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,700&family=Anton&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sj-taco-purple: #5B2A86;
+            --sj-baja-teal: #00A6A6;
+            --sj-pizza-red: #E13A2D;
+            --sj-nacho-yellow: #FFC928;
+            --sj-hot-pink: #F15BB5;
+            --sj-deep-ink: #211A2E;
+            --sj-tray-white: #FFF7E8;
+            --sj-cup-blue: #2D9CDB;
+            --sj-lettuce-green: #7AC943;
+        }
+        body { margin: 0; background: var(--sj-deep-ink); color: var(--sj-deep-ink); font-family: "Nunito Sans", sans-serif; }
+        .bg-tray { background: var(--sj-tray-white); }
+        .font-bungee { font-family: "Bungee", display; }
+        .font-mono { font-family: "IBM Plex Mono", monospace; }
+        .font-anton { font-family: "Anton", sans-serif; }
+        .laminated::before {
+            content: "";
+            position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .5; mix-blend-mode: overlay;
+            background: repeating-linear-gradient(135deg, rgba(255,255,255,.5) 0 2px, transparent 2px 9px),
+                        radial-gradient(rgba(33,26,46,.05) 1px, transparent 1px);
+            background-size: auto, 14px 14px;
+        }
+        .combo-card {
+            background: #fff; border: 3px solid var(--sj-deep-ink); border-radius: 20px;
+            box-shadow: 8px 8px 0 var(--sj-taco-purple); overflow: hidden; position: relative;
+            animation: slam .5s cubic-bezier(.2,1.4,.4,1) both;
+        }
+        @keyframes slam { 0% { transform: translateY(-40px) rotate(-2deg) scale(.96); opacity: 0; } 60% { transform: translateY(6px) rotate(.4deg) scale(1.01); } 100% { transform: none; opacity: 1; } }
+        .chip { background: var(--sj-nacho-yellow); color: var(--sj-deep-ink); font-family: "Bungee"; font-size: 10px; padding: 5px 9px; border-radius: 6px; transform: rotate(4deg); border: 2px solid var(--sj-deep-ink); box-shadow: 2px 2px 0 var(--sj-deep-ink); display: inline-block; }
+        .score-chip { flex: 1; height: 34px; border-radius: 7px; background: rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; font-family: "Bungee"; font-size: 12px; color: rgba(255,255,255,.5); cursor: pointer; transition: transform .12s, background .12s; border: 0; }
+        .score-chip:hover { background: rgba(255,255,255,.22); }
+        .score-chip.filled { color: var(--sj-deep-ink); }
+        .score-chip.c0 { background: var(--sj-cup-blue); } .score-chip.c1 { background: var(--sj-baja-teal); }
+        .score-chip.c2 { background: var(--sj-nacho-yellow); } .score-chip.c3 { background: var(--sj-hot-pink); }
+        .perf-edge { height: 22px; margin: 14px 0 4px; position: relative; }
+        .perf-edge::before { content: ""; position: absolute; left: 14px; right: 14px; top: 50%; border-top: 2px dashed var(--sj-deep-ink); opacity: .35; }
+        .perf-edge::after { content: ""; position: absolute; left: -12px; right: -12px; top: 50%; height: 24px; transform: translateY(-50%);
+            background: radial-gradient(circle at 12px 50%, #fff 11px, transparent 12px) left/24px 100% repeat-x,
+                        radial-gradient(circle at 12px 50%, #fff 11px, transparent 12px) right/24px 100% repeat-x;
+        }
+        .arcade-btn {
+            font-family: "Bungee"; font-size: 18px; padding: 14px; border-radius: 14px; color: #fff; background: var(--sj-pizza-red);
+            border: 3px solid var(--sj-deep-ink); box-shadow: 5px 5px 0 var(--sj-deep-ink); transition: transform .08s, box-shadow .08s; cursor: pointer;
+        }
+        .arcade-btn:active { transform: translate(3px,3px); box-shadow: 2px 2px 0 var(--sj-deep-ink); }
+        .arcade-btn.off { background: #e7ddcb; color: #9a8f7c; box-shadow: 5px 5px 0 #cabfa9; border-color: #cabfa9; cursor: default; }
+        .ticket {
+            background: var(--sj-deep-ink); color: #fff; border-radius: 16px; position: relative; overflow: hidden;
+        }
+        .ticket::before, .ticket::after { content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%; background: var(--sj-tray-white); top: 50%; transform: translateY(-50%); }
+        .ticket::before { left: -11px; } .ticket::after { right: -11px; }
+        .bot-label { background: var(--sj-pizza-red); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 4px; font-weight: 800; font-family: "Bungee"; letter-spacing: 1px; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sj-deep-ink); color: #fff; font-family: "Bungee"; font-size: 11px; }
+        .step-num.done { background: var(--sj-lettuce-green); }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="min-h-screen p-4 md:p-6 relative">
+        <header class="mx-auto mb-4 flex max-w-7xl items-center justify-between text-white">
+            <a href="index.html" class="text-xs font-bold hover:underline font-mono">← BACK TO MOCKUPS</a>
+            <div class="font-mono text-xs tracking-widest"><span class="chip" style="transform:none">ROUND 10 · FOOD COURT ARCADE</span></div>
+        </header>
+
+        <main class="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[260px,1fr,300px]">
+            <aside class="combo-card self-start p-0">
+                <div class="bg-tray relative p-4 laminated overflow-hidden rounded-t-[17px]">
+                    <div class="relative z-10">
+                        <div class="font-mono text-[11px] font-bold tracking-[0.2em] text-[#5B2A86]">AUDIENCE</div>
+                        <h1 class="font-bungee text-2xl leading-none mt-1">FOOD<br>COURT</h1>
+                        <p class="text-xs font-bold text-[#6b5f50] mt-1">OPEN 24H · THEATER 04</p>
+                    </div>
+                </div>
+                <div class="p-4 bg-[#fff7e8]">
+                    <div id="audience" class="space-y-3">
+                        <div class="flex items-center gap-3 rounded-xl bg-black/5 p-3"><div class="h-9 w-9 rounded-full bg-[#00A6A6] font-bungee flex items-center justify-center text-white text-xs">B</div><div class="text-sm"><b>Ben</b><br><span class="text-xs text-[#6b5f50]">at the table</span></div></div>
+                        <div class="flex items-center gap-3 rounded-xl bg-black/5 p-3"><div class="h-9 w-9 rounded-full bg-[#F15BB5] font-bungee flex items-center justify-center text-white text-xs">A</div><div class="text-sm"><b>Ari</b><br><span class="text-xs text-[#6b5f50]">at the table</span></div></div>
+                        <div class="flex items-center gap-3 rounded-xl bg-black/5 p-3"><div class="h-9 w-9 rounded-full bg-[#FFC928] font-bungee flex items-center justify-center text-[#211A2E] text-xs">J</div><div class="text-sm"><b>Jules</b><br><span class="text-xs text-[#6b5f50]">at the table</span></div></div>
+                    </div>
+                    <div class="mt-4 rounded-xl border-2 border-[#211A2E] bg-white p-3">
+                        <div class="font-mono text-[10px] font-bold tracking-[0.2em] text-[#5B2A86]">SEATS FILLED</div>
+                        <div class="mt-1 flex justify-between text-sm font-black"><span id="count">0 / 4</span><span class="font-bungee text-[#E13A2D]">●</span></div>
+                        <div class="h-2 bg-[#e7ddcb] rounded-full mt-2"><div id="bar" class="h-2 rounded-full bg-[#E13A2D] transition-all" style="width:0%"></div></div>
+                    </div>
+                </div>
+            </aside>
+
+            <section id="stage" class="combo-card self-start">
+                <div class="bg-[#E13A2D] text-white p-4 relative">
+                    <div class="absolute bottom-0 left-0 right-0 h-2.5" style="background: repeating-linear-gradient(90deg,#FFC928 0 14px,#211A2E 14px 28px);"></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-mono text-[10px] font-bold tracking-[0.3em] opacity-80">JUMP FILED</div>
+                            <div class="font-bungee text-4xl leading-none mt-1">JUMP #42</div>
+                        </div>
+                        <span class="chip">LIVE</span>
+                    </div>
+                </div>
+
+                <div id="entry" class="bg-tray p-5 relative laminated">
+                    <div class="relative z-10">
+                        <div class="font-mono text-[11px] font-bold tracking-[0.2em] text-[#00A6A6]">ROUND 10 · FOOD COURT ARCADE</div>
+                        <h2 class="font-bungee text-3xl md:text-4xl text-[#211A2E] mt-2 leading-tight">Fine dining from your fridge</h2>
+                        <p class="mt-2 text-sm text-[#3a3142] leading-relaxed">Order up at the Food Court. Take a tray, seal your evidence, and when the house is full the cloche lifts on the Reveal.</p>
+
+                        <div id="hero-card" class="mt-5 bg-white border-3 border-[#211A2E] rounded-2xl p-4 shadow-[6px_6px_0_#5B2A86]">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="inline-flex items-center gap-2 bg-[#FFC928] text-[#211A2E] px-3 py-1 rounded-full font-mono text-[10px] font-bold tracking-widest border-2 border-[#211A2E]"><span>👇</span> YOU'RE UP</div>
+                                <div class="font-mono text-[10px] font-bold tracking-[0.2em] text-[#00A6A6]">OPEN CALL</div>
+                            </div>
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <div class="shrink-0 w-28 h-28 rounded-xl border-4 border-white outline outline-[3px] outline-[#211A2E] shadow-[0_6px_0_rgba(33,26,46,.12)] bg-[#111] flex items-center justify-center text-5xl rotate-[-2deg]">
+                                    🍔
+                                </div>
+                                <div class="flex-1">
+                                    <div class="font-bungee text-xl text-[#211A2E]">THE ORDER IS OPEN</div>
+                                    <p class="text-xs text-[#6b5f50] mt-1">4 trays, 4 sealed orders. The cloche lifts once the line is complete.</p>
+                                    <div class="mt-3 space-y-1">
+                                        <div id="step1" class="flex items-center gap-2 text-xs font-bold text-[#6b5f50]"><span class="step-num">1</span> Grab a tray</div>
+                                        <div id="step2" class="flex items-center gap-2 text-xs font-bold text-[#6b5f50]"><span class="step-num">2</span> Seal your order</div>
+                                    </div>
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <button onclick="commit()" class="arcade-btn text-sm py-3 px-5">GRAB TRAY</button>
+                                        <button onclick="submit()" class="rounded-full border-2 border-[#211A2E] px-4 py-2 text-xs font-black text-[#211A2E] hover:bg-[#211A2E]/5">SEAL ORDER</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="chat" class="mt-5 space-y-3 max-w-2xl">
+                            <div class="msg rounded-xl bg-white border-2 border-[#211A2E] p-3 shadow-[3px_3px_0_#E13A2D]">
+                                <span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#211A2E]">Food Court is open.</b>
+                                <p class="mt-1 text-xs text-[#6b5f50]">Grab a tray to join the line, then seal your order. The cloche stays down until the house is full.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="reveal" class="hidden bg-tray p-5 relative laminated">
+                    <div class="relative z-10 text-center">
+                        <div class="font-mono text-[10px] font-bold tracking-[0.3em] text-[#E13A2D]">CURTAIN CALL</div>
+                        <div class="font-bungee text-3xl text-[#211A2E] mt-2">✨ THE HOUSE IS FULL</div>
+                        <p class="text-sm text-[#6b5f50] mt-2">All trays are sealed. Raise the cloche and enter the Loreboard Theater for the synchronized reveal.</p>
+                        <button onclick="enterTheater()" class="arcade-btn mt-4">🚀 RAISE CLOCHE & ENTER</button>
+                    </div>
+                </div>
+
+                <div id="theater" class="hidden bg-tray relative laminated">
+                    <div class="relative z-10">
+                        <div class="border-b-2 border-dashed border-[#211A2E]/30 p-5">
+                            <div class="font-mono text-[10px] font-bold tracking-[0.2em] text-[#5B2A86]">NOW SERVING</div>
+                            <div class="font-bungee text-3xl md:text-4xl text-[#211A2E] mt-1">Fine dining from your fridge</div>
+                            <div class="mt-2 flex flex-wrap gap-2 font-mono text-[10px]"><span class="bg-[#211A2E] text-white px-2 py-1 rounded">4 JUMPERS</span><span class="bg-[#211A2E] text-white px-2 py-1 rounded">3 SEALED</span><span class="bg-[#E13A2D] text-white px-2 py-1 rounded">REVEAL LIVE</span></div>
+                        </div>
+                        <div class="p-5">
+                            <div class="grid md:grid-cols-[1.1fr,.9fr] gap-4">
+                                <div class="bg-white border-3 border-[#211A2E] rounded-2xl p-3 shadow-[6px_6px_0_#5B2A86] rotate-[-1deg] flex items-center justify-center min-h-[260px]">
+                                    <span class="text-9xl drop-shadow-lg">🍔</span>
+                                </div>
+                                <div>
+                                    <div class="font-mono text-[10px] font-bold tracking-[0.2em] text-[#6b5f50]">JUMP 1 OF 3</div>
+                                    <h2 class="font-bungee text-2xl text-[#211A2E] mt-1 leading-tight">Crunchwrap under a cloche</h2>
+                                    <p class="text-xs text-[#3a3142] mt-2 leading-relaxed">The source was Taco Bell. The destination was a candlelit dining room. The cloche was borrowed from a cake stand and treated with full institutional seriousness.</p>
+                                    <div class="mt-4 grid grid-cols-2 gap-2">
+                                        <button onclick="stamp('🔥')" class="rounded-xl bg-[#211A2E] text-white p-3 text-left border-2 border-[#211A2E] hover:scale-[1.02] transition-transform"><div class="text-2xl">🔥</div><div class="font-bungee text-xs">CHAOS</div><div class="font-mono text-[9px] opacity-70">12 STAMPS</div></button>
+                                        <button onclick="stamp('💎')" class="rounded-xl bg-[#211A2E] text-white p-3 text-left border-2 border-[#211A2E] hover:scale-[1.02] transition-transform"><div class="text-2xl">💎</div><div class="font-bungee text-xs">CERTIFIED</div><div class="font-mono text-[9px] opacity-70">8 STAMPS</div></button>
+                                        <button onclick="stamp('🧠')" class="rounded-xl bg-[#211A2E] text-white p-3 text-left border-2 border-[#211A2E] hover:scale-[1.02] transition-transform"><div class="text-2xl">🧠</div><div class="font-bungee text-xs">LORE</div><div class="font-mono text-[9px] opacity-70">5 STAMPS</div></button>
+                                        <button onclick="stamp('🫡')" class="rounded-xl bg-[#211A2E] text-white p-3 text-left border-2 border-[#211A2E] hover:scale-[1.02] transition-transform"><div class="text-2xl">🫡</div><div class="font-bungee text-xs">RESPECT</div><div class="font-mono text-[9px] opacity-70">4 STAMPS</div></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="perf-edge mx-5"></div>
+                        <div class="ticket mx-5 mb-5 p-4 flex items-center justify-between">
+                            <div>
+                                <div class="font-mono text-[10px] tracking-[0.2em] text-[#FFC928]">RUNNING TOTAL</div>
+                                <div class="font-bungee text-4xl text-white" id="scoreNum">0.0</div>
+                                <div class="font-mono text-[10px] text-white/60">FROM 11 JUDGMENTS</div>
+                            </div>
+                            <div class="font-bungee text-xs text-[#FFC928]">/ 4.0</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="combo-card self-start p-0">
+                <div class="bg-tray p-4 relative laminated">
+                    <div class="relative z-10">
+                        <div class="font-mono text-[10px] font-bold tracking-[0.2em] text-[#7AC943]">LIVE RIFF RAIL</div>
+                        <div id="riff" class="mt-3 space-y-2 text-xs leading-relaxed text-[#3a3142]">
+                            <div class="rounded-xl bg-white border border-[#211A2E]/10 p-2"><b>Ari</b> The cloche reveal is hostile architecture.</div>
+                            <div class="rounded-xl bg-white border border-[#211A2E]/10 p-2"><b>Ben</b> This is legally a tasting menu.</div>
+                        </div>
+                        <div class="mt-4 rounded-xl border-2 border-[#FFC928] bg-[#FFC928]/10 p-3">
+                            <div class="font-mono text-[10px] font-bold tracking-[0.2em] text-[#5B2A86]">RECAP SEED</div>
+                            <p class="mt-1 text-xs text-[#3a3142]">The app drafts the Recap from Stamp density and comments, then posts a native artifact back into the channel.</p>
+                        </div>
+                        <button onclick="postRecap()" class="arcade-btn mt-3 w-full text-sm py-3" style="background:#7AC943;border-color:#211A2E;box-shadow:4px 4px 0 #211A2E">POST RECAP TO CHAT</button>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0, threshold = 4;
+        function sync() {
+            document.getElementById('count').textContent = commits + ' / ' + threshold;
+            document.getElementById('bar').style.width = Math.min(100, (commits / threshold) * 100) + '%';
+            if (commits >= threshold) {
+                document.getElementById('entry').classList.add('hidden');
+                document.getElementById('reveal').classList.remove('hidden');
+            }
+        }
+        function bot(html) {
+            const d = document.createElement('div');
+            d.className = 'msg rounded-xl bg-white border-2 border-[#211A2E] p-3 shadow-[3px_3px_0_#E13A2D]';
+            d.innerHTML = html;
+            document.getElementById('chat').appendChild(d);
+        }
+        function commit() {
+            commits += 1;
+            const items = document.querySelectorAll('#audience > div');
+            if (commits <= items.length) items[commits - 1].querySelector('span').textContent = 'tray grabbed';
+            else {
+                const extra = document.createElement('div');
+                extra.className = 'flex items-center gap-3 rounded-xl bg-black/5 p-3 msg';
+                extra.innerHTML = '<div class="h-9 w-9 rounded-full bg-[#5B2A86] font-bungee flex items-center justify-center text-white text-xs">G</div><div class="text-sm"><b>Guest ' + commits + '</b><br><span class="text-xs text-[#6b5f50]">tray grabbed</span></div>';
+                document.getElementById('audience').appendChild(extra);
+            }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#211A2E]">Tray ' + commits + ' grabbed.</b><p class="mt-1 text-xs text-[#6b5f50]">Seat ' + commits + ' of ' + threshold + ' is filled. The cloche waits.</p>');
+            sync();
+        }
+        function submit() {
+            if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) { commits = 1; sync(); } }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#211A2E]">Order ' + sealed + ' sealed.</b><p class="mt-1 text-xs text-[#6b5f50]">Locked in the warmer. No spoilers until cloche.</p>');
+        }
+        function enterTheater() {
+            document.getElementById('entry').classList.add('hidden');
+            document.getElementById('reveal').classList.add('hidden');
+            document.getElementById('theater').classList.remove('hidden');
+            countUp(document.getElementById('scoreNum'), 3.4);
+        }
+        function stamp(emoji) {
+            const riff = document.createElement('div');
+            riff.className = 'rounded-xl bg-white border border-[#211A2E]/10 p-2 msg';
+            riff.innerHTML = '<b class="text-[#211A2E]">Supper Bot</b> ' + emoji + ' stamp wave detected. This moment is getting loud.';
+            document.getElementById('riff').prepend(riff);
+        }
+        function postRecap() {
+            const riff = document.createElement('div');
+            riff.className = 'rounded-xl bg-[#7AC943]/20 border-2 border-[#7AC943] p-2 msg';
+            riff.innerHTML = '<b class="text-[#211A2E]">Posted to #ritual-chamber</b><br><span class="text-xs text-[#3a3142]">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>';
+            document.getElementById('riff').prepend(riff);
+        }
+        function countUp(el, target) {
+            const dur = 900, start = performance.now();
+            function step(t){
+                const p = Math.min(1, (t - start) / dur);
+                const eased = 1 - Math.pow(1 - p, 3);
+                el.textContent = (target * eased).toFixed(1);
+                if (p < 1) requestAnimationFrame(step); else el.textContent = target.toFixed(1);
+            }
+            requestAnimationFrame(step);
+        }
+    </script>
+</body>
+</html>

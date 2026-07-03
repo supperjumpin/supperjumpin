@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 10 Riff 3: The OGs — Disposable Camera Field Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;700&family=Caveat:wght@600;700&family=Bungee&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sj-ketchup: #D72638;
+            --sj-paper: #FFF4DA;
+            --sj-charcoal: #2a2620;
+            --sj-ink-muted: #6B5F50;
+            --sj-pickle: #4C9A2A;
+            --sj-mustard: #F6C945;
+        }
+        body { margin: 0; background: #d9d2c2; color: var(--sj-charcoal); font-family: "Special Elite", "Courier New", monospace; }
+        .folder {
+            background: var(--sj-paper); border: 1px solid #8a8170; box-shadow: 0 12px 30px rgba(0,0,0,.25); padding: 16px;
+            transform: rotate(-.3deg); position: relative;
+        }
+        .folder::before {
+            content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .4;
+            background-image: radial-gradient(rgba(0,0,0,.08) 1px, transparent 1px); background-size: 4px 4px;
+        }
+        .font-bungee { font-family: "Bungee", display; }
+        .font-mono { font-family: "IBM Plex Mono", monospace; }
+        .photo-frame {
+            position: relative; background: #111; padding: 10px 10px 38px; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+            transform: rotate(1deg); margin: 0 auto 8px; width: 88%;
+        }
+        .photo-frame img { display: block; width: 100%; height: 200px; object-fit: cover; filter: contrast(1.08) saturate(.92) sepia(.12); }
+        .photo-frame .ts { position: absolute; bottom: 10px; right: 14px; font-family: "IBM Plex Mono", monospace; color: #ffb000; font-size: 12px; text-shadow: 0 0 4px rgba(255,176,0,.6); letter-spacing: 1px; }
+        .tape { position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-3deg); width: 90px; height: 24px; background: rgba(255,247,200,.6); border: 1px solid rgba(0,0,0,.1); }
+        .field-line { margin: 10px 2px; font-size: 13px; line-height: 1.7; }
+        .field-line .k { font-size: 10px; letter-spacing: 2px; color: var(--sj-ink-muted); }
+        .field-line .v { font-weight: bold; border-bottom: 1px dotted #9a907c; display: inline-block; min-width: 60%; }
+        .handwriting { font-family: "Caveat", cursive; font-size: 22px; line-height: 1.25; color: #1c2a6b; transform: rotate(-.6deg); margin: 10px 0; }
+        .stamp-btn {
+            display: block; width: 100%; border: 3px solid var(--sj-charcoal); background: var(--sj-paper); cursor: pointer;
+            font-family: "Special Elite"; font-size: 14px; letter-spacing: 2px; padding: 12px; color: var(--sj-charcoal);
+        }
+        .stamp-btn:active { background: #ddd6c6; }
+        .stamp-btn.done { color: var(--sj-ketchup); border-color: var(--sj-ketchup); }
+        .box { width: 22px; height: 22px; border: 2px solid var(--sj-charcoal); display: flex; align-items: center; justify-content: center; cursor: pointer; font-family: "IBM Plex Mono", monospace; font-weight: 700; background: #fff; font-size: 11px; }
+        .box.x { background: var(--sj-ketchup); color: #fff; }
+        .bot-label { background: var(--sj-ketchup); color: #fff; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 700; letter-spacing: 1px; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--sj-charcoal); color: #fff; font-family: "Bungee"; font-size: 10px; }
+        .step-num.done { background: var(--sj-pickle); }
+        .filed-stamp span { display: inline-block; border: 4px double var(--sj-ketchup); color: var(--sj-ketchup); font-family: "IBM Plex Mono", monospace; font-weight: 700; font-size: 14px; letter-spacing: 3px; padding: 4px 10px; transform: rotate(-6deg); opacity: .85; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+    <header class="mx-auto mb-4 flex max-w-7xl items-center justify-between">
+        <a href="index.html" class="text-xs font-bold hover:underline text-[#D72638]">← BACK TO MOCKUPS</a>
+        <div class="text-[10px] tracking-[0.3em] font-bold text-[#6B5F50]">ROUND 10 · DISPOSABLE CAMERA FIELD REPORT</div>
+    </header>
+
+    <main class="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[260px,1fr,300px]">
+        <aside class="folder self-start">
+            <div class="relative z-10">
+                <div class="flex justify-between items-start border-b-2 border-[#2a2620] pb-2 mb-3">
+                    <div class="text-[10px] tracking-[0.2em]">CASE FILE<br><b class="text-lg">THEATER 04</b></div>
+                    <div class="border-2 border-[#D72638] text-[#D72638] text-[9px] px-1.5 py-0.5 tracking-widest transform rotate-[3deg]">EVIDENCE</div>
+                </div>
+
+                <div id="audience" class="space-y-2 text-xs">
+                    <div class="flex items-center gap-2 p-2 border border-[#8a8170]/40 rounded"><div class="h-8 w-8 rounded-full bg-[#6B5F50] flex items-center justify-center text-white font-bungee text-xs">B</div><div><b>Ben</b> · <span class="text-[#6B5F50]">witness</span></div></div>
+                    <div class="flex items-center gap-2 p-2 border border-[#8a8170]/40 rounded"><div class="h-8 w-8 rounded-full bg-[#6B5F50] flex items-center justify-center text-white font-bungee text-xs">A</div><div><b>Ari</b> · <span class="text-[#6B5F50]">witness</span></div></div>
+                    <div class="flex items-center gap-2 p-2 border border-[#8a8170]/40 rounded"><div class="h-8 w-8 rounded-full bg-[#6B5F50] flex items-center justify-center text-white font-bungee text-xs">J</div><div><b>Jules</b> · <span class="text-[#6B5F50]">witness</span></div></div>
+                </div>
+
+                <div class="mt-4 border-t-2 border-b-2 border-[#2a2620] py-2 flex justify-between items-center">
+                    <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">WITNESSES</div>
+                    <div class="font-mono text-xl font-bold" id="count">0 / 4</div>
+                </div>
+                <div class="h-1.5 bg-[#c9bca0] rounded-full mt-2"><div id="bar" class="h-1.5 rounded-full bg-[#D72638] transition-all" style="width:0%"></div></div>
+            </div>
+        </aside>
+
+        <section id="stage" class="folder self-start">
+            <div class="relative z-10">
+                <div class="flex justify-between items-start border-b-2 border-[#2a2620] pb-2 mb-3">
+                    <div class="text-[10px] tracking-[0.2em]">FIELD REPORT<br><b class="text-xl">JUMP #42</b></div>
+                    <div class="border-2 border-[#D72638] text-[#D72638] text-[9px] px-2 py-1 tracking-widest transform rotate-[3deg]">EVIDENCE PACK</div>
+                </div>
+
+                <div id="entry">
+                    <div class="text-[10px] tracking-[0.2em] text-[#6B5F50] mb-1">ROUND 10 · DISPOSABLE CAMERA FIELD REPORT</div>
+                    <h2 class="font-bungee text-2xl md:text-3xl text-[#2a2620] leading-tight">Fine dining from your fridge</h2>
+                    <p class="mt-2 text-xs text-[#6B5F50] leading-relaxed">Evidence is being gathered. Sign the report, seal your statement, and once the file is complete the case goes to review.</p>
+
+                    <div id="hero-card" class="mt-4 border-2 border-[#2a2620] bg-[#efe9da] p-3 rounded-lg shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="border-2 border-[#D72638] text-[#D72638] text-[9px] px-2 py-1 tracking-widest transform rotate-[-3deg]">👇 SIGN HERE</div>
+                            <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">OPEN CALL</div>
+                        </div>
+
+                        <div class="flex flex-col md:flex-row gap-3">
+                            <div class="photo-frame w-full md:w-36 shrink-0">
+                                <div class="tape"></div>
+                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" alt="Crunchwrap">
+                                <div class="ts">06/01/26 19:42</div>
+                            </div>
+                            <div class="flex-1">
+                                <div class="text-sm font-bold">THE FLOOR IS YOURS</div>
+                                <p class="text-xs text-[#6B5F50] mt-1">4 reports, 4 sealed statements. The file opens once the witnesses are gathered.</p>
+                                <div class="mt-2 space-y-1">
+                                    <div id="step1" class="flex items-center gap-2 text-xs text-[#6B5F50]"><span class="step-num">1</span> Sign the report</div>
+                                    <div id="step2" class="flex items-center gap-2 text-xs text-[#6B5F50]"><span class="step-num">2</span> Seal your statement</div>
+                                </div>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <button onclick="commit()" class="stamp-btn w-auto px-4 py-2 text-xs">SIGN REPORT</button>
+                                    <button onclick="submit()" class="rounded border-2 border-[#2a2620] px-4 py-2 text-xs font-bold text-[#2a2620] hover:bg-[#2a2620]/5">SEAL STATEMENT</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="chat" class="mt-4 space-y-3 max-w-2xl">
+                        <div class="msg rounded-lg border border-[#8a8170] bg-[#efe9da] p-3 shadow-sm">
+                            <span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#2a2620]">Field office is open.</b>
+                            <p class="mt-1 text-xs text-[#6B5F50]">Sign the report to join the file, then seal your statement. No spoilers until the case is complete.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="reveal" class="hidden">
+                    <div class="text-center border-2 border-dashed border-[#D72638] p-5 my-4">
+                        <div class="filed-stamp mb-2"><span>CASE CLOSED</span></div>
+                        <div class="text-sm font-bold">All statements are sealed.</div>
+                        <p class="text-xs text-[#6B5F50] mt-1">Enter the review theater for the synchronized reveal.</p>
+                        <button onclick="enterTheater()" class="stamp-btn mt-3">🚀 OPEN CASE FILE & REVIEW</button>
+                    </div>
+                </div>
+
+                <div id="theater" class="hidden">
+                    <div class="border-b-2 border-[#2a2620] p-4">
+                        <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">REVIEW IN PROGRESS</div>
+                        <div class="font-bungee text-2xl md:text-3xl text-[#2a2620]">Fine dining from your fridge</div>
+                        <div class="mt-2 flex flex-wrap gap-2 text-[10px]"><span class="border border-[#2a2620] px-2 py-1 rounded">4 JUMPERS</span><span class="border border-[#2a2620] px-2 py-1 rounded">3 SEALED</span><span class="bg-[#D72638] text-white px-2 py-1 rounded">REVEAL LIVE</span></div>
+                    </div>
+                    <div class="p-4">
+                        <div class="photo-frame w-full md:w-1/2 mb-4">
+                            <div class="tape"></div>
+                            <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" alt="">
+                            <div class="ts">06/01/26 19:42</div>
+                        </div>
+
+                        <div class="handwriting">Crunchwrap under a cloche.</div>
+                        <p class="text-xs text-[#6B5F50] leading-relaxed">The source was Taco Bell. The destination was a candlelit dining room. The cloche was borrowed from a cake stand and treated with full institutional seriousness.</p>
+
+                        <div class="border-t-2 border-b-2 border-[#2a2620] py-2 my-3 flex justify-between items-center">
+                            <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">RUNNING AVG<br>11 JUDGMENTS</div>
+                            <div class="font-mono text-3xl font-bold" id="scoreNum">0.0</div>
+                        </div>
+
+                        <div class="text-[10px] tracking-[0.2em] text-[#6B5F50] mb-2">STAMP THE EVIDENCE</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="stamp('🔥')" class="text-left border border-[#8a8170] bg-[#efe9da] p-3 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">🔥</div><div class="text-xs font-bold">CHAOS</div><div class="text-[9px] text-[#6B5F50]">12 stamps</div></button>
+                            <button onclick="stamp('💎')" class="text-left border border-[#8a8170] bg-[#efe9da] p-3 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">💎</div><div class="text-xs font-bold">CERTIFIED</div><div class="text-[9px] text-[#6B5F50]">8 stamps</div></button>
+                            <button onclick="stamp('🧠')" class="text-left border border-[#8a8170] bg-[#efe9da] p-3 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">🧠</div><div class="text-xs font-bold">LORE</div><div class="text-[9px] text-[#6B5F50]">5 stamps</div></button>
+                            <button onclick="stamp('🫡')" class="text-left border border-[#8a8170] bg-[#efe9da] p-3 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">🫡</div><div class="text-xs font-bold">RESPECT</div><div class="text-[9px] text-[#6B5F50]">4 stamps</div></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="folder self-start">
+            <div class="relative z-10">
+                <div class="text-[10px] tracking-[0.2em] text-[#4C9A2A] font-bold mb-2">LIVE RIFF RAIL</div>
+                <div id="riff" class="space-y-2 text-xs leading-relaxed text-[#2a2620]">
+                    <div class="rounded border border-[#8a8170] bg-[#efe9da] p-2"><b>Ari</b> The cloche reveal is hostile architecture.</div>
+                    <div class="rounded border border-[#8a8170] bg-[#efe9da] p-2"><b>Ben</b> This is legally a tasting menu.</div>
+                </div>
+                <div class="mt-4 rounded border-2 border-[#F6C945] bg-[#F6C945]/10 p-3">
+                    <div class="text-[10px] tracking-[0.2em] text-[#6B5F50] font-bold">RECAP SEED</div>
+                    <p class="mt-1 text-xs text-[#2a2620]">The app drafts the Recap from Stamp density and comments, then posts a native artifact back into the channel.</p>
+                </div>
+                <button onclick="postRecap()" class="stamp-btn mt-3">POST RECAP TO CHAT</button>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        let commits = 0, sealed = 0, threshold = 4;
+        function sync() {
+            document.getElementById('count').textContent = commits + ' / ' + threshold;
+            document.getElementById('bar').style.width = Math.min(100, (commits / threshold) * 100) + '%';
+            if (commits >= threshold) { document.getElementById('entry').classList.add('hidden'); document.getElementById('reveal').classList.remove('hidden'); }
+        }
+        function bot(html) {
+            const d = document.createElement('div');
+            d.className = 'msg rounded-lg border border-[#8a8170] bg-[#efe9da] p-3 shadow-sm';
+            d.innerHTML = html;
+            document.getElementById('chat').appendChild(d);
+        }
+        function commit() {
+            commits += 1;
+            const items = document.querySelectorAll('#audience > div');
+            if (commits <= items.length) items[commits - 1].querySelector('span').textContent = 'signed';
+            else {
+                const extra = document.createElement('div');
+                extra.className = 'flex items-center gap-2 p-2 border border-[#8a8170]/40 rounded msg';
+                extra.innerHTML = '<div class="h-8 w-8 rounded-full bg-[#6B5F50] flex items-center justify-center text-white font-bungee text-xs">G</div><div class="text-xs"><b>Guest ' + commits + '</b> · <span class="text-[#6B5F50]">signed</span></div>';
+                document.getElementById('audience').appendChild(extra);
+            }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#2a2620]">Witness ' + commits + ' signed the report.</b><p class="mt-1 text-xs text-[#6B5F50]">Page ' + commits + ' of ' + threshold + ' is in the file. The case builds.</p>');
+            sync();
+        }
+        function submit() {
+            if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) { commits = 1; sync(); } }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#2a2620]">Statement ' + sealed + ' sealed.</b><p class="mt-1 text-xs text-[#6B5F50]">Locked in the evidence envelope. No peeking until review.</p>');
+        }
+        function enterTheater() {
+            document.getElementById('entry').classList.add('hidden');
+            document.getElementById('reveal').classList.add('hidden');
+            document.getElementById('theater').classList.remove('hidden');
+            countUp(document.getElementById('scoreNum'), 3.4);
+        }
+        function stamp(emoji) {
+            const riff = document.createElement('div');
+            riff.className = 'rounded border border-[#8a8170] bg-[#efe9da] p-2 msg';
+            riff.innerHTML = '<b class="text-[#2a2620]">Supper Bot</b> ' + emoji + ' stamp wave detected. This moment is getting loud.';
+            document.getElementById('riff').prepend(riff);
+        }
+        function postRecap() {
+            const riff = document.createElement('div');
+            riff.className = 'rounded bg-[#4C9A2A]/20 border-2 border-[#4C9A2A] p-2 msg';
+            riff.innerHTML = '<b class="text-[#2a2620]">Posted to #ritual-chamber</b><br><span class="text-xs text-[#6B5F50]">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>';
+            document.getElementById('riff').prepend(riff);
+        }
+        function countUp(el, target) {
+            const dur = 900, start = performance.now();
+            function step(t){
+                const p = Math.min(1, (t - start) / dur);
+                const eased = 1 - Math.pow(1 - p, 3);
+                el.textContent = (target * eased).toFixed(1);
+                if (p < 1) requestAnimationFrame(step); else el.textContent = target.toFixed(1);
+            }
+            requestAnimationFrame(step);
+        }
+    </script>
+</body>
+</html>

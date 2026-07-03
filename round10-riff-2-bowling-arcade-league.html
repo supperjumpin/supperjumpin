@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 10 Riff 2: The OGs — Bowling / Arcade League</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=IBM+Plex+Mono:wght@400;500;600;700&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sj-baja-teal: #00A6A6;
+            --sj-nacho-yellow: #FFC928;
+            --sj-hot-pink: #F15BB5;
+            --sj-taco-purple: #5B2A86;
+            --sj-pizza-red: #E13A2D;
+        }
+        body { margin: 0; background: #0d0b14; color: #e7e2f0; font-family: "IBM Plex Mono", monospace; }
+        .font-bungee { font-family: "Bungee", display; }
+        .scanline::before {
+            content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35;
+            background: repeating-linear-gradient(0deg, rgba(0,166,166,.05) 0 1px, transparent 1px 4px);
+        }
+        .league-card {
+            background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
+        }
+        .hs-num {
+            font-family: "Bungee"; font-size: 54px; line-height: .85; color: var(--sj-nacho-yellow);
+            text-shadow: 0 0 24px rgba(255,201,40,.4);
+        }
+        .stat-row {
+            display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-top: 1px solid rgba(255,255,255,.06);
+        }
+        .stat-bar { flex: 1; margin: 0 12px; height: 8px; background: rgba(255,255,255,.08); border-radius: 4px; overflow: hidden; }
+        .stat-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--sj-baja-teal), var(--sj-hot-pink)); width: 0; transition: width .7s cubic-bezier(.2,.8,.3,1); }
+        .jbtn {
+            display: block; width: 100%; border: 0; cursor: pointer; font-family: "Bungee"; font-size: 16px; padding: 14px;
+            background: var(--sj-baja-teal); color: #0d0b14; border-radius: 10px; letter-spacing: 1px;
+            box-shadow: 0 0 0 2px var(--sj-baja-teal), 0 8px 24px rgba(0,166,166,.35); transition: transform .1s;
+        }
+        .jbtn:active { transform: scale(.98); }
+        .jbtn.off { background: rgba(255,255,255,.07); color: rgba(231,226,240,.5); box-shadow: none; cursor: default; }
+        .bot-label { background: var(--sj-baja-teal); color: #0d0b14; font-size: 10px; padding: 2px 5px; border-radius: 4px; font-weight: 800; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font-family: "Bungee"; font-size: 10px; }
+        .step-num.done { background: var(--sj-baja-teal); }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="min-h-screen p-4 md:p-6 relative scanline">
+        <header class="mx-auto mb-4 flex max-w-7xl items-center justify-between">
+            <a href="index.html" class="text-xs font-bold hover:underline text-[#00A6A6]">← BACK TO MOCKUPS</a>
+            <div class="text-[10px] tracking-[0.3em] font-bold text-[#FFC928]">ROUND 10 · BOWLING / ARCADE LEAGUE</div>
+        </header>
+
+        <main class="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[260px,1fr,300px]">
+            <aside class="league-card self-start p-4">
+                <div class="text-[10px] tracking-[0.3em] text-[#00A6A6] font-bold">★ SUPPER LEAGUE ★</div>
+                <h1 class="font-bungee text-2xl text-white mt-1 leading-none">STANDINGS</h1>
+                <p class="text-[10px] text-white/50 mt-1">NIGHT 6 · THEATER 04</p>
+
+                <div class="mt-4 space-y-2">
+                    <div class="flex items-center gap-3 rounded-lg bg-white/5 p-2"><div class="h-8 w-8 rounded bg-[#00A6A6] font-bungee flex items-center justify-center text-black text-xs">1</div><div class="flex-1 text-xs"><b>Ben</b><br><span class="text-[10px] text-white/50">3.8 avg · 6 jumps</span></div></div>
+                    <div class="flex items-center gap-3 rounded-lg bg-white/5 p-2"><div class="h-8 w-8 rounded bg-[#FFC928] font-bungee flex items-center justify-center text-black text-xs">2</div><div class="flex-1 text-xs"><b>Ari</b><br><span class="text-[10px] text-white/50">3.5 avg · 5 jumps</span></div></div>
+                    <div class="flex items-center gap-3 rounded-lg bg-white/5 p-2"><div class="h-8 w-8 rounded bg-[#F15BB5] font-bungee flex items-center justify-center text-black text-xs">3</div><div class="flex-1 text-xs"><b>Jules</b><br><span class="text-[10px] text-white/50">3.2 avg · 7 jumps</span></div></div>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-[#FFC928]/40 bg-[#FFC928]/10 p-3">
+                    <div class="text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">JUMPERS IN</div>
+                    <div class="mt-1 flex justify-between text-sm font-black"><span id="count">0 / 4</span><span class="font-bungee text-[#F15BB5]">●</span></div>
+                    <div class="h-1.5 bg-white/10 rounded-full mt-2"><div id="bar" class="h-1.5 rounded-full bg-[#FFC928] transition-all" style="width:0%"></div></div>
+                </div>
+            </aside>
+
+            <section id="stage" class="league-card self-start relative overflow-hidden">
+                <div class="p-5 border-b border-white/10">
+                    <div class="text-[10px] tracking-[0.3em] text-[#00A6A6] font-bold">HIGH SCORE ENTRY · JUMP #42</div>
+                    <div class="mt-3 flex items-end justify-between">
+                        <div>
+                            <div class="text-[10px] tracking-[0.2em] text-white/50">RUNNING AVG</div>
+                            <div class="hs-num" id="scoreNum">0.0</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bungee text-2xl text-[#F15BB5]">#3</div>
+                            <div class="text-[10px] text-white/50">OF 11 JUDGED</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="entry" class="p-5">
+                    <div class="text-[10px] tracking-[0.3em] text-[#FFC928] font-bold">ROUND 10 · BOWLING / ARCADE LEAGUE</div>
+                    <h2 class="font-bungee text-3xl md:text-4xl text-white mt-2 leading-tight">Fine dining from your fridge</h2>
+                    <p class="mt-2 text-xs text-white/60 leading-relaxed">The league table is live. Add your name to the board, seal your score, and when the lane is full the reveal rolls.</p>
+
+                    <div id="hero-card" class="mt-5 rounded-xl bg-[#0d0b14] border border-white/10 p-4">
+                        <div class="flex items-start gap-4">
+                            <div class="shrink-0 w-20 h-20 rounded-lg border-2 border-[#00A6A6] overflow-hidden bg-[#111]">
+                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" alt="Crunchwrap" class="w-full h-full object-cover saturate-125 contrast-110">
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <div class="font-bungee text-sm text-[#FFC928]">ADD TO THE BOARD</div>
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFC928] text-black px-2 py-1 rounded"><span>👇</span> YOU'RE UP</span>
+                                </div>
+                                <div class="text-xs text-white/50 mt-1">Taco Bell ⟶ Hotel lobby bar · Crunchwrap Supreme</div>
+                                <div class="mt-3 space-y-1">
+                                    <div id="step1" class="flex items-center gap-2 text-xs text-white/50"><span class="step-num">1</span> Enter your initials</div>
+                                    <div id="step2" class="flex items-center gap-2 text-xs text-white/50"><span class="step-num">2</span> Seal your score</div>
+                                </div>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <button onclick="commit()" class="jbtn text-sm py-3">HIT THE BOARD</button>
+                                    <button onclick="submit()" class="rounded-lg border border-white/20 px-4 py-2 text-xs font-bold text-white hover:bg-white/5">SEAL SCORE</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="chat" class="mt-5 space-y-3 max-w-2xl">
+                        <div class="msg rounded-xl bg-white/5 border border-white/10 p-3">
+                            <span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-white">League board is open.</b>
+                            <p class="mt-1 text-xs text-white/50">Hit the board to claim your lane, then seal your score. No spoilers until the house is full.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="reveal" class="hidden p-5">
+                    <div class="text-center rounded-xl border-2 border-dashed border-[#F15BB5] p-6">
+                        <div class="font-bungee text-3xl text-[#F15BB5]">✨ LANE FULL ✨</div>
+                        <p class="text-xs text-white/50 mt-2">All scores are sealed. Enter the League Theater for the synchronized reveal.</p>
+                        <button onclick="enterTheater()" class="jbtn mt-4">🚀 ROLL THE REVEAL</button>
+                    </div>
+                </div>
+
+                <div id="theater" class="hidden">
+                    <div class="p-5 border-b border-white/10">
+                        <div class="text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">NOW ROLLING</div>
+                        <div class="font-bungee text-3xl text-white mt-1">Fine dining from your fridge</div>
+                        <div class="mt-2 flex flex-wrap gap-2 text-[10px]"><span class="bg-white/10 px-2 py-1 rounded">4 JUMPERS</span><span class="bg-white/10 px-2 py-1 rounded">3 SEALED</span><span class="bg-[#F15BB5] text-black px-2 py-1 rounded font-bold">REVEAL LIVE</span></div>
+                    </div>
+                    <div class="p-5">
+                        <div class="rounded-xl border border-white/10 p-3 mb-4 flex gap-4">
+                            <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" class="w-24 h-24 object-cover rounded-lg border border-[#00A6A6]" alt="">
+                            <div class="flex-1">
+                                <div class="text-[10px] tracking-[0.2em] text-white/40">JUMP 1 OF 3</div>
+                                <div class="font-bungee text-xl text-[#FFC928] mt-1">Crunchwrap under a cloche</div>
+                                <p class="text-xs text-white/60 mt-1">The source was Taco Bell. The destination was a candlelit dining room.</p>
+                            </div>
+                        </div>
+
+                        <div class="text-[10px] tracking-[0.2em] text-white/40 mb-2">SCORING FACTORS · AVG / 4</div>
+                        <div id="statRows">
+                            <div class="stat-row"><span class="text-xs font-bold tracking-wider">COMMITMENT</span><span class="stat-bar"><i data-w="95"></i></span><span class="font-bungee text-sm text-[#FFC928] w-8 text-right">3.8</span></div>
+                            <div class="stat-row"><span class="text-xs font-bold tracking-wider">TRANSGRESSION</span><span class="stat-bar"><i data-w="78"></i></span><span class="font-bungee text-sm text-[#FFC928] w-8 text-right">3.1</span></div>
+                            <div class="stat-row"><span class="text-xs font-bold tracking-wider">CREATIVITY</span><span class="stat-bar"><i data-w="88"></i></span><span class="font-bungee text-sm text-[#FFC928] w-8 text-right">3.5</span></div>
+                            <div class="stat-row"><span class="text-xs font-bold tracking-wider">PRESENTATION</span><span class="stat-bar"><i data-w="72"></i></span><span class="font-bungee text-sm text-[#FFC928] w-8 text-right">2.9</span></div>
+                        </div>
+
+                        <div class="mt-4 grid grid-cols-2 gap-2">
+                            <button onclick="stamp('🔥')" class="rounded-lg bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">🔥</div><div class="font-bungee text-xs">CHAOS</div><div class="text-[9px] text-white/50">12 stamps</div></button>
+                            <button onclick="stamp('💎')" class="rounded-lg bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">💎</div><div class="font-bungee text-xs">CERTIFIED</div><div class="text-[9px] text-white/50">8 stamps</div></button>
+                            <button onclick="stamp('🧠')" class="rounded-lg bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">🧠</div><div class="font-bungee text-xs">LORE</div><div class="text-[9px] text-white/50">5 stamps</div></button>
+                            <button onclick="stamp('🫡')" class="rounded-lg bg-white/5 border border-white/10 p-3 text-left hover:bg-white/10 transition"><div class="text-2xl">🫡</div><div class="font-bungee text-xs">RESPECT</div><div class="text-[9px] text-white/50">4 stamps</div></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="league-card self-start p-4">
+                <div class="text-[10px] tracking-[0.2em] text-[#7AC943] font-bold">LIVE RIFF RAIL</div>
+                <div id="riff" class="mt-3 space-y-2 text-xs leading-relaxed text-white/70">
+                    <div class="rounded-lg bg-white/5 p-2"><b>Ari</b> The cloche reveal is hostile architecture.</div>
+                    <div class="rounded-lg bg-white/5 p-2"><b>Ben</b> This is legally a tasting menu.</div>
+                </div>
+                <div class="mt-4 rounded-lg border border-[#FFC928]/40 bg-[#FFC928]/10 p-3">
+                    <div class="text-[10px] tracking-[0.2em] text-[#FFC928] font-bold">RECAP SEED</div>
+                    <p class="mt-1 text-xs text-white/70">The app drafts the Recap from Stamp density and comments, then posts a native artifact back into the channel.</p>
+                </div>
+                <button onclick="postRecap()" class="jbtn mt-3 text-sm py-3 w-full" style="background:#7AC943;color:#0d0b14;box-shadow:0 0 0 2px #7AC943">POST RECAP TO CHAT</button>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        let commits = 0, sealed = 0, threshold = 4;
+        function sync() {
+            document.getElementById('count').textContent = commits + ' / ' + threshold;
+            document.getElementById('bar').style.width = Math.min(100, (commits / threshold) * 100) + '%';
+            if (commits >= threshold) { document.getElementById('entry').classList.add('hidden'); document.getElementById('reveal').classList.remove('hidden'); }
+        }
+        function bot(html) {
+            const d = document.createElement('div');
+            d.className = 'msg rounded-xl bg-white/5 border border-white/10 p-3';
+            d.innerHTML = html;
+            document.getElementById('chat').appendChild(d);
+        }
+        function commit() {
+            commits += 1;
+            const items = document.querySelectorAll('#audience > div');
+            if (commits <= items.length) items[commits - 1].querySelector('span').textContent = 'on the board';
+            else {
+                const extra = document.createElement('div');
+                extra.className = 'flex items-center gap-3 rounded-lg bg-white/5 p-2 msg';
+                extra.innerHTML = '<div class="h-8 w-8 rounded bg-[#5B2A86] font-bungee flex items-center justify-center text-white text-xs">G</div><div class="text-xs"><b>Guest ' + commits + '</b><br><span class="text-[10px] text-white/50">on the board</span></div>';
+                document.getElementById('audience').appendChild(extra);
+            }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-white">Player ' + commits + ' hits the board.</b><p class="mt-1 text-xs text-white/50">Lane ' + commits + ' of ' + threshold + ' is claimed. The machine waits.</p>');
+            sync();
+        }
+        function submit() {
+            if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) { commits = 1; sync(); } }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-white">Score ' + sealed + ' sealed.</b><p class="mt-1 text-xs text-white/50">Locked in the high-score memory. No peeking until reveal.</p>');
+        }
+        function enterTheater() {
+            document.getElementById('entry').classList.add('hidden');
+            document.getElementById('reveal').classList.add('hidden');
+            document.getElementById('theater').classList.remove('hidden');
+            countUp(document.getElementById('scoreNum'), 3.4);
+            requestAnimationFrame(() => document.querySelectorAll('.stat-bar i').forEach(i => i.style.width = i.dataset.w + '%'));
+        }
+        function stamp(emoji) {
+            const riff = document.createElement('div');
+            riff.className = 'rounded-lg bg-white/5 p-2 msg';
+            riff.innerHTML = '<b>Supper Bot</b> ' + emoji + ' stamp wave detected. This moment is getting loud.';
+            document.getElementById('riff').prepend(riff);
+        }
+        function postRecap() {
+            const riff = document.createElement('div');
+            riff.className = 'rounded-lg bg-[#7AC943]/20 border border-[#7AC943] p-2 msg';
+            riff.innerHTML = '<b>Posted to #ritual-chamber</b><br><span class="text-xs text-white/70">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>';
+            document.getElementById('riff').prepend(riff);
+        }
+        function countUp(el, target) {
+            const dur = 900, start = performance.now();
+            function step(t){
+                const p = Math.min(1, (t - start) / dur);
+                const eased = 1 - Math.pow(1 - p, 3);
+                el.textContent = (target * eased).toFixed(1);
+                if (p < 1) requestAnimationFrame(step); else el.textContent = target.toFixed(1);
+            }
+            requestAnimationFrame(step);
+        }
+    </script>
+</body>
+</html>

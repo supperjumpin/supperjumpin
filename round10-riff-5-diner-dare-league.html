@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supperjumpin UX - Round 10 Riff 5: The OGs — 50s Diner Dare League</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Shrikhand&family=IBM+Plex+Mono:wght@400;500;700&family=Bungee&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sj-ketchup: #D72638;
+            --sj-mustard: #F6C945;
+            --sj-charcoal: #2a2620;
+            --sj-paper: #FFF4DA;
+            --sj-pickle: #4C9A2A;
+            --sj-ink-muted: #6B5F50;
+            --sj-counter: #F8E6C1;
+        }
+        body { margin: 0; background: #5b4a3a; color: var(--sj-charcoal); font-family: "IBM Plex Mono", monospace; }
+        .font-shrik { font-family: "Shrikhand", serif; }
+        .font-bungee { font-family: "Bungee", display; }
+        .receipt {
+            background: var(--sj-paper); position: relative; z-index: 1; width: 100%; max-width: 420px; margin: 0 auto;
+            padding: 20px 22px 0;
+            -webkit-mask: radial-gradient(circle at 6px 6px, transparent 6px, #000 6px) repeat-x top left/12px 12px,
+                          linear-gradient(#000,#000) center/100% calc(100% - 22px) no-repeat,
+                          radial-gradient(circle at 6px 6px, transparent 6px, #000 6px) repeat-x bottom left/12px 12px;
+            mask: radial-gradient(circle at 6px 6px, transparent 6px, #000 6px) repeat-x top left/12px 12px,
+                  linear-gradient(#000,#000) center/100% calc(100% - 22px) no-repeat,
+                  radial-gradient(circle at 6px 6px, transparent 6px, #000 6px) repeat-x bottom left/12px 12px;
+            -webkit-mask-composite: source-over; mask-composite: add;
+            transform: rotate(-.5deg); box-shadow: 0 18px 40px rgba(0,0,0,.4);
+        }
+        .receipt-rule { border-top: 2px dashed var(--sj-charcoal); margin: 10px 0; }
+        .receipt-rule.thin { border-top: 1px solid #c9bca0; }
+        .diner-btn {
+            display: block; width: 100%; border: 2px solid var(--sj-charcoal); background: var(--sj-mustard); cursor: pointer;
+            font-family: "Shrikhand"; font-size: 15px; color: var(--sj-charcoal); padding: 12px;
+        }
+        .diner-btn:active { background: #e9bd3a; }
+        .dot { width: 18px; height: 18px; border: 1px solid var(--sj-charcoal); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 9px; font-weight: 700; background: #fff; }
+        .dot.on { background: var(--sj-ketchup); color: #fff; border-color: var(--sj-ketchup); }
+        .bot-label { background: var(--sj-ketchup); color: #fff; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 700; letter-spacing: 1px; }
+        .msg { animation: rise .18s ease-out; }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--sj-charcoal); color: #fff; font-family: "Bungee"; font-size: 10px; }
+        .step-num.done { background: var(--sj-pickle); }
+        .filed-stamp span { display: inline-block; border: 3px solid var(--sj-pickle); color: var(--sj-pickle); font-weight: 700; font-size: 14px; letter-spacing: 3px; padding: 4px 10px; transform: rotate(-5deg); opacity: .85; }
+        .barcode { height: 34px; margin: 10px 0 4px; background: repeating-linear-gradient(90deg,var(--sj-charcoal) 0 2px,transparent 2px 5px,var(--sj-charcoal) 5px 6px,transparent 6px 10px); }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+    <header class="mx-auto mb-4 flex max-w-7xl items-center justify-between text-[#FFF4DA]">
+        <a href="index.html" class="text-xs font-bold hover:underline">← BACK TO MOCKUPS</a>
+        <div class="text-[10px] tracking-[0.3em] font-bold text-[#F6C945]">ROUND 10 · 50s DINER DARE LEAGUE</div>
+    </header>
+
+    <main class="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[260px,1fr,300px] items-start">
+        <aside class="receipt">
+            <div class="text-center font-shrik text-2xl text-[#D72638] leading-none">Supperjumpin</div>
+            <div class="text-center text-[9px] tracking-[0.15em] text-[#6B5F50] mb-3">DARE LEAGUE · GREASY-SPOON CIRCUIT · TBL 04</div>
+            <div class="receipt-rule"></div>
+            <div class="flex justify-between text-[10px] text-[#6B5F50]"><span>SERVER ROSTER</span><span>OPEN</span></div>
+
+            <div id="audience" class="mt-3 space-y-2 text-xs">
+                <div class="flex items-center gap-2 p-2 border border-[#c9bca0] rounded bg-white/50"><div class="h-8 w-8 rounded-full bg-[#D72638] font-bungee flex items-center justify-center text-white text-xs">B</div><div><b>Ben</b> · <span class="text-[#6B5F50]">on shift</span></div></div>
+                <div class="flex items-center gap-2 p-2 border border-[#c9bca0] rounded bg-white/50"><div class="h-8 w-8 rounded-full bg-[#D72638] font-bungee flex items-center justify-center text-white text-xs">A</div><div><b>Ari</b> · <span class="text-[#6B5F50]">on shift</span></div></div>
+                <div class="flex items-center gap-2 p-2 border border-[#c9bca0] rounded bg-white/50"><div class="h-8 w-8 rounded-full bg-[#D72638] font-bungee flex items-center justify-center text-white text-xs">J</div><div><b>Jules</b> · <span class="text-[#6B5F50]">on shift</span></div></div>
+            </div>
+
+            <div class="receipt-rule thin"></div>
+            <div class="flex justify-between items-baseline">
+                <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">ORDERS IN</div>
+                <div class="font-bungee text-xl" id="count">0 / 4</div>
+            </div>
+            <div class="h-2 bg-[#c9bca0] rounded-full mt-2 mb-4"><div id="bar" class="h-2 rounded-full bg-[#D72638] transition-all" style="width:0%"></div></div>
+            <div class="barcode"></div>
+            <div class="text-center text-[9px] tracking-[0.2em] text-[#6B5F50] py-3">THANK YOU · COME AGAIN</div>
+        </aside>
+
+        <section id="stage" class="receipt max-w-none">
+            <div class="text-center font-shrik text-3xl text-[#D72638] leading-none">Supperjumpin</div>
+            <div class="text-center text-[9px] tracking-[0.15em] text-[#6B5F50] mb-3">DARE LEAGUE · GREASY-SPOON CIRCUIT · TBL 04</div>
+            <div class="receipt-rule"></div>
+            <div class="flex justify-between text-[10px] text-[#6B5F50]"><span>JUMP #42</span><span>JUN 01, 19:42</span></div>
+            <div class="flex justify-between text-[10px] text-[#6B5F50]"><span>SERVER: @marcus_t</span><span>OPEN</span></div>
+
+            <div id="entry">
+                <div class="receipt-rule thin"></div>
+                <div class="text-[10px] tracking-[0.2em] text-[#6B5F50] mb-1">ROUND 10 · 50s DINER DARE LEAGUE</div>
+                <div class="font-shrik text-2xl text-[#D72638]">Fine dining from your fridge</div>
+                <p class="text-xs text-[#6B5F50] mt-1 leading-relaxed">Order up at the diner. Clock in, ring up your dare, and once the check is complete the kitchen serves the reveal.</p>
+
+                <div class="border border-[#c9bca0] bg-white/50 p-3 rounded mt-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="border-2 border-[#D72638] text-[#D72638] text-[9px] px-2 py-1 tracking-widest transform rotate-[-3deg]">👇 YOU'RE UP</div>
+                        <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">OPEN CALL</div>
+                    </div>
+
+                    <div class="border border-[#2a2620] p-1 bg-white transform rotate-1 mb-3">
+                        <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" class="w-full h-32 object-cover grayscale-[25%] contrast-105">
+                    </div>
+
+                    <div class="space-y-1 text-xs mb-3">
+                        <div class="flex justify-between"><span class="font-bold">THE ORDER</span><span class="text-[#6B5F50]">x1</span></div>
+                        <div class="flex justify-between"><span class="text-[#6B5F50]">FROM</span><span>Taco Bell</span></div>
+                        <div class="flex justify-between"><span class="text-[#6B5F50]">TO</span><span>Hotel lobby bar</span></div>
+                    </div>
+
+                    <div class="text-xs italic text-[#3a3142] leading-relaxed border-t border-[#c9bca0] pt-2 mb-3">“Ordered a Manhattan, unwrapped this with full eye contact, asked the bartender to pair it.”</div>
+
+                    <div class="mt-2 space-y-1">
+                        <div id="step1" class="flex items-center gap-2 text-xs text-[#6B5F50]"><span class="step-num">1</span> Clock in for your shift</div>
+                        <div id="step2" class="flex items-center gap-2 text-xs text-[#6B5F50]"><span class="step-num">2</span> Ring up your dare</div>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button onclick="commit()" class="diner-btn w-auto px-4 text-sm">CLOCK IN</button>
+                        <button onclick="submit()" class="rounded border-2 border-[#2a2620] px-4 py-2 text-xs font-bold text-[#2a2620] hover:bg-[#2a2620]/5">RING UP DARE</button>
+                    </div>
+                </div>
+
+                <div id="chat" class="mt-4 space-y-3 max-w-2xl">
+                    <div class="msg rounded border border-[#c9bca0] bg-white/50 p-3">
+                        <span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#2a2620]">Diner is open for business.</b>
+                        <p class="mt-1 text-xs text-[#6B5F50]">Clock in to claim your table, then ring up your dare. The kitchen stays closed until the check is complete.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reveal" class="hidden">
+                <div class="receipt-rule"></div>
+                <div class="text-center my-4">
+                    <div class="filed-stamp mb-2"><span>CHECK CLOSED</span></div>
+                    <div class="font-shrik text-2xl text-[#D72638]">The check is complete</div>
+                    <p class="text-xs text-[#6B5F50] mt-1">All dares are rung up. Enter the kitchen for the synchronized reveal.</p>
+                    <button onclick="enterTheater()" class="diner-btn mt-3">🚀 SERVE THE REVEAL</button>
+                </div>
+            </div>
+
+            <div id="theater" class="hidden">
+                <div class="receipt-rule"></div>
+                <div class="text-center">
+                    <div class="text-[10px] tracking-[0.2em] text-[#6B5F50]">NOW SERVING</div>
+                    <div class="font-shrik text-2xl text-[#D72638]">Fine dining from your fridge</div>
+                    <div class="mt-2 flex justify-center gap-2 text-[10px]"><span class="border border-[#2a2620] px-2 py-1 rounded">4 JUMPERS</span><span class="border border-[#2a2620] px-2 py-1 rounded">3 SEALED</span><span class="bg-[#D72638] text-white px-2 py-1 rounded">REVEAL LIVE</span></div>
+                </div>
+
+                <div class="receipt-rule thin"></div>
+                <div class="border border-[#2a2620] p-1 bg-white transform rotate-1 my-3">
+                    <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" class="w-full h-40 object-cover grayscale-[25%] contrast-105">
+                </div>
+
+                <div class="font-shrik text-xl text-[#D72638]">Crunchwrap under a cloche</div>
+                <p class="text-xs text-[#6B5F50] leading-relaxed">The source was Taco Bell. The destination was a candlelit dining room. The cloche was borrowed from a cake stand and treated with full institutional seriousness.</p>
+
+                <div class="receipt-rule thin"></div>
+                <div class="flex justify-between text-[10px] tracking-[0.2em] text-[#6B5F50]"><span>SCORING</span><span>AVG</span></div>
+                <div class="space-y-1 text-xs">
+                    <div class="flex justify-between"><span>Commitment</span><span class="font-bold">3.8</span></div>
+                    <div class="flex justify-between"><span>Transgression</span><span class="font-bold">3.1</span></div>
+                    <div class="flex justify-between"><span>Creativity</span><span class="font-bold">3.5</span></div>
+                    <div class="flex justify-between"><span>Presentation</span><span class="font-bold">2.9</span></div>
+                </div>
+
+                <div class="receipt-rule"></div>
+                <div class="flex justify-between items-baseline font-shrik text-[#D72638] text-xl">
+                    <span>RUNNING TOTAL</span>
+                    <span id="scoreNum">0.0</span>
+                </div>
+                <div class="text-right text-[10px] text-[#6B5F50]">11 JUDGMENTS · /4.0</div>
+
+                <div class="receipt-rule"></div>
+                <div class="text-[10px] tracking-[0.2em] text-[#6B5F50] text-center mb-2">— STAMP THE CHECK —</div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button onclick="stamp('🔥')" class="text-left border border-[#c9bca0] bg-white/50 p-2 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">🔥</div><div class="font-shrik text-xs text-[#D72638]">CHAOS</div><div class="text-[9px] text-[#6B5F50]">12 stamps</div></button>
+                    <button onclick="stamp('💎')" class="text-left border border-[#c9bca0] bg-white/50 p-2 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">💎</div><div class="font-shrik text-xs text-[#D72638]">CERTIFIED</div><div class="text-[9px] text-[#6B5F50]">8 stamps</div></button>
+                    <button onclick="stamp('🧠')" class="text-left border border-[#c9bca0] bg-white/50 p-2 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">🧠</div><div class="font-shrik text-xs text-[#D72638]">LORE</div><div class="text-[9px] text-[#6B5F50]">5 stamps</div></button>
+                    <button onclick="stamp('🫡')" class="text-left border border-[#c9bca0] bg-white/50 p-2 rounded hover:scale-[1.02] transition-transform"><div class="text-2xl">🫡</div><div class="font-shrik text-xs text-[#D72638]">RESPECT</div><div class="text-[9px] text-[#6B5F50]">4 stamps</div></button>
+                </div>
+            </div>
+
+            <div class="barcode"></div>
+            <div class="text-center text-[9px] tracking-[0.2em] text-[#6B5F50] py-3">THANK YOU · COME COMMIT TO THE BIT AGAIN</div>
+        </section>
+
+        <aside class="receipt">
+            <div class="text-center font-shrik text-2xl text-[#D72638] leading-none">Recaps</div>
+            <div class="receipt-rule thin"></div>
+            <div class="text-[10px] tracking-[0.2em] text-[#4C9A2A] font-bold">LIVE RIFF RAIL</div>
+            <div id="riff" class="mt-3 space-y-2 text-xs leading-relaxed text-[#2a2620]">
+                <div class="rounded border border-[#c9bca0] bg-white/50 p-2"><b>Ari</b> The cloche reveal is hostile architecture.</div>
+                <div class="rounded border border-[#c9bca0] bg-white/50 p-2"><b>Ben</b> This is legally a tasting menu.</div>
+            </div>
+            <div class="mt-4 rounded border-2 border-[#F6C945] bg-[#F6C945]/10 p-3">
+                <div class="text-[10px] tracking-[0.2em] text-[#6B5F50] font-bold">RECAP SEED</div>
+                <p class="mt-1 text-xs text-[#2a2620]">The app drafts the Recap from Stamp density and comments, then posts a native artifact back into the channel.</p>
+            </div>
+            <button onclick="postRecap()" class="diner-btn mt-3">POST RECAP TO CHAT</button>
+            <div class="barcode"></div>
+            <div class="text-center text-[9px] tracking-[0.2em] text-[#6B5F50] py-3">THANK YOU</div>
+        </aside>
+    </main>
+
+    <script>
+        let commits = 0, sealed = 0, threshold = 4;
+        function sync() {
+            document.getElementById('count').textContent = commits + ' / ' + threshold;
+            document.getElementById('bar').style.width = Math.min(100, (commits / threshold) * 100) + '%';
+            if (commits >= threshold) { document.getElementById('entry').classList.add('hidden'); document.getElementById('reveal').classList.remove('hidden'); }
+        }
+        function bot(html) {
+            const d = document.createElement('div');
+            d.className = 'msg rounded border border-[#c9bca0] bg-white/50 p-3';
+            d.innerHTML = html;
+            document.getElementById('chat').appendChild(d);
+        }
+        function commit() {
+            commits += 1;
+            const items = document.querySelectorAll('#audience > div');
+            if (commits <= items.length) items[commits - 1].querySelector('span').textContent = 'clocked in';
+            else {
+                const extra = document.createElement('div');
+                extra.className = 'flex items-center gap-2 p-2 border border-[#c9bca0] rounded bg-white/50 msg';
+                extra.innerHTML = '<div class="h-8 w-8 rounded-full bg-[#D72638] font-bungee flex items-center justify-center text-white text-xs">G</div><div class="text-xs"><b>Guest ' + commits + '</b> · <span class="text-[#6B5F50]">clocked in</span></div>';
+                document.getElementById('audience').appendChild(extra);
+            }
+            document.querySelector('#step1 .step-num').textContent = '✓';
+            document.querySelector('#step1 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#2a2620]">Server ' + commits + ' clocked in.</b><p class="mt-1 text-xs text-[#6B5F50]">Table ' + commits + ' of ' + threshold + ' is set. The kitchen waits.</p>');
+            sync();
+        }
+        function submit() {
+            if (sealed < Math.max(commits, 1)) { sealed += 1; if (commits === 0) { commits = 1; sync(); } }
+            document.querySelector('#step2 .step-num').textContent = '✓';
+            document.querySelector('#step2 .step-num').classList.add('done');
+            bot('<span class="bot-label">SUPPER BOT</span> <b class="ml-2 text-sm text-[#2a2620]">Dare ' + sealed + ' rung up.</b><p class="mt-1 text-xs text-[#6B5F50]">On the check. No spoilers until the diner is full.</p>');
+        }
+        function enterTheater() {
+            document.getElementById('entry').classList.add('hidden');
+            document.getElementById('reveal').classList.add('hidden');
+            document.getElementById('theater').classList.remove('hidden');
+            countUp(document.getElementById('scoreNum'), 3.4);
+        }
+        function stamp(emoji) {
+            const riff = document.createElement('div');
+            riff.className = 'rounded border border-[#c9bca0] bg-white/50 p-2 msg';
+            riff.innerHTML = '<b class="text-[#2a2620]">Supper Bot</b> ' + emoji + ' stamp wave detected. This moment is getting loud.';
+            document.getElementById('riff').prepend(riff);
+        }
+        function postRecap() {
+            const riff = document.createElement('div');
+            riff.className = 'rounded bg-[#4C9A2A]/20 border-2 border-[#4C9A2A] p-2 msg';
+            riff.innerHTML = '<b class="text-[#2a2620]">Posted to #ritual-chamber</b><br><span class="text-xs text-[#6B5F50]">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>';
+            document.getElementById('riff').prepend(riff);
+        }
+        function countUp(el, target) {
+            const dur = 900, start = performance.now();
+            function step(t){
+                const p = Math.min(1, (t - start) / dur);
+                const eased = 1 - Math.pow(1 - p, 3);
+                el.textContent = (target * eased).toFixed(1);
+                if (p < 1) requestAnimationFrame(step); else el.textContent = target.toFixed(1);
+            }
+            requestAnimationFrame(step);
+        }
+    </script>
+</body>
+</html>
