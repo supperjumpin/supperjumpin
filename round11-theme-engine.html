@@ -35,6 +35,10 @@
         .theme-lux { --bg:#0a0a0c; --surface:#141216; --card:#1b191f; --text:#f3eef7; --muted:#8b8692; --accent:#d4af37; --accent-2:#ff4ecd; --good:#7AC943; }
         .theme-lux .btn-primary { background: linear-gradient(90deg,#d4af37,#ff4ecd); color: #0a0a0c; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
         .theme-lux .panel { border: 1px solid rgba(212,175,55,.35); border-radius: 18px; box-shadow: 0 0 40px rgba(212,175,55,.12); }
+        .theme-velvet { --bg:#150b12; --surface:#1e101a; --card:#2a1624; --text:#f3e8ed; --muted:#a88b98; --accent:#d4af37; --accent-2:#f43f5e; --good:#10b981; }
+        .theme-velvet .btn-primary { background: linear-gradient(90deg,#f43f5e,#d4af37); color: #fff; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; border-radius: 999px; }
+        .theme-velvet .panel { border: 1px solid rgba(212,175,55,.3); border-radius: 24px; box-shadow: 0 0 50px rgba(244,63,94,.1), inset 0 0 60px rgba(0,0,0,.2); }
+        .theme-velvet h1, .theme-velvet h2 { background: linear-gradient(90deg,#fde047,#f43f5e); -webkit-background-clip: text; color: transparent; }
 
         .panel { background: var(--card); transition: all .25s ease; }
         .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 8px; border: 0; font-weight: 700; cursor: pointer; transition: transform .1s, filter .2s; }
@@ -70,7 +74,7 @@
                     <p class="mt-2 text-sm md:text-base text-[#949ba4] max-w-xl mx-auto">Choose the visual template for this round. Everyone in the Activity sees the same theme.</p>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-6">
                     <button class="theme-card panel p-4 text-left selected" data-theme="theme-arcade" onclick="pickTheme('theme-arcade')">
                         <div class="text-2xl mb-2">🕹️</div>
                         <div class="font-bungee text-sm uppercase">Arcade Stage</div>
@@ -90,6 +94,11 @@
                         <div class="text-2xl mb-2">🎭</div>
                         <div class="font-mono text-sm uppercase tracking-widest">Lux Theater</div>
                         <p class="text-xs mt-1 opacity-70">Spotlights, gold trim, velvet curtains, curtain call.</p>
+                    </button>
+                    <button class="theme-card panel p-4 text-left" data-theme="theme-velvet" onclick="pickTheme('theme-velvet')">
+                        <div class="text-2xl mb-2">🎟️</div>
+                        <div class="font-mono text-sm uppercase tracking-widest">Velvet Cabaret</div>
+                        <p class="text-xs mt-1 opacity-70">Cabaret tables, gold trim, curtain reveal, patron list.</p>
                     </button>
                 </div>
 
@@ -239,6 +248,11 @@
                 name: 'Lux Theater', emoji: '🎭',
                 desc: 'Spotlit stage, velvet curtains, and a gold-trimmed curtain-call reveal.',
                 chips: ['🎨 #d4af37', '✨ #ff4ecd', '🎭 Velvet stage', '🔤 Inter + gold']
+            },
+            'theme-velvet': {
+                name: 'Velvet Cabaret', emoji: '🎟️',
+                desc: 'Round 9 cabaret style: cabaret tables, red-rose-gold gradient, curtain reveal, and a patron rail.',
+                chips: ['🎨 #f43f5e', '✨ #d4af37', '🎟️ Cabaret', '🔤 Inter']
             }
         };
         let currentTheme = 'theme-arcade';
