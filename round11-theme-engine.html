@@ -60,6 +60,8 @@
         .theme-card:hover { transform: translateY(-3px); }
         .theme-card.selected { border-color: var(--accent); }
 
+        .remove-btn { transition: opacity .15s; }
+        @media (pointer: coarse) { .remove-btn { opacity: 1 !important; } }
         .fade { animation: fadeIn .25s ease-out; }
         @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
         .hidden { display: none !important; }
@@ -144,9 +146,21 @@
                     <aside class="panel p-4 self-start">
                         <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Jumpers in</div>
                         <div id="audience" class="mt-3 space-y-2">
-                            <div class="flex items-center gap-2 p-2 rounded" style="background:var(--surface)"><div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">B</div><div class="text-sm"><b>Ben</b> · <span class="text-xs opacity-60">waiting</span></div></div>
-                            <div class="flex items-center gap-2 p-2 rounded" style="background:var(--surface)"><div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">A</div><div class="text-sm"><b>Ari</b> · <span class="text-xs opacity-60">waiting</span></div></div>
-                            <div class="flex items-center gap-2 p-2 rounded" style="background:var(--surface)"><div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">J</div><div class="text-sm"><b>Jules</b> · <span class="text-xs opacity-60">waiting</span></div></div>
+                            <div class="flex items-center gap-2 p-2 rounded group" style="background:var(--surface)">
+                                <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">B</div>
+                                <div class="text-sm flex-1"><b>Ben</b> · <span class="text-xs opacity-60">waiting</span></div>
+                                <button onclick="removeJumper(1)" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>
+                            </div>
+                            <div class="flex items-center gap-2 p-2 rounded group" style="background:var(--surface)">
+                                <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">A</div>
+                                <div class="text-sm flex-1"><b>Ari</b> · <span class="text-xs opacity-60">waiting</span></div>
+                                <button onclick="removeJumper(2)" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>
+                            </div>
+                            <div class="flex items-center gap-2 p-2 rounded group" style="background:var(--surface)">
+                                <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">J</div>
+                                <div class="text-sm flex-1"><b>Jules</b> · <span class="text-xs opacity-60">waiting</span></div>
+                                <button onclick="removeJumper(3)" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>
+                            </div>
                         </div>
 
                         <div class="mt-4">
@@ -171,12 +185,12 @@
                             <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-seal-num">3</span> Seal scores</div>
                         </div>
 
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap gap-2 items-center">
                             <button id="join-btn" onclick="join()" class="btn-primary text-sm">Join round</button>
                             <button id="submit-btn" onclick="submitAll()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Submit scores</button>
                             <button id="seal-btn" onclick="seal()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Seal scores</button>
-                            <button id="reveal-btn" onclick="manualReveal()" class="btn-primary text-sm hidden">🚀 Reveal now</button>
                             <button id="undo-seal-btn" onclick="undoSeal()" class="btn-primary text-sm hidden" title="Undo seal before reveal" style="background:var(--surface);color:var(--text)">↩️ Undo seal</button>
+                            <button id="reveal-btn" onclick="manualReveal()" class="btn-primary text-sm hidden">🚀 Reveal now</button>
                         </div>
 
                         <div id="bot-chat" class="mt-5 space-y-2">
@@ -307,22 +321,22 @@
             document.getElementById('pct').textContent = pct + '%';
             document.getElementById('bar').style.width = pct + '%';
 
-            // Step 1: join — enabled until room full
+            // Step 1: join — enabled until room full and not sealed
             document.getElementById('join-btn').disabled = joined >= threshold || sealed > 0;
 
-            // Step 2: submit — enabled once at least one joined and not all submitted
+            // Step 2: submit — enabled once at least one joined and not all submitted and not sealed
             document.getElementById('submit-btn').disabled = joined === 0 || submitted >= joined || sealed > 0;
 
-            // Step 3: seal — enabled only when all joined have submitted and not already sealed
-            document.getElementById('seal-btn').disabled = submitted < joined || submitted === 0 || sealed > 0;
+            // Step 3: seal — enabled as soon as at least one score is submitted and not already sealed
+            document.getElementById('seal-btn').disabled = submitted === 0 || sealed > 0;
 
-            // Undo seal — visible only when sealed but not revealed
+            // Undo seal — visible right next to seal after sealing, before reveal
             const undoBtn = document.getElementById('undo-seal-btn');
             undoBtn.classList.toggle('hidden', !(sealed > 0 && !revealed));
 
-            // Reveal — only when room is full AND scores are sealed
+            // Reveal — appears once any scores are sealed
             const revealBtn = document.getElementById('reveal-btn');
-            if (joined >= threshold && sealed > 0 && !revealed) {
+            if (sealed > 0 && !revealed) {
                 revealBtn.classList.remove('hidden');
             } else {
                 revealBtn.classList.add('hidden');
@@ -333,18 +347,36 @@
             if (joined >= threshold || sealed > 0) return;
             joined++;
             const items = document.querySelectorAll('#audience > div');
-            if (joined <= items.length) items[joined - 1].querySelector('span').textContent = 'joined';
-            else {
+            if (joined <= items.length) {
+                const span = items[joined - 1].querySelector('span');
+                if (span) span.textContent = 'joined';
+            } else {
                 const extra = document.createElement('div');
-                extra.className = 'flex items-center gap-2 p-2 rounded';
+                extra.className = 'flex items-center gap-2 p-2 rounded group';
                 extra.style.background = 'var(--surface)';
                 extra.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">G</div>
-                    <div class="text-sm"><b>Guest ${joined}</b> · <span class="text-xs opacity-60">joined</span></div>`;
+                    <div class="text-sm flex-1"><b>Guest ${joined}</b> · <span class="text-xs opacity-60">joined</span></div>
+                    <button onclick="removeJumper(${joined})" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>`;
                 document.getElementById('audience').appendChild(extra);
             }
             document.getElementById('step-join-num').textContent = '✓';
             document.getElementById('step-join-num').classList.add('done');
             bot('Jumper ' + joined + ' joined the round.');
+            sync();
+        }
+
+        function removeJumper(index) {
+            if (sealed > 0 || revealed) return;
+            const items = document.querySelectorAll('#audience > div');
+            if (index < 1 || index > items.length) return;
+            const removed = items[index - 1];
+            removed.classList.add('hidden');
+            joined = Math.max(0, joined - 1);
+            // If they had already "submitted", recalc submitted count (mockup: reset to 0 so host resubmits)
+            submitted = 0;
+            document.getElementById('step-submit-num').textContent = '2';
+            document.getElementById('step-submit-num').classList.remove('done');
+            bot('Jumper removed. Resubmit scorecards for the remaining players.');
             sync();
         }
 
