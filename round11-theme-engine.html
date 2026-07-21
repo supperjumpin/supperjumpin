@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supperjumpin UX - Round 11: Theme Engine — pick a skin, run the ceremony</title>
+    <title>Supperjumpin UX - Round 11: Theme Engine — Pick a Skin, Run the Ceremony</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,246 +14,167 @@
             --accent: #5865f2; --accent-2: #f04747; --good: #3ba55d; --warn: #faa61a;
         }
         * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", sans-serif; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", sans-serif; transition: background 0.3s ease; }
         .font-mono { font-family: "IBM Plex Mono", monospace; }
         .font-bungee { font-family: "Bungee", display; }
         .font-anton { font-family: "Anton", sans-serif; }
         .font-shrik { font-family: "Shrikhand", serif; }
 
-        /* --- theme tokens applied to root class --- */
-        .theme-default .btn-primary { background: var(--accent); color: white; }
-        .theme-arcade { --bg:#0d0b14; --surface:#181423; --card:#231d33; --text:#e7e2f0; --muted:#8f88a8; --accent:#00A6A6; --accent-2:#FFC928; --good:#7AC943; }
-        .theme-arcade .btn-primary { background: #00A6A6; color: #0d0b14; font-family: "Bungee"; letter-spacing: 1px; text-transform: uppercase; }
-        .theme-arcade .panel { border: 1px solid rgba(255,255,255,.12); border-radius: 14px; }
-        .theme-diner { --bg:#5b4a3a; --surface:#FFF4DA; --card:#efe9da; --text:#2a2620; --muted:#6B5F50; --accent:#D72638; --accent-2:#F6C945; --good:#4C9A2A; }
-        .theme-diner .btn-primary { background: #F6C945; color: #2a2620; font-family: "Shrikhand"; border: 2px solid #2a2620; }
-        .theme-diner .panel { border: 2px solid #2a2620; background: #FFF4DA; border-radius: 10px; transform: rotate(-.5deg); }
-        .theme-extreme { --bg:#08090d; --surface:#0f1014; --card:#15171c; --text:#fff; --muted:#8e9199; --accent:#FFC928; --accent-2:#E13A2D; --good:#7AC943; }
-        .theme-extreme .btn-primary { background: #FFC928; color: #08090d; font-family: "Anton"; text-transform: uppercase; transform: skewX(-6deg); }
-        .theme-extreme .btn-primary span { display: inline-block; transform: skewX(6deg); }
-        .theme-extreme .panel { border: 1px solid rgba(255,255,255,.12); border-radius: 8px; }
-        .theme-lux { --bg:#0a0a0c; --surface:#141216; --card:#1b191f; --text:#f3eef7; --muted:#8b8692; --accent:#d4af37; --accent-2:#ff4ecd; --good:#7AC943; }
-        .theme-lux .btn-primary { background: linear-gradient(90deg,#d4af37,#ff4ecd); color: #0a0a0c; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-        .theme-lux .panel { border: 1px solid rgba(212,175,55,.35); border-radius: 18px; box-shadow: 0 0 40px rgba(212,175,55,.12); }
-        .theme-velvet { --bg:#150b12; --surface:#1e101a; --card:#2a1624; --text:#f3e8ed; --muted:#a88b98; --accent:#d4af37; --accent-2:#f43f5e; --good:#10b981; }
-        .theme-velvet .btn-primary { background: linear-gradient(90deg,#f43f5e,#d4af37); color: #fff; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; border-radius: 999px; }
-        .theme-velvet .panel { border: 1px solid rgba(212,175,55,.3); border-radius: 24px; box-shadow: 0 0 50px rgba(244,63,94,.1), inset 0 0 60px rgba(0,0,0,.2); }
-        .theme-velvet h1, .theme-velvet h2 { background: linear-gradient(90deg,#fde047,#f43f5e); -webkit-background-clip: text; color: transparent; }
-        .theme-spotlight { --bg:#0a0a10; --surface:#13131a; --card:#18181b; --text:#f2f3f5; --muted:#b5bac4; --accent:#5865f2; --accent-2:#eb459e; --good:#248046; }
-        .theme-spotlight .btn-primary { background: linear-gradient(90deg,#5865f2,#eb459e); color: #fff; font-weight: 900; border-radius: 999px; }
-        .theme-spotlight .panel { border: 1px solid rgba(235,69,158,.45); border-radius: 24px; box-shadow: 0 12px 40px rgba(0,0,0,.40), inset 0 0 40px rgba(235,69,158,.10); }
-        .theme-crt { --bg:#050510; --surface:#0a0a14; --card:#10111c; --text:#f2f3f5; --muted:#b5bac4; --accent:#00ffaa; --accent-2:#ff0088; --good:#00ffaa; }
-        .theme-crt .btn-primary { background: #ff0088; color: #fff; font-weight: 900; box-shadow: 0 0 16px rgba(255,0,136,.4); text-transform: uppercase; letter-spacing: 1px; }
-        .theme-crt .panel { border: 2px solid #ff0088; border-radius: 16px; box-shadow: 0 0 30px rgba(255,0,136,.25), inset 0 0 30px rgba(255,0,136,.08); position: relative; overflow: hidden; }
-        .theme-crt .panel::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0px, rgba(0,0,0,.12) 2px, transparent 2px, transparent 4px); pointer-events: none; }
-        .theme-crt .btn-primary span { position: relative; z-index: 1; }
+        /* --- Discord Core Styles (Imported from Mockup) --- */
+        .discord-sidebar { background-color: #1e1f22; transition: background 0.3s ease; }
+        .discord-chat { background-color: #313338; transition: background 0.3s ease; }
+        .discord-message { margin-bottom: 1.2rem; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .discord-btn { background-color: #4e5058; color: white; padding: 4px 12px; border-radius: 3px; font-size: 14px; transition: background 0.2s; }
+        .discord-btn:hover { background-color: #6d6f75; }
+        .discord-btn:disabled { background-color: #2b2d31; color: #80848e; cursor: not-allowed; }
+        .bot-tag { background-color: #5865f2; color: white; font-size: 10px; padding: 0 4px; border-radius: 3px; font-weight: bold; margin-right: 4px; vertical-align: middle; }
+        .user-name { color: #f2f3f5; font-weight: 600; margin-right: 8px; }
+        .timestamp { color: #80848e; font-size: 12px; }
+        .embed { background-color: #2b2d31; border-left: 4px solid #5865f2; padding: 12px; border-radius: 4px; margin-top: 8px; }
+        .embed-results { background-color: #2b2d31; border-left: 4px solid #f04747; padding: 12px; border-radius: 4px; margin-top: 8px; }
+        .embed-leaderboard { background-color: #2b2d31; border-left: 4px solid #faa61a; padding: 16px; border-radius: 4px; margin-top: 8px; }
+        .chatter-msg { font-style: italic; color: #b5bac4; }
 
-        .panel { background: var(--card); transition: all .25s ease; }
+        /* --- Theme Engine Tokens --- */
+        .theme-default .discord-sidebar { background-color: #1e1f22; }
+        .theme-default .discord-chat { background-color: #313338; }
+        .theme-default .embed { border-left-color: #5865f2; }
+
+        .theme-arcade .discord-sidebar { background-color: #0d0b14; }
+        .theme-arcade .discord-chat { background-color: #181423; }
+        .theme-arcade .embed { border-left-color: #00A6A6; background: #231d33; }
+        .theme-arcade .discord-btn { background-color: #00A6A6; color: #0d0b14; font-family: "Bungee"; text-transform: uppercase; }
+
+        .theme-diner .discord-sidebar { background-color: #5b4a3a; }
+        .theme-diner .discord-chat { background-color: #FFF4DA; color: #2a2620; }
+        .theme-diner .embed { border-left-color: #D72638; background: #efe9da; color: #2a2620; }
+        .theme-diner .discord-btn { background-color: #F6C945; color: #2a2620; font-family: "Shrikhand"; border: 1px solid #2a2620; }
+        .theme-diner .user-name, .theme-diner .timestamp { color: #2a2620; }
+        .theme-diner .text-gray-300 { color: #6B5F50; }
+
+        .theme-extreme .discord-sidebar { background-color: #08090d; }
+        .theme-extreme .discord-chat { background-color: #0f1014; }
+        .theme-extreme .embed { border-left-color: #FFC928; background: #15171c; }
+        .theme-extreme .discord-btn { background-color: #FFC928; color: #08090d; font-family: "Anton"; text-transform: uppercase; }
+
+        .theme-lux .discord-sidebar { background-color: #0a0a0c; }
+        .theme-lux .discord-chat { background-color: #141216; }
+        .theme-lux .embed { border-left-color: #d4af37; background: #1b191f; }
+        .theme-lux .discord-btn { background: linear-gradient(90deg,#d4af37,#ff4ecd); color: #0a0a0c; font-weight: 900; }
+
+        .theme-velvet .discord-sidebar { background-color: #150b12; }
+        .theme-velvet .discord-chat { background-color: #1e101a; }
+        .theme-velvet .embed { border-left-color: #f43f5e; background: #2a1624; }
+        .theme-velvet .discord-btn { background: linear-gradient(90deg,#f43f5e,#d4af37); color: #fff; font-weight: 900; }
+
+        .theme-spotlight .discord-sidebar { background-color: #0a0a10; }
+        .theme-spotlight .discord-chat { background-color: #13131a; }
+        .theme-spotlight .embed { border-left-color: #5865f2; background: #18181b; }
+        .theme-spotlight .discord-btn { background: linear-gradient(90deg,#5865f2,#eb459e); color: #fff; font-weight: 900; }
+
+        .theme-crt .discord-sidebar { background-color: #050510; }
+        .theme-crt .discord-chat { background-color: #0a0a14; }
+        .theme-crt .embed { border-left-color: #00ffaa; background: #10111c; box-shadow: inset 0 0 20px rgba(0,255,170,0.1); }
+        .theme-crt .discord-btn { background-color: #ff0088; color: #fff; font-weight: 900; text-transform: uppercase; }
+
+        /* --- Panel & Layout --- */
+        .panel { background: var(--card); transition: all .25s ease; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; }
         .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 8px; border: 0; font-weight: 700; cursor: pointer; transition: transform .1s, filter .2s; }
         .btn-primary:active { transform: scale(.98); }
-        .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
         .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--surface); border: 1px solid rgba(255,255,255,.1); font-size: 12px; }
-        .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--surface); color: var(--text); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
-        .step-num.done { background: var(--good); color: white; }
-
         .theme-card { cursor: pointer; border: 2px solid transparent; transition: transform .15s, border-color .15s; }
         .theme-card:hover { transform: translateY(-3px); }
         .theme-card.selected { border-color: var(--accent); }
-
-        .remove-btn { transition: opacity .15s; }
-        @media (pointer: coarse) { .remove-btn { opacity: 1 !important; } }
         .fade { animation: fadeIn .25s ease-out; }
-        @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
         .hidden { display: none !important; }
     </style>
 </head>
-<body class="theme-default min-h-screen">
-    <div id="app" class="min-h-screen p-4 md:p-6">
-        <header class="mx-auto mb-6 flex max-w-6xl items-center justify-between">
-            <a href="index.html" class="text-xs font-bold hover:underline text-[#949ba4]">← BACK TO MOCKUPS</a>
-            <div class="font-mono text-[10px] tracking-[0.25em] uppercase text-[#949ba4]">Round 11 · Theme Engine</div>
+<body class="theme-default min-h-screen flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- THEME CONFIGURATOR (Left Panel) -->
+    <div id="configurator" class="w-full md:w-96 flex-shrink-0 p-6 overflow-y-auto border-r border-gray-800 bg-[#111214] z-10">
+        <header class="mb-8">
+            <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-[#949ba4]">Round 11 · Theme Engine</div>
+            <h1 class="mt-2 text-2xl font-black text-white">Ceremony Skin</h1>
+            <p class="text-xs text-[#949ba4] mt-1">Choose the visual identity for this ritual.</p>
         </header>
 
-        <main class="mx-auto max-w-6xl">
+        <div class="space-y-6">
+            <div class="grid gap-3">
+                <button class="theme-card panel p-3 text-left selected" data-theme="theme-arcade" onclick="pickTheme('theme-arcade')">
+                    <div class="text-xl mb-1">🕹️</div>
+                    <div class="font-bungee text-xs uppercase">Arcade Stage</div>
+                </button>
+                <button class="theme-card panel p-3 text-left" data-theme="theme-crt" onclick="pickTheme('theme-crt')">
+                    <div class="text-xl mb-1">🖥️</div>
+                    <div class="font-mono text-xs uppercase tracking-widest">Arcade CRT</div>
+                </button>
+                <button class="theme-card panel p-3 text-left" data-theme="theme-diner" onclick="pickTheme('theme-diner')">
+                    <div class="text-xl mb-1">🍔</div>
+                    <div class="font-shrik text-xs">50s Diner</div>
+                </button>
+                <button class="theme-card panel p-3 text-left" data-theme="theme-extreme" onclick="pickTheme('theme-extreme')">
+                    <div class="text-xl mb-1">🏂</div>
+                    <div class="font-anton text-xs uppercase">Extreme Sports</div>
+                </button>
+                <button class="theme-card panel p-3 text-left" data-theme="theme-lux" onclick="pickTheme('theme-lux')">
+                    <div class="text-xl mb-1">🎭</div>
+                    <div class="font-mono text-xs uppercase tracking-widest">Lux Theater</div>
+                </button>
+                <button class="theme-card panel p-3 text-left" data-theme="theme-spotlight" onclick="pickTheme('theme-spotlight')">
+                    <div class="text-xl mb-1">🎬</div>
+                    <div class="font-mono text-xs uppercase tracking-widest">Lux Spotlights</div>
+                </button>
+                <button class="theme-card panel p-3 text-left" data-theme="theme-velvet" onclick="pickTheme('theme-velvet')">
+                    <div class="text-sxl mb-1">🎟️</div>
+                    <div class="font-mono text-xs uppercase tracking-widest">Velvet Cabaret</div>
+                </button>
+            </div>
 
-            <!-- STEP 1: THEME PICKER -->
-            <section id="step-picker" class="fade">
-                <div class="text-center mb-6">
-                    <div class="font-mono text-xs tracking-[0.2em] uppercase text-[#949ba4]">Creator step 1 of 3</div>
-                    <h1 class="mt-2 text-3xl md:text-5xl font-black text-[#dbdee1]">Pick a ceremony skin</h1>
-                    <p class="mt-2 text-sm md:text-base text-[#949ba4] max-w-xl mx-auto">Choose the visual template for this round. Everyone in the Activity sees the same theme.</p>
-                </div>
+            <div id="preview" class="panel p-4">
+                <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60 mb-2">Preview</div>
+                <h2 id="preview-title" class="text-lg font-bold text-white">Arcade Stage</h2>
+                <p id="preview-desc" class="text-xs text-[#949ba4] mt-1">Jumpers drop coins, the scoreboard fills, and the reveal hits in a synced neon stage.</p>
+                <div class="mt-3 flex flex-wrap gap-2" id="preview-chips"></div>
+            </div>
 
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mb-6">
-                    <button class="theme-card panel p-4 text-left selected" data-theme="theme-arcade" onclick="pickTheme('theme-arcade')">
-                        <div class="text-2xl mb-2">🕹️</div>
-                        <div class="font-bungee text-xs uppercase">Arcade Stage</div>
-                    </button>
-                    <button class="theme-card panel p-4 text-left" data-theme="theme-crt" onclick="pickTheme('theme-crt')">
-                        <div class="text-2xl mb-2">🖥️</div>
-                        <div class="font-mono text-xs uppercase tracking-widest">Arcade CRT</div>
-                    </button>
-                    <button class="theme-card panel p-4 text-left" data-theme="theme-diner" onclick="pickTheme('theme-diner')">
-                        <div class="text-2xl mb-2">🍔</div>
-                        <div class="font-shrik text-xs">50s Diner</div>
-                    </button>
-                    <button class="theme-card panel p-4 text-left" data-theme="theme-extreme" onclick="pickTheme('theme-extreme')">
-                        <div class="text-2xl mb-2">🏂</div>
-                        <div class="font-anton text-xs uppercase">Extreme Sports</div>
-                    </button>
-                    <button class="theme-card panel p-4 text-left" data-theme="theme-lux" onclick="pickTheme('theme-lux')">
-                        <div class="text-2xl mb-2">🎭</div>
-                        <div class="font-mono text-xs uppercase tracking-widest">Lux Theater</div>
-                    </button>
-                    <button class="theme-card panel p-4 text-left" data-theme="theme-spotlight" onclick="pickTheme('theme-spotlight')">
-                        <div class="text-2xl mb-2">🎬</div>
-                        <div class="font-mono text-xs uppercase tracking-widest">Lux Spotlights</div>
-                    </button>
-                    <button class="theme-card panel p-4 text-left" data-theme="theme-velvet" onclick="pickTheme('theme-velvet')">
-                        <div class="text-2xl mb-2">🎟️</div>
-                        <div class="font-mono text-xs uppercase tracking-widest">Velvet Cabaret</div>
-                    </button>
-                </div>
+            <div class="pt-4">
+                <a href="index.html" class="text-xs font-bold hover:underline text-[#949ba4] block text-center">← Back to Mockups</a>
+            </div>
+        </div>
+    </div>
 
-                <div id="preview" class="panel p-5 mb-6">
-                    <div class="flex flex-col md:flex-row gap-4 items-center">
-                        <div class="w-full md:w-1/3 rounded-lg overflow-hidden h-32 bg-[#111]">
-                            <img id="preview-img" src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=70" class="w-full h-full object-cover">
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Live preview</div>
-                            <h2 id="preview-title" class="mt-1 text-2xl font-black">Arcade Stage</h2>
-                            <p id="preview-desc" class="mt-1 text-sm opacity-70">Jumpers drop coins, the scoreboard fills, and the reveal hits in a synced neon stage.</p>
-                            <div class="mt-3 flex flex-wrap gap-2"><span class="chip">🎨 #00A6A6</span><span class="chip">✨ #FFC928</span><span class="chip">🖥 CRT scanlines</span><span class="chip">🔤 Bungee</span></div>
-                        </div>
+    <!-- LIVE DISCORD SIMULATION (Right Panel) -->
+    <div class="flex-grow flex overflow-hidden relative">
+        <div class="discord-sidebar w-64 flex-shrink-0 hidden lg:flex flex-col p-4">
+            <div class="text-white font-bold mb-8 px-2">Supperjumpin Server</div>
+            <div class="space-y-2">
+                <div class="text-gray-400 px-2 py-1 hover:bg-gray-700 rounded cursor-pointer"># general</div>
+                <div class="bg-gray-600 text-white px-2 py-1 rounded cursor-pointer"># ritual-chamber</div>
+                <div class="text-gray-400 px-2 py-1 hover:bg-gray-700 rounded cursor-pointer"># food-pics</div>
+            </div>
+        </div>
+        <div class="discord-chat flex-grow flex flex-col relative">
+            <div class="h-12 border-b border-black flex items-center px-4 justify-between shadow-sm">
+                <div class="font-bold text-white"># ritual-chamber</div>
+            </div>
+            <div id="chat-window" class="flex-grow overflow-y-auto p-4 space-y-4">
+                <div class="discord-message flex items-start">
+                    <div class="w-10 h-10 rounded-full bg-indigo-500 mr-4"></div>
+                    <div>
+                        <span class="user-name">Supper Bot <span class="bot-tag">BOT</span></span>
+                        <span class="timestamp">Today at 6:00 PM</span>
+                        <div class="text-gray-300">The Theme Engine is active. Pick a skin on the left to change the atmosphere of the ritual!</div>
                     </div>
                 </div>
-
-                <div class="flex justify-end">
-                    <button onclick="toEntry()" class="btn-primary text-sm"><span>Confirm theme & open lobby →</span></button>
+            </div>
+            <div class="p-4">
+                <div class="bg-[#383a40] rounded-lg p-3 text-gray-500 text-sm">
+                    Message #ritual-chamber
                 </div>
-            </section>
-
-            <!-- STEP 2: LOBBY / ENTRY -->
-            <section id="step-lobby" class="hidden fade">
-                <div class="text-center mb-6">
-                    <div class="font-mono text-xs tracking-[0.2em] uppercase text-[#949ba4]">Creator step 2 of 3 · now open to jumpers</div>
-                    <h1 class="mt-2 text-3xl md:text-5xl font-black">Fine dining from your fridge</h1>
-                    <p class="mt-2 text-sm text-[#949ba4]">The chosen theme is locked in. Jumpers enter, submit their scores, then the host seals.</p>
-                </div>
-
-                <div class="grid gap-4 lg:grid-cols-[260px,1fr,280px]">
-                    <aside class="panel p-4 self-start">
-                        <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Jumpers in</div>
-                        <div id="audience" class="mt-3 space-y-2">
-                            <div class="flex items-center gap-2 p-2 rounded group" style="background:var(--surface)">
-                                <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">B</div>
-                                <div class="text-sm flex-1"><b>Ben</b> · <span class="text-xs opacity-60">waiting</span></div>
-                                <button onclick="removeJumper(1)" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>
-                            </div>
-                            <div class="flex items-center gap-2 p-2 rounded group" style="background:var(--surface)">
-                                <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">A</div>
-                                <div class="text-sm flex-1"><b>Ari</b> · <span class="text-xs opacity-60">waiting</span></div>
-                                <button onclick="removeJumper(2)" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>
-                            </div>
-                            <div class="flex items-center gap-2 p-2 rounded group" style="background:var(--surface)">
-                                <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">J</div>
-                                <div class="text-sm flex-1"><b>Jules</b> · <span class="text-xs opacity-60">waiting</span></div>
-                                <button onclick="removeJumper(3)" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>
-                            </div>
-                        </div>
-
-                        <div class="mt-4">
-                            <div class="flex justify-between text-xs font-bold"><span id="count">0 / 4</span><span id="pct">0%</span></div>
-                            <div class="h-2 rounded-full mt-2" style="background:var(--surface)"><div id="bar" class="h-2 rounded-full transition-all" style="width:0%; background:var(--good)"></div></div>
-                        </div>
-                    </aside>
-
-                    <section class="panel p-5 self-start">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Open call</div>
-                            <span class="chip" id="theme-badge">🕹️ Arcade Stage</span>
-                        </div>
-
-                        <div class="rounded-lg overflow-hidden h-40 mb-4">
-                            <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=70" class="w-full h-full object-cover">
-                        </div>
-
-                        <div class="space-y-2 mb-4">
-                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-join-num">1</span> Join the round</div>
-                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-submit-num">2</span> Submit scores</div>
-                            <div class="flex items-center gap-2 text-sm opacity-70"><span class="step-num" id="step-seal-num">3</span> Seal scores</div>
-                        </div>
-
-                        <div class="flex flex-wrap gap-2 items-center">
-                            <button id="join-btn" onclick="join()" class="btn-primary text-sm">Join round</button>
-                            <button id="submit-btn" onclick="submitAll()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Submit scores</button>
-                            <button id="seal-btn" onclick="seal()" class="btn-primary text-sm" disabled style="background:var(--surface);color:var(--text)">Seal scores</button>
-                            <button id="undo-seal-btn" onclick="undoSeal()" class="btn-primary text-sm hidden" title="Undo seal before reveal" style="background:var(--surface);color:var(--text)">↩️ Undo seal</button>
-                            <button id="reveal-btn" onclick="manualReveal()" class="btn-primary text-sm hidden">🚀 Reveal now</button>
-                        </div>
-
-                        <div id="bot-chat" class="mt-5 space-y-2">
-                            <div class="p-3 rounded" style="background:var(--surface)">
-                                <span class="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded" style="background:var(--accent);color:var(--card)">SUPPER BOT</span>
-                                <span class="text-sm ml-2">The lobby is open.</span>
-                                <p class="text-xs opacity-70 mt-1">Theme locked: Arcade Stage. Join, submit scores, then seal.</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <aside class="panel p-4 self-start">
-                        <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Live riff rail</div>
-                        <div id="riff" class="mt-3 space-y-2 text-xs opacity-80">
-                            <div class="p-2 rounded" style="background:var(--surface)"><b>Ari</b> The cloche reveal is hostile architecture.</div>
-                        </div>
-                        <div class="mt-4"><button onclick="postRecap()" class="btn-primary text-sm w-full" style="background:var(--good);color:white">Post recap</button></div>
-                    </aside>
-                </div>
-            </section>
-
-            <!-- STEP 3: REVEAL -->
-            <section id="step-reveal" class="hidden fade">
-                <div class="text-center mb-6">
-                    <div class="font-mono text-xs tracking-[0.2em] uppercase opacity-60">Creator step 3 of 3 · reveal live</div>
-                    <h1 class="mt-2 text-3xl md:text-5xl font-black">The reveal is live</h1>
-                    <p class="mt-2 text-sm opacity-70">The room is full and scores are sealed. Everyone sees the same themed reveal stage.</p>
-                </div>
-
-                <div class="panel p-5 max-w-3xl mx-auto">
-                    <div class="rounded-lg overflow-hidden h-56 mb-4">
-                        <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=70" class="w-full h-full object-cover">
-                    </div>
-
-                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
-                        <div>
-                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Jump 1 of 3</div>
-                            <h2 class="text-2xl md:text-3xl font-black mt-1">Crunchwrap under a cloche</h2>
-                            <p class="text-sm opacity-70 mt-1">The source was Taco Bell. The destination was a candlelit dining room.</p>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-mono text-[10px] tracking-[0.2em] uppercase opacity-60">Running avg / 4</div>
-                            <div id="score" class="text-5xl font-black" style="color:var(--accent-2)">3.4</div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Commitment</div><div class="text-xl font-black">3.8</div></div>
-                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Transgression</div><div class="text-xl font-black">3.1</div></div>
-                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Creativity</div><div class="text-xl font-black">3.5</div></div>
-                        <div class="p-3 rounded" style="background:var(--surface)"><div class="text-[10px] uppercase tracking-wider opacity-60">Presentation</div><div class="text-xl font-black">2.9</div></div>
-                    </div>
-
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <button onclick="stamp('🔥')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🔥</div><div class="text-xs font-bold">Chaos</div></button>
-                        <button onclick="stamp('💎')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">💎</div><div class="text-xs font-bold">Certified</div></button>
-                        <button onclick="stamp('🧠')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🧠</div><div class="text-xs font-bold">Lore</div></button>
-                        <button onclick="stamp('🫡')" class="p-3 rounded text-left" style="background:var(--surface)"><div class="text-2xl">🫡</div><div class="text-xs font-bold">Respect</div></button>
-                    </div>
-                </div>
-            </section>
-
-        </main>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -280,7 +201,7 @@
             },
             'theme-spotlight': {
                 name: 'Lux Spotlights', emoji: '🎬',
-                desc: 'Round 9 Lux Theater look: sweeping spotlights, pink-gold accents, and a stage-floor reveal card.',
+                desc same: 'Round 9 Lux Theater look: sweeping spotlights, pink-gold accents, and a stage-floor reveal card.',
                 chips: ['🎨 #5865f2', '✨ #eb459e', '🎬 Spotlights', '🔤 Inter']
             },
             'theme-crt': {
@@ -294,155 +215,41 @@
                 chips: ['🎨 #f43f5e', '✨ #d4af37', '🎟️ Cabaret', '🔤 Inter']
             }
         };
-        let currentTheme = 'theme-arcade';
-        let joined = 0, submitted = 0, sealed = 0, threshold = 4, revealed = false;
 
         function pickTheme(key) {
-            currentTheme = key;
-            document.body.className = key + ' min-h-screen';
+            // Apply theme class to body (affects CSS variables and themed subclasses)
+            document.body.className = key + ' min-h-screen flex flex-col md:flex-row h-screen overflow-hidden';
+            
+            // UI Selection highlight
             document.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('selected', c.dataset.theme === key));
+            
+            // Update Preview Card
             const t = themes[key];
             document.getElementById('preview-title').textContent = t.name;
-            document.getElementById('preview-desc').textContent = t.desc;
-            const chipWrap = document.getElementById('preview').querySelector('.flex.flex-wrap');
+            document.getElementById('preview-desc').textContent = t.desc || t.descSame;
+            const chipWrap = document.getElementById('preview-chips');
             chipWrap.innerHTML = t.chips.map(c => `<span class="chip">${c}</span>`).join('');
-            document.getElementById('theme-badge').textContent = t.emoji + ' ' + t.name;
+            
+            // Trigger "Bot" message in the simulation to confirm change
+            const chat = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            div.className = 'discord-message flex items-start fade';
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-indigo-500 mr-4"></div>
+                <div>
+                    <span class="user-name">Supper Bot <span class="bot-tag">BOT</span></span>
+                    <span class="timestamp">Just now</span>
+                    <div class="text-gray-300">Atmosphere shifted to <b style="color:var(--accent)">${t.name}</b>. The ritual feels... different.</div>
+                </div>
+            `;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
         }
 
-        function toEntry() {
-            document.getElementById('step-picker').classList.add('hidden');
-            document.getElementById('step-lobby').classList.remove('hidden');
-            bot('Theme locked: ' + themes[currentTheme].name + '. Join, submit scores, then seal.');
-        }
-
-        function sync() {
-            document.getElementById('count').textContent = joined + ' / ' + threshold;
-            const pct = Math.min(100, Math.round((joined / threshold) * 100));
-            document.getElementById('pct').textContent = pct + '%';
-            document.getElementById('bar').style.width = pct + '%';
-
-            // Step 1: join — enabled until room full and not sealed
-            document.getElementById('join-btn').disabled = joined >= threshold || sealed > 0;
-
-            // Step 2: submit — enabled once at least one joined and not all submitted and not sealed
-            document.getElementById('submit-btn').disabled = joined === 0 || submitted >= joined || sealed > 0;
-
-            // Step 3: seal — enabled as soon as at least one score is submitted and not already sealed
-            document.getElementById('seal-btn').disabled = submitted === 0 || sealed > 0;
-
-            // Undo seal — visible right next to seal after sealing, before reveal
-            const undoBtn = document.getElementById('undo-seal-btn');
-            undoBtn.classList.toggle('hidden', !(sealed > 0 && !revealed));
-
-            // Reveal — appears once any scores are sealed
-            const revealBtn = document.getElementById('reveal-btn');
-            if (sealed > 0 && !revealed) {
-                revealBtn.classList.remove('hidden');
-            } else {
-                revealBtn.classList.add('hidden');
-            }
-        }
-
-        function join() {
-            if (joined >= threshold || sealed > 0) return;
-            joined++;
-            const items = document.querySelectorAll('#audience > div');
-            if (joined <= items.length) {
-                const span = items[joined - 1].querySelector('span');
-                if (span) span.textContent = 'joined';
-            } else {
-                const extra = document.createElement('div');
-                extra.className = 'flex items-center gap-2 p-2 rounded group';
-                extra.style.background = 'var(--surface)';
-                extra.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs" style="background:var(--accent);color:var(--card)">G</div>
-                    <div class="text-sm flex-1"><b>Guest ${joined}</b> · <span class="text-xs opacity-60">joined</span></div>
-                    <button onclick="removeJumper(${joined})" class="remove-btn opacity-0 group-hover:opacity-100 text-xs px-2 py-1 rounded" style="background:var(--accent-2);color:#fff" title="Remove">✕</button>`;
-                document.getElementById('audience').appendChild(extra);
-            }
-            document.getElementById('step-join-num').textContent = '✓';
-            document.getElementById('step-join-num').classList.add('done');
-            bot('Jumper ' + joined + ' joined the round.');
-            sync();
-        }
-
-        function removeJumper(index) {
-            if (sealed > 0 || revealed) return;
-            const items = document.querySelectorAll('#audience > div');
-            if (index < 1 || index > items.length) return;
-            const removed = items[index - 1];
-            removed.classList.add('hidden');
-            joined = Math.max(0, joined - 1);
-            // If they had already "submitted", recalc submitted count (mockup: reset to 0 so host resubmits)
-            submitted = 0;
-            document.getElementById('step-submit-num').textContent = '2';
-            document.getElementById('step-submit-num').classList.remove('done');
-            bot('Jumper removed. Resubmit scorecards for the remaining players.');
-            sync();
-        }
-
-        function submitAll() {
-            if (joined === 0 || submitted >= joined || sealed > 0) return;
-            submitted = joined;
-            document.getElementById('step-submit-num').textContent = '✓';
-            document.getElementById('step-submit-num').classList.add('done');
-            bot('All ' + submitted + ' scorecards submitted. Ready to seal.');
-            sync();
-        }
-
-        function seal() {
-            if (submitted === 0 || submitted < joined || sealed > 0 || revealed) return;
-            sealed = submitted;
-            document.getElementById('step-seal-num').textContent = '✓';
-            document.getElementById('step-seal-num').classList.add('done');
-            bot('All ' + sealed + ' scores sealed. Click Reveal now when ready, or Undo seal if you need to change something.');
-            sync();
-        }
-
-        function undoSeal() {
-            if (revealed || sealed === 0) return;
-            sealed = 0;
-            document.getElementById('step-seal-num').textContent = '3';
-            document.getElementById('step-seal-num').classList.remove('done');
-            bot('Seal undone. Scorecards are unsealed and can be edited.');
-            sync();
-        }
-
-        function manualReveal() {
-            if (revealed) return;
-            revealed = true;
-            document.getElementById('step-lobby').classList.add('hidden');
-            document.getElementById('step-reveal').classList.remove('hidden');
-            document.getElementById('undo-seal-btn').classList.add('hidden');
-            bot('🚀 Reveal triggered by the host.');
-        }
-
-        function bot(text) {
-            const d = document.createElement('div');
-            d.className = 'p-3 rounded';
-            d.style.background = 'var(--surface)';
-            d.innerHTML = `<span class="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded" style="background:var(--accent);color:var(--card)">SUPPER BOT</span>
-                <span class="text-sm ml-2">${text}</span>`;
-            document.getElementById('bot-chat').appendChild(d);
-            d.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function stamp(emoji) {
-            const d = document.createElement('div');
-            d.className = 'p-2 rounded';
-            d.style.background = 'var(--surface)';
-            d.innerHTML = `<b>Supper Bot</b> ${emoji} stamp wave detected. This moment is getting loud.`;
-            document.getElementById('riff').prepend(d);
-        }
-
-        function postRecap() {
-            const d = document.createElement('div');
-            d.className = 'p-2 rounded';
-            d.style.background = 'var(--good)';
-            d.style.color = 'white';
-            d.innerHTML = `<b>Posted to #ritual-chamber</b><br>
-                <span class="text-xs opacity-90">Recap: cloche crimes, convenience sushi, and one affectionate Ghost Jumper.</span>`;
-            document.getElementById('riff').prepend(d);
-        }
+        // Init
+        window.onload = () => {
+            pickTheme('theme-arcade');
+        };
     </script>
 </body>
 </html>
