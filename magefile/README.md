@@ -20,4 +20,24 @@ mage test -coverage
 mage ci:all
 ```
 
+## Agent Verification
+
+An unattended runner must allocate an isolated Postgres database whose name ends
+in `_test`, inject its URL, and identify each attempt. The runner owns database
+provisioning and cleanup, so agent verification cannot stop a developer or
+home-server stack.
+
+```sh
+AGENT_TASK_ID=issue-123 \
+AGENT_ATTEMPT_ID=1 \
+AGENT_SOURCE_REVISION=$(git rev-parse HEAD) \
+SUPPERJUMPIN_TEST_DATABASE_URL=postgres://.../supperjumpin_issue_123_test?sslmode=disable \
+mage agent:verify
+```
+
+The target runs the canonical lint and coverage test gates and writes
+`artifacts/agents/<task>/<attempt>/result.json`. Task IDs may contain only
+letters, digits, `.`, `_`, and `-`. CI runners may supply `GITHUB_SHA` instead
+of `AGENT_SOURCE_REVISION`.
+
 Keep target comments current so `mage -l` stays self-documenting.

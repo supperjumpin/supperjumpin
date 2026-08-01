@@ -64,6 +64,7 @@ mage dev:api              # Run API against existing DB
 mage dev:bot              # Run Discord bot (needs SUPPERJUMPIN_BOT_TOKEN in env)
 mage docs                 # Serve Swagger UI for apps/api/openapi.yaml
 mage init:all             # Install local tool binaries and print the common next steps
+mage agent:verify         # Run canonical gates against a runner-isolated test database
 
 # Testing
 mage test                 # Run Go API + bot tests (API tests prep Postgres-backed _test DB)
@@ -89,6 +90,7 @@ mage build:bot            # Build Dockerfile.bot as supperjumpin-bot:dev
 - Auth is local-first: `SUPPERJUMPIN_ADAPTER_TOKEN` defaults to `dev-token` in `mage dev:api` and `mage dev:bot`.
 - `mage test` resets a `_test`-suffixed database and applies migrations before running API tests, then runs the bot tests in-process.
 - `mage test -coverage` writes `coverage/api.coverprofile`, `coverage/bot.coverprofile`, `coverage/api-report.json`, and `coverage/bot-report.json`, and appends summaries when `GITHUB_STEP_SUMMARY` is set.
+- `mage agent:verify` requires `AGENT_TASK_ID`, `AGENT_ATTEMPT_ID`, a source revision, and a runner-provided `SUPPERJUMPIN_TEST_DATABASE_URL` ending in `_test`; it never starts or stops a shared stack.
 - Node is no longer required for this repo. `sqlc`, `migrate`, and `mage` are the only local helper binaries beyond Go and Docker.
 - No production deployment configs exist in this repo.
 - Issues tracked in GitHub Issues (`supperjumpin/supperjumpin`).
