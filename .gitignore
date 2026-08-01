@@ -21,6 +21,7 @@ dist/
 build/
 coverage/
 mage_output/
+artifacts/
 
 # Caches
 .cache/
