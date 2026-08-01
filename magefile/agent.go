@@ -32,10 +32,6 @@ func agentAttemptFromEnv(getenv func(string) string) (agentAttempt, error) {
 	if !safePathComponent(attemptID) {
 		return agentAttempt{}, fmt.Errorf("AGENT_ATTEMPT_ID must contain only letters, digits, dot, underscore, or hyphen")
 	}
-	if strings.TrimSpace(sourceRevision) == "" {
-		return agentAttempt{}, fmt.Errorf("AGENT_SOURCE_REVISION or GITHUB_SHA is required")
-	}
-
 	return agentAttempt{
 		TaskID:         taskID,
 		AttemptID:      attemptID,

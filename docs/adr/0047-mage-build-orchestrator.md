@@ -35,6 +35,12 @@ Targets are namespaced in Go, so `mage -l` shows them grouped:
 
 After this lands, **Node is no longer required for the project at all** — the bot has no `package.json`, the api-client is gone (ADR-0049), the `scripts/` directory is gone. This is intentional: the pivot is to a Go-only project plus a Discord adapter.
 
+The exception is `scripts/agent-verify.sh`: it is a minimal POSIX launcher, not
+build orchestration. It selects an attempt-specific `MAGEFILE_CACHE` before
+Mage compiles its target, preventing concurrent agent attempts from racing in
+the default user-global Mage cache. It then delegates directly to
+`mage agent:verify`; all verification behavior remains in `magefile/`.
+
 ## CI integration
 
 `.github/workflows/ci.yml` becomes a thin wrapper that calls `mage ci:lint`, `mage ci:test`, and `mage ci:build`. The three sub-targets are public so the workflow can run them in parallel jobs; `mage ci:all` runs them sequentially via `mg.SerialDeps`. Local `mage ci:all` and GitHub CI run the same steps — no "works locally, fails in CI" drift.

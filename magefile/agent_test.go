@@ -39,3 +39,22 @@ func TestAgentAttemptFromEnvRejectsUnsafePath(t *testing.T) {
 		t.Fatal("agentAttemptFromEnv() error = nil, want unsafe task ID error")
 	}
 }
+
+func TestAgentAttemptFromEnvAllowsMissingSourceRevision(t *testing.T) {
+	attempt, err := agentAttemptFromEnv(func(key string) string {
+		switch key {
+		case "AGENT_TASK_ID":
+			return "issue-123"
+		case "AGENT_ATTEMPT_ID":
+			return "attempt-1"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempt.SourceRevision != "" {
+		t.Fatalf("SourceRevision = %q, want empty", attempt.SourceRevision)
+	}
+}

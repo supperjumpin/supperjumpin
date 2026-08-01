@@ -19,15 +19,21 @@ func (Agent) Verify() error {
 	if err != nil {
 		return err
 	}
+	attempt.StartedAt = time.Now().UTC().Format(time.RFC3339)
+	if attempt.SourceRevision == "" {
+		attempt.FailureClass = "runner/source_revision_required"
+		return finishAgentAttempt(attempt, fmt.Errorf("AGENT_SOURCE_REVISION or GITHUB_SHA is required"))
+	}
 	testDatabaseURL := strings.TrimSpace(os.Getenv("SUPPERJUMPIN_TEST_DATABASE_URL"))
 	if testDatabaseURL == "" {
-		return fmt.Errorf("SUPPERJUMPIN_TEST_DATABASE_URL is required; the runner must provide an isolated database ending in _test")
+		attempt.FailureClass = "runner/test_database_required"
+		return finishAgentAttempt(attempt, fmt.Errorf("SUPPERJUMPIN_TEST_DATABASE_URL is required; the runner must provide an isolated database ending in _test"))
 	}
 	dbName, err := ParseDatabaseName(testDatabaseURL)
 	if err != nil || !IsSafeToReset(dbName, false) {
-		return fmt.Errorf("SUPPERJUMPIN_TEST_DATABASE_URL must name an isolated database ending in _test")
+		attempt.FailureClass = "runner/unsafe_test_database"
+		return finishAgentAttempt(attempt, fmt.Errorf("SUPPERJUMPIN_TEST_DATABASE_URL must name an isolated database ending in _test"))
 	}
-	attempt.StartedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := runner.Run(psqlCommand(testDatabaseURL, "SELECT 1;", false)); err != nil {
 		attempt.FailureClass = "runner/test_database_unavailable"
 		return finishAgentAttempt(attempt, err)

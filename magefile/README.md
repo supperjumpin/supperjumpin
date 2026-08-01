@@ -32,12 +32,13 @@ AGENT_TASK_ID=issue-123 \
 AGENT_ATTEMPT_ID=1 \
 AGENT_SOURCE_REVISION=$(git rev-parse HEAD) \
 SUPPERJUMPIN_TEST_DATABASE_URL=postgres://.../supperjumpin_issue_123_test?sslmode=disable \
-mage agent:verify
+./scripts/agent-verify.sh
 ```
 
-The target runs the canonical lint and coverage test gates and writes
-`artifacts/agents/<task>/<attempt>/result.json`. Task IDs may contain only
-letters, digits, `.`, `_`, and `-`. CI runners may supply `GITHUB_SHA` instead
-of `AGENT_SOURCE_REVISION`.
+The launcher assigns a Mage compilation cache unique to that task and attempt,
+then delegates to `mage agent:verify`. The target runs the canonical lint and
+coverage test gates and writes `artifacts/agents/<task>/<attempt>/result.json`.
+Task IDs may contain only letters, digits, `.`, `_`, and `-`. CI runners may
+supply `GITHUB_SHA` instead of `AGENT_SOURCE_REVISION`.
 
 Keep target comments current so `mage -l` stays self-documenting.
