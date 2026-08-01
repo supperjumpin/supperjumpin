@@ -35,11 +35,12 @@ Targets are namespaced in Go, so `mage -l` shows them grouped:
 
 After this lands, **Node is no longer required for the project at all** — the bot has no `package.json`, the api-client is gone (ADR-0049), the `scripts/` directory is gone. This is intentional: the pivot is to a Go-only project plus a Discord adapter.
 
-The exception is `scripts/agent-verify.sh`: it is a minimal POSIX launcher, not
-build orchestration. It selects an attempt-specific `MAGEFILE_CACHE` before
-Mage compiles its target, preventing concurrent agent attempts from racing in
-the default user-global Mage cache. It then delegates directly to
-`mage agent:verify`; all verification behavior remains in `magefile/`.
+The exceptions are `scripts/agent-verify.sh` and `scripts/agent-run.sh`: they
+are minimal POSIX launchers, not build orchestration. The first selects an
+attempt-specific `MAGEFILE_CACHE` before Mage compiles its target, preventing
+concurrent agent attempts from racing in the default user-global Mage cache.
+The second owns only an ephemeral Docker Postgres lifecycle and delegates to
+the first. All verification behavior remains in `magefile/`.
 
 ## CI integration
 
